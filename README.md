@@ -1,10 +1,16 @@
 # Aloha Lite
 
-This repository provides a complete robotics stack for controlling Phosphobot to dispense fluids and capture snapshots when the robot reaches a target pose. The stack includes the full phosphobot system with FastAPI services for robot control and vision capture, served behind a Traefik gateway with a web front-end.
+This repository provides a complete robotics stack for controlling dual SO-101 arms with Phosphobot, including dataset processing, rule extraction, and configuration-based robot control. The system includes phosphobot integration, vision capture, and advanced manipulation capabilities for laboratory automation.
 
 ## Features
 
+- **Dual SO-101 Arm Control** - Synchronized control of dual robot arms via phosphobot APIs
+- **Dataset Processing** - LeRobot v2 dataset integration with rule extraction
+- **Configuration Management** - JSON-based robot configuration system
 - **Complete Phosphobot Integration** - Full phosphobot system included as a git subtree
+- **Laboratory Automation** - Pre-configured tasks like dispensing water to beakers
+- **Safety Features** - Collision-aware execution with optional initialization
+- **CSV/Python Output** - Flexible data formats for robot rules
 - **Robust error handling** with structured responses and timeouts
 - **Resource cleanup** to prevent memory leaks
 - **Health checks** for all services
@@ -15,16 +21,66 @@ This repository provides a complete robotics stack for controlling Phosphobot to
 - **Real-time robot control** via ZMQ messaging
 - **Vision capture and analysis** with color checker detection
 
+## New Robot Control Features
+
+### Configuration-Based Execution
+Execute pre-defined robot configurations safely:
+
+```bash
+# List available configurations
+python3 execute_rules.py
+
+# Execute specific configuration (safe - no initialization)
+python3 execute_rules.py --config standoff_configuration_stage1
+python3 execute_rules.py --config dispensing_water_to_beaker
+
+# Enable initialization (use with caution - may cause collisions)
+python3 execute_rules.py --config standoff_configuration_stage1 --init
+```
+
+### Dataset Rule Extraction
+Convert LeRobot datasets to executable robot configurations:
+
+```bash
+# Extract rules as Python script
+python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out rules.py
+
+# Extract rules as CSV file
+python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out rules.csv
+```
+
+### Available Configurations
+
+The system includes these pre-configured robot positions:
+
+- **`standoff_configuration_stage1`** - Safe standoff position from dataset
+- **`dispensing_water_to_beaker`** - Laboratory procedure for water dispensing
+
+Configurations are stored in `temp_rules/robot_configurations.json` with full joint specifications and usage examples.
+
+### Automated Subtree Management
+
+Streamlined git subtree operations:
+
+```bash
+# Push aloha-lite-demo2rule subtree (automated)
+./push_subtree.sh "Your commit message"
+# or
+python3 push_subtree.py "Your commit message"
+```
+
 ## Architecture
 
 The system consists of:
 
 1. **Phosphobot Core** - Robot control system with ZMQ state publishing
-2. **Robot Service** - FastAPI service for dispense operations
+2. **Robot Service** - FastAPI service for dispense operations  
 3. **Vision Bridge** - Image capture and processing service
 4. **Frontend** - Web interface for robot control
-5. **MinIO** - S3-compatible object storage for images
-6. **Traefik** - API gateway and load balancer
+5. **Demo2Rules** - Dataset processing and rule extraction
+6. **Execute Rules** - Configuration-based robot execution
+7. **MinIO** - S3-compatible object storage for images
+8. **Traefik** - API gateway and load balancer
 
 ## Running locally
 
@@ -52,11 +108,68 @@ The system will automatically create the required S3 bucket and handle service d
 
 ## Robot Configuration
 
-The system supports multiple robot types via the `ROBOT_TYPE` environment variable:
+The system supports multiple robot types and configurations:
+
+### Environment Configuration
+Via the `ROBOT_TYPE` environment variable:
 - `simulator` - Virtual robot for testing (default)
 - `so100` - SO-100 physical robot
-- `so101` - SO-101 physical robot
+- `so101` - SO-101 physical robot (recommended for dual-arm setups)
 - `wx250` - WX-250 robot arm
+
+### Robot Configurations
+Pre-defined configurations in JSON format for common tasks:
+
+```json
+{
+  "configurations": {
+    "standoff_configuration_stage1": {
+      "name": "standoff_configuration_stage1",
+      "description": "Safe standoff position",
+      "configuration": {
+        "left_arm": { "joints": { "j1": 0.172, ... } },
+        "right_arm": { "joints": { "j1": 0.379, ... } }
+      }
+    }
+  }
+}
+```
+
+### Safety Features
+- **No initialization by default** - Prevents arm collisions
+- **Direct joint control** - Move from current position to target
+- **Configuration validation** - Ensures valid joint ranges
+- **Error handling** - Graceful failure with cleanup
+
+## Development Workflow
+
+### 1. Dataset Processing
+```bash
+# Process LeRobot dataset
+cd aloha-lite-demo2rule
+python3 demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out episode_1_rules.csv
+```
+
+### 2. Configuration Creation
+```bash
+# Create new configurations from CSV data
+# Edit temp_rules/robot_configurations.json to add new positions
+```
+
+### 3. Robot Execution
+```bash
+# Test configuration safely
+python3 execute_rules.py --config your_new_configuration
+
+# Move to standoff position
+python3 execute_rules.py --config standoff_configuration_stage1
+```
+
+### 4. Subtree Management
+```bash
+# Push changes to subtree
+./push_subtree.sh "Add new laboratory procedure"
+```
 
 ## Production Deployment
 
@@ -72,7 +185,10 @@ For production use:
 
 ## Git Subtree Management
 
-The phosphobot repository is included as a git subtree. To update it:
+The repository includes two git subtrees:
+
+### Phosphobot Subtree
+The phosphobot repository is included as a git subtree:
 
 ```bash
 # Pull latest changes from phosphobot
@@ -82,13 +198,159 @@ git subtree pull --prefix=phosphobot https://github.com/hafnium49/phosphobot.git
 git subtree push --prefix=phosphobot https://github.com/hafnium49/phosphobot.git main
 ```
 
-## Testing the Colour Checker
+### Aloha-Lite-Demo2Rule Subtree
+The demo2rule processing system:
 
-To verify the colour checker detection use the provided script:
+```bash
+# Automated subtree push (recommended)
+./push_subtree.sh "Your commit message"
+
+# Alternative Python version
+python3 push_subtree.py "Your commit message" 
+
+# Manual subtree operations
+git subtree pull --prefix=aloha-lite-demo2rule https://github.com/hafnium49/aloha-lite-demo2rule.git main --squash
+git subtree push --prefix=aloha-lite-demo2rule https://github.com/hafnium49/aloha-lite-demo2rule.git main
+```
+
+The automated scripts handle .gitignore management and provide colored output with error handling.
+
+## Project Structure
+
+```
+aloha-lite/
+├── README.md                      # This file
+├── docker-compose.yml             # Service orchestration
+├── execute_rules.py               # Configuration-based robot execution
+├── push_subtree.sh               # Automated subtree push (bash)
+├── push_subtree.py               # Automated subtree push (python)
+├── frontend/                     # Web interface
+├── robot_service/                # FastAPI robot control
+├── vision_bridge/                # Image processing
+├── phosphobot/                   # Robot control system (subtree)
+├── aloha-lite-demo2rule/         # Dataset processing (subtree)
+└── temp_rules/                   # Generated configurations
+    ├── robot_configurations.json # Robot position definitions
+    └── rules_episode_1.csv       # Extracted dataset rules
+```
+
+## API Endpoints
+
+### Robot Control
+- `POST /joints/write?robot_id={0|1}` - Set joint positions
+- `POST /joints/read?robot_id={0|1}` - Read current joint positions  
+- `POST /move/init` - Initialize robot system
+
+### Vision Processing
+- `POST /color-checker` - Analyze color checker in images
+- `GET /health` - Service health check
+
+### Web Interface
+- `GET /` - Main robot control dashboard
+- `GET /docs` - API documentation (Swagger UI)
+
+## Testing and Validation
+
+### Color Checker Detection
+To verify the color checker detection:
 
 ```bash
 python vision_bridge/tests/test_color_checker.py
 ```
 
-The script uploads the sample image from `vision_bridge/samples` to the
-`/color-checker` endpoint and prints the JSON response.
+### Robot Configuration Testing
+Test robot configurations safely:
+
+```bash
+# List all available configurations
+python3 execute_rules.py
+
+# Test specific configurations
+python3 execute_rules.py --config standoff_configuration_stage1
+python3 execute_rules.py --config dispensing_water_to_beaker
+
+# Validate JSON configuration files
+python3 -m json.tool temp_rules/robot_configurations.json
+```
+
+### Dataset Processing Testing
+Validate dataset rule extraction:
+
+```bash
+cd aloha-lite-demo2rule
+python3 tests/test_demo2rules.py  # If available
+```
+
+## Common Use Cases
+
+### Laboratory Automation
+```bash
+# 1. Move to standoff position
+python3 execute_rules.py --config standoff_configuration_stage1
+
+# 2. Execute laboratory procedure
+python3 execute_rules.py --config dispensing_water_to_beaker
+
+# 3. Return to standoff
+python3 execute_rules.py --config standoff_configuration_stage1
+```
+
+### Dataset-to-Robot Pipeline
+```bash
+# 1. Extract rules from dataset
+python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out new_task.csv
+
+# 2. Convert CSV to configuration (manual step)
+# Edit temp_rules/robot_configurations.json
+
+# 3. Execute new configuration
+python3 execute_rules.py --config new_task_configuration
+```
+
+### Development and Deployment
+```bash
+# 1. Start development environment
+docker-compose up --build -d
+
+# 2. Test robot configurations
+python3 execute_rules.py --config test_configuration
+
+# 3. Push changes to subtree
+./push_subtree.sh "Add new laboratory procedures"
+
+# 4. Deploy to production
+# Update .env with production settings
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+## Troubleshooting
+
+### Robot Collision Issues
+- **Problem**: Arms crash into each other during initialization
+- **Solution**: Use default behavior (no `--init` flag) or `--no-init` explicitly
+
+### Configuration Not Found
+- **Problem**: `Configuration 'name' not found`
+- **Solution**: Check configuration name matches JSON exactly, verify file exists in search directories
+
+### Dataset Processing Errors
+- **Problem**: Failed to download or process dataset
+- **Solution**: Check internet connection, verify dataset repository access, ensure sufficient disk space
+
+### Git Subtree Issues
+- **Problem**: Subtree push/pull conflicts
+- **Solution**: Use automated scripts (`./push_subtree.sh`) which handle .gitignore conflicts automatically
+
+## Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/new-laboratory-procedure`
+3. **Add configurations** to `temp_rules/robot_configurations.json`
+4. **Test thoroughly**: `python3 execute_rules.py --config your_config`
+5. **Update documentation** in README.md
+6. **Push subtree changes**: `./push_subtree.sh "Add new procedure"`
+7. **Submit pull request**
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
