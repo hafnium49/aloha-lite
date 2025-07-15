@@ -1,6 +1,6 @@
 # Subtree directories (keep local but don't track in git)
 phosphobot/
-# aloha-lite-demo2rule/ - temporarily commented for subtree push
+aloha-lite-demo2rule/
 
 # Python
 __pycache__/
