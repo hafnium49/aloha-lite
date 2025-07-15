@@ -1,16 +1,19 @@
 # Aloha Lite
 
-This repository provides a complete robotics stack for controlling dual SO-101 arms with Phosphobot, including dataset processing, rule extraction, and configuration-based robot control. The system includes phosphobot integration, vision capture, and advanced manipulation capabilities for laboratory automation.
+This repository provides a comprehensive robotics stack for controlling dual SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, and configuration-based robot control. The system includes complete phosphobot integration, vision capture, and sophisticated manipulation capabilities for laboratory automation.
 
 ## Features
 
 - **Dual SO-101 Arm Control** - Synchronized control of dual robot arms via phosphobot APIs
-- **Dataset Processing** - LeRobot v2 dataset integration with rule extraction
-- **Configuration Management** - JSON-based robot configuration system
+- **Advanced Dataset Processing** - LeRobot v2 dataset integration with CSV/Python rule extraction
+- **Time-Based Configuration Extraction** - Extract precise joint values at specific timestamps
+- **JSON Configuration Management** - Comprehensive robot configuration system with metadata
+- **Sequential Execution Tools** - Multi-step procedure automation with timing control
 - **Complete Phosphobot Integration** - Full phosphobot system included as a git subtree
 - **Laboratory Automation** - Pre-configured tasks like dispensing water to beakers
-- **Safety Features** - Collision-aware execution with optional initialization
-- **CSV/Python Output** - Flexible data formats for robot rules
+- **Enhanced Safety Features** - Collision-aware execution with default no-initialization
+- **Flexible Output Formats** - CSV, Python, and JSON configurations for robot rules
+- **Intelligent Subtree Management** - Automated push scripts with fallback handling
 - **Robust error handling** with structured responses and timeouts
 - **Resource cleanup** to prevent memory leaks
 - **Health checks** for all services
@@ -27,47 +30,81 @@ This repository provides a complete robotics stack for controlling dual SO-101 a
 Execute pre-defined robot configurations safely:
 
 ```bash
-# List available configurations
-python3 execute_rules.py
-
 # Execute specific configuration (safe - no initialization)
-python3 execute_rules.py --config standoff_configuration_stage1
-python3 execute_rules.py --config dispensing_water_to_beaker
+cd temp_rules
+python3 ../execute_rules.py robot_configurations.json standoff_configuration_stage1
+python3 ../execute_rules.py robot_configurations.json dispensing_water_to_beaker
 
 # Enable initialization (use with caution - may cause collisions)
-python3 execute_rules.py --config standoff_configuration_stage1 --init
+python3 ../execute_rules.py robot_configurations.json standoff_configuration_stage1 --init
+```
+
+### Sequential Procedure Execution
+Execute multi-step robot procedures:
+
+```bash
+# Execute predefined sequences
+python3 sequential_execute.py standoff_to_dispensing
+python3 sequential_execute.py full_lab_procedure
+
+# List available sequences
+python3 sequential_execute.py --list
 ```
 
 ### Dataset Rule Extraction
 Convert LeRobot datasets to executable robot configurations:
 
 ```bash
-# Extract rules as Python script
+# Extract rules as Python script (default)
 python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out rules.py
 
-# Extract rules as CSV file
-python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out rules.csv
+# Extract rules as CSV file for analysis
+python3 aloha-lite-demo2rule/demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out rules.csv --format csv
+```
+
+### Time-Based Joint Extraction
+Extract precise joint configurations at specific timestamps:
+
+```bash
+# Extract joint configuration at 4.2 seconds from episode 1
+cd aloha-lite-demo2rule
+python3 extract_at_time.py Hafnium49/aloha_lite 1 4.2
+
+# This generates:
+# - extracted_Hafnium49_aloha_lite_ep1_t4.2s.json (detailed configuration)
+# - config_4_2s.py (executable Python configuration)
 ```
 
 ### Available Configurations
 
 The system includes these pre-configured robot positions:
 
-- **`standoff_configuration_stage1`** - Safe standoff position from dataset
-- **`dispensing_water_to_beaker`** - Laboratory procedure for water dispensing
+- **`standoff_configuration_stage1`** - Safe standoff position extracted from dataset stage 1
+- **`dispensing_water_to_beaker`** - Laboratory procedure for water dispensing (precise values from demonstration at 4.2s)
 
-Configurations are stored in `temp_rules/robot_configurations.json` with full joint specifications and usage examples.
+Configurations are stored in `temp_rules/robot_configurations.json` with:
+- Complete joint specifications for both arms
+- Source metadata (dataset, episode, timestamp)
+- Phosphobot API usage examples
+- Python code examples for execution
 
-### Automated Subtree Management
+### Enhanced Subtree Management
 
-Streamlined git subtree operations:
+Intelligent git subtree operations with automatic fallback:
 
 ```bash
-# Push aloha-lite-demo2rule subtree (automated)
+# Enhanced automated subtree push (recommended)
 ./push_subtree.sh "Your commit message"
 # or
 python3 push_subtree.py "Your commit message"
 ```
+
+**New Features:**
+- Automatic fallback to force push when regular push fails
+- Smart .gitignore handling (temporary modification and restoration)
+- Enhanced error handling with automatic cleanup
+- Colored output with detailed status reporting
+- Handles non-fast-forward push scenarios gracefully
 
 ## Architecture
 
@@ -77,10 +114,13 @@ The system consists of:
 2. **Robot Service** - FastAPI service for dispense operations  
 3. **Vision Bridge** - Image capture and processing service
 4. **Frontend** - Web interface for robot control
-5. **Demo2Rules** - Dataset processing and rule extraction
-6. **Execute Rules** - Configuration-based robot execution
-7. **MinIO** - S3-compatible object storage for images
-8. **Traefik** - API gateway and load balancer
+3. **Demo2Rules** - Dataset processing and rule extraction with CSV/Python output
+4. **Extract At Time** - Precise joint value extraction at specific timestamps
+5. **Execute Rules** - Configuration-based robot execution with safety features
+6. **Sequential Execute** - Multi-step procedure automation
+7. **Enhanced Subtree Management** - Intelligent git subtree operations
+8. **MinIO** - S3-compatible object storage for images
+9. **Traefik** - API gateway and load balancer
 
 ## Running locally
 
@@ -118,57 +158,87 @@ Via the `ROBOT_TYPE` environment variable:
 - `wx250` - WX-250 robot arm
 
 ### Robot Configurations
-Pre-defined configurations in JSON format for common tasks:
+Advanced JSON-based configurations for precise robot control:
 
 ```json
 {
   "configurations": {
-    "standoff_configuration_stage1": {
-      "name": "standoff_configuration_stage1",
-      "description": "Safe standoff position",
+    "dispensing_water_to_beaker": {
+      "name": "dispensing_water_to_beaker",
+      "description": "Configuration for dispensing water - extracted from demonstration at 4.2s",
+      "source": {
+        "dataset": "Hafnium49/aloha_lite",
+        "episode": 1,
+        "timestamp": 4.2,
+        "frame_index": 126,
+        "extraction_method": "time_based"
+      },
       "configuration": {
-        "left_arm": { "joints": { "j1": 0.172, ... } },
-        "right_arm": { "joints": { "j1": 0.379, ... } }
+        "left_arm": { "joints": { "j1": 0.227, "j2": 0.746, ... } },
+        "right_arm": { "joints": { "j1": 0.219, "j2": 0.198, ... } }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "left_arm": "POST /joints/write with body: [0.227, 0.746, ...]",
+          "right_arm": "POST /joints/write with body: [0.219, 0.198, ...]"
+        }
       }
     }
   }
 }
 ```
 
-### Safety Features
-- **No initialization by default** - Prevents arm collisions
+### Enhanced Safety Features
+- **Default no-initialization** - Prevents arm collisions during startup
 - **Direct joint control** - Move from current position to target
-- **Configuration validation** - Ensures valid joint ranges
-- **Error handling** - Graceful failure with cleanup
+- **Configuration validation** - Ensures valid joint ranges and completeness
+- **Error handling** - Graceful failure with automatic cleanup
+- **Sequential timing** - Controlled delays between movements in procedures
 
 ## Development Workflow
 
 ### 1. Dataset Processing
 ```bash
-# Process LeRobot dataset
+# Process LeRobot dataset to CSV for analysis
 cd aloha-lite-demo2rule
-python3 demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out episode_1_rules.csv
+python3 demo2rules.py --dataset Hafnium49/aloha_lite --episode 1 --out episode_1_rules.csv --format csv
+
+# Extract specific timestamp configurations
+python3 extract_at_time.py Hafnium49/aloha_lite 1 4.2
 ```
 
-### 2. Configuration Creation
+### 2. Configuration Creation and Management
 ```bash
-# Create new configurations from CSV data
-# Edit temp_rules/robot_configurations.json to add new positions
+# Update configurations with extracted values
+# Precise joint values from extracted_Hafnium49_aloha_lite_ep1_t4.2s.json
+# can be used to update temp_rules/robot_configurations.json
+
+# Verify configuration format
+python3 -m json.tool temp_rules/robot_configurations.json
 ```
 
-### 3. Robot Execution
+### 3. Robot Execution and Testing
 ```bash
-# Test configuration safely
-python3 execute_rules.py --config your_new_configuration
+# Test configuration safely (no initialization)
+cd temp_rules
+python3 ../execute_rules.py robot_configurations.json your_new_configuration
 
-# Move to standoff position
-python3 execute_rules.py --config standoff_configuration_stage1
+# Execute sequential procedures
+python3 ../sequential_execute.py standoff_to_dispensing
+
+# Move to standoff position for safety
+python3 ../execute_rules.py robot_configurations.json standoff_configuration_stage1
 ```
 
-### 4. Subtree Management
+### 4. Enhanced Subtree Management
 ```bash
-# Push changes to subtree
-./push_subtree.sh "Add new laboratory procedure"
+# Push changes to subtree with automatic fallback
+./push_subtree.sh "Add new laboratory procedure with precise joint values"
+
+# The script automatically handles:
+# - .gitignore temporary modification
+# - Regular push with fallback to force push
+# - Proper cleanup and restoration
 ```
 
 ## Production Deployment
