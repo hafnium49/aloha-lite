@@ -159,7 +159,7 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     
     raise FileNotFoundError(f"Configuration '{config_name}' not found in search directories: {search_dirs}")
 
-def execute_configuration(config_name: str):
+def execute_configuration(config_name: str, skip_init: bool = True):
     """Execute a specific configuration by loading it from JSON."""
     
     print(f"🤖 Loading and executing configuration: {config_name}")
@@ -191,10 +191,13 @@ def execute_configuration(config_name: str):
         time.sleep(1)
         
         try:
-            # Initialize robots
-            print("\n🔧 Initializing robots...")
-            controller.initialize_robot()
-            time.sleep(2)
+            # Initialize robots (optional)
+            if not skip_init:
+                print("\n🔧 Initializing robots...")
+                controller.initialize_robot()
+                time.sleep(2)
+            else:
+                print("\n⚠️  Skipping robot initialization to prevent collisions")
             
             print(f"\n🎯 Moving to configuration: {config.get('name', config_name)}")
             print(f"Left arm joints: {[f'{j:.3f}' for j in left_joints]}")
@@ -306,12 +309,25 @@ if __name__ == "__main__":
                        help="Configuration name to load (e.g., 'standoff_configuration_stage1')")
     parser.add_argument("--legacy", action="store_true",
                        help="Run the original learned sequence demo")
+    parser.add_argument("--init", action="store_true",
+                       help="Enable robot initialization (WARNING: may cause collisions)")
+    parser.add_argument("--no-init", action="store_true", 
+                       help="Explicitly disable robot initialization (default)")
     
     args = parser.parse_args()
     
+    # Determine initialization setting
+    if args.init:
+        skip_init = False
+        print("⚠️  Robot initialization ENABLED - use with caution!")
+    else:
+        skip_init = True
+        if not args.no_init:
+            print("✅ Robot initialization DISABLED by default (safer)")
+    
     if args.config:
         # Execute specific configuration
-        success = execute_configuration(args.config)
+        success = execute_configuration(args.config, skip_init=skip_init)
         if success:
             print(f"\n✅ Configuration '{args.config}' executed successfully!")
         else:
@@ -371,6 +387,8 @@ if __name__ == "__main__":
             
             print("Usage examples:")
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1")
+            print(f"  python3 execute_rules.py --config dispensing_water_to_beaker")
+            print(f"  python3 execute_rules.py --config standoff_configuration_stage1 --init  # Enable init (risky)")
             print(f"  python3 execute_rules.py --legacy")
         else:
             print("  No configuration files found.")
