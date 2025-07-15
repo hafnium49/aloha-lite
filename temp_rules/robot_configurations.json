@@ -48,12 +48,60 @@
           "code": "left_arm.move_j([0.17184780538082123, -1.8642418384552002, 1.459172010421753, -1.7568368911743164, -1.3824541568756104, 0.7871243357658386])\nright_arm.move_j([0.37898579239845276, -1.8044019937515259, 1.4131413698196411, -1.7553025484085083, -1.614141821861267, 1.5803860425949097])"
         }
       }
+    },
+    "dispensing_water_to_beaker": {
+      "name": "dispensing_water_to_beaker",
+      "description": "Configuration for dispensing water to a beaker from wash bottle",
+      "source": {
+        "type": "manual_configuration",
+        "task": "laboratory_procedure",
+        "equipment": ["wash_bottle", "beaker"]
+      },
+      "timestamp": "2025-07-15",
+      "configuration": {
+        "left_arm": {
+          "name": "SO-101 Left Arm",
+          "joints": {
+            "j1": 0.23,
+            "j2": 0.75,
+            "j3": 1.05,
+            "j4": -1.67,
+            "j5": -1.73,
+            "j6": -0.01
+          },
+          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "units": "radians"
+        },
+        "right_arm": {
+          "name": "SO-101 Right Arm",
+          "joints": {
+            "j1": 0.22,
+            "j2": 0.20,
+            "j3": 0.91,
+            "j4": -1.41,
+            "j5": -2.07,
+            "j6": 0.49
+          },
+          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "left_arm": "POST /joints/write with body: [0.23, 0.75, 1.05, -1.67, -1.73, -0.01]",
+          "right_arm": "POST /joints/write with body: [0.22, 0.20, 0.91, -1.41, -2.07, 0.49]"
+        },
+        "python_example": {
+          "description": "Example usage with phosphobot SkillClient",
+          "code": "left_arm.move_j([0.23, 0.75, 1.05, -1.67, -1.73, -0.01])\nright_arm.move_j([0.22, 0.20, 0.91, -1.41, -2.07, 0.49])"
+        }
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Robot configurations for dual SO-101 arms",
     "created": "2025-07-15",
-    "total_configurations": 1
+    "total_configurations": 2
   }
 }
