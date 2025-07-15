@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Push aloha-lite-demo2rule Subtree Script (Python Version)
-=========================================================
+Push aloha-lite-demo2rule Subtree Script (Enhanced Version)
+===========================================================
 
 This script automates the process of pushing the aloha-lite-demo2rule subtree
-to the remote repository while handling .gitignore modifications.
+to the remote repository while handling .gitignore modifications and fallback
+to force push when necessary.
 
 Usage:
     python3 push_subtree.py [commit_message]
@@ -53,6 +54,40 @@ def run_command(cmd, check=True, capture_output=False):
             return False
         return False
 
+def push_subtree_fallback(commit_message):
+    """Fallback method using subtree split and force push."""
+    print_warning("Regular subtree push failed, trying fallback method...")
+    
+    temp_branch = "temp-demo2rule-push"
+    
+    try:
+        # Clean up any existing temp branch
+        run_command(f"git branch -D {temp_branch}", check=False)
+        
+        # Split the subtree into a temporary branch
+        print_status("Creating temporary subtree branch...")
+        run_command(f"git subtree split --prefix=aloha-lite-demo2rule -b {temp_branch}")
+        print_success(f"Created temporary branch: {temp_branch}")
+        
+        # Force push the temporary branch to remote
+        print_status("Force pushing subtree to remote repository...")
+        remote_url = "https://github.com/hafnium49/aloha-lite-demo2rule.git"
+        run_command(f"git push {remote_url} {temp_branch}:main --force")
+        print_success("Subtree force pushed successfully")
+        
+        # Clean up temporary branch
+        print_status("Cleaning up temporary branch...")
+        run_command(f"git branch -D {temp_branch}")
+        print_success("Temporary branch deleted")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Fallback method failed: {e}")
+        # Clean up temporary branch if it exists
+        run_command(f"git branch -D {temp_branch}", check=False)
+        return False
+
 def main():
     # Get commit message from argument or use default
     commit_message = sys.argv[1] if len(sys.argv) > 1 else "Update aloha-lite-demo2rule subtree"
@@ -64,82 +99,73 @@ def main():
         print_error("aloha-lite-demo2rule directory not found. Please run this script from the aloha-lite root directory.")
         sys.exit(1)
     
-    # Check if there are any uncommitted changes in aloha-lite-demo2rule
-    print_status("Checking for uncommitted changes in aloha-lite-demo2rule...")
-    status_output = run_command("git status --porcelain aloha-lite-demo2rule/", capture_output=True)
-    
-    if status_output:
-        print_warning("Found uncommitted changes in aloha-lite-demo2rule/")
-        run_command("git status aloha-lite-demo2rule/", check=False)
-        
-        response = input("Do you want to commit these changes? (y/n): ").lower().strip()
-        if response == 'y':
-            print_status("Committing changes...")
-            run_command("git add aloha-lite-demo2rule/")
-            run_command(f'git commit -m "{commit_message}"')
-            print_success("Changes committed")
-        else:
-            print_error("Please commit or stash changes before pushing subtree")
-            sys.exit(1)
-    else:
-        print_status("No uncommitted changes found")
+    backup_file = Path('.gitignore.backup')
     
     try:
         # Step 1: Backup .gitignore
         print_status("Backing up .gitignore...")
         with open('.gitignore', 'r') as f:
             original_gitignore = f.read()
-        with open('.gitignore.backup', 'w') as f:
+        with open(backup_file, 'w') as f:
             f.write(original_gitignore)
         print_success(".gitignore backed up")
         
-        # Step 2: Temporarily modify .gitignore
+        # Step 2: Temporarily modify .gitignore to allow tracking
         print_status("Temporarily modifying .gitignore...")
         modified_gitignore = original_gitignore.replace(
             'aloha-lite-demo2rule/',
-            '# aloha-lite-demo2rule/  # Temporarily commented for subtree push'
+            '# aloha-lite-demo2rule/ - temporarily commented for subtree push'
         )
         with open('.gitignore', 'w') as f:
             f.write(modified_gitignore)
         print_success(".gitignore modified")
         
-        # Step 3: Add and commit changes
+        # Step 3: Add and commit the aloha-lite-demo2rule directory
         print_status("Adding aloha-lite-demo2rule to git tracking...")
-        run_command("git add .gitignore aloha-lite-demo2rule/")
+        run_command("git add aloha-lite-demo2rule/")
+        run_command("git add .gitignore")
         
-        # Check if there are changes to commit
-        diff_output = run_command("git diff --cached --quiet", check=False, capture_output=True)
-        if run_command("git diff --cached --quiet", check=False):
-            print_warning("No changes to commit")
-        else:
-            run_command(f'git commit -m "Prepare for subtree push: {commit_message}"')
+        # Check if there are actually changes to commit
+        status_output = run_command("git diff --cached --name-only", capture_output=True)
+        if status_output:
+            run_command(f'git commit -m "Temporarily track aloha-lite-demo2rule for subtree push: {commit_message}"')
             print_success("Changes committed")
-        
-        # Step 4: Push the subtree
-        print_status("Pushing aloha-lite-demo2rule subtree...")
-        if run_command("git subtree push --prefix=aloha-lite-demo2rule origin main", check=False):
-            print_success("Subtree pushed successfully")
         else:
-            print_error("Subtree push failed")
-            raise Exception("Subtree push failed")
+            print_warning("No changes to commit")
         
-        # Step 5: Restore .gitignore
+        # Step 4: Try regular subtree push first
+        print_status("Attempting regular subtree push...")
+        remote_url = "https://github.com/hafnium49/aloha-lite-demo2rule.git"
+        
+        if run_command(f"git subtree push --prefix=aloha-lite-demo2rule {remote_url} main", check=False):
+            print_success("Regular subtree push succeeded")
+            subtree_push_success = True
+        else:
+            # Step 5: Fallback to force push method
+            subtree_push_success = push_subtree_fallback(commit_message)
+        
+        if not subtree_push_success:
+            raise Exception("Both regular and fallback subtree push methods failed")
+        
+        # Step 6: Restore original .gitignore
         print_status("Restoring original .gitignore...")
         with open('.gitignore', 'w') as f:
             f.write(original_gitignore)
-        if Path('.gitignore.backup').exists():
-            Path('.gitignore.backup').unlink()
         print_success(".gitignore restored")
         
-        # Step 6: Commit the restored .gitignore
+        # Step 7: Commit the restored .gitignore
         print_status("Committing restored .gitignore...")
         run_command("git add .gitignore")
-        run_command('git commit -m "Restore .gitignore after subtree push"')
-        print_success(".gitignore changes committed")
         
-        # Step 7: Push the main repository changes
+        # Only commit if there are changes
+        status_output = run_command("git diff --cached --name-only", capture_output=True)
+        if status_output:
+            run_command('git commit -m "Restore .gitignore after subtree push"')
+            print_success(".gitignore changes committed")
+        
+        # Step 8: Push the main repository changes
         print_status("Pushing main repository changes...")
-        if run_command("git push --force-with-lease origin main", check=False):
+        if run_command("git push origin main", check=False):
             print_success("Main repository pushed successfully")
         else:
             print_warning("Main repository push failed, but subtree was pushed successfully")
@@ -157,15 +183,20 @@ def main():
     except Exception as e:
         print_error(f"Process failed: {e}")
         # Restore .gitignore in case of error
-        if Path('.gitignore.backup').exists():
+        if backup_file.exists():
             print_status("Restoring .gitignore due to error...")
-            with open('.gitignore.backup', 'r') as f:
+            with open(backup_file, 'r') as f:
                 backup_content = f.read()
             with open('.gitignore', 'w') as f:
                 f.write(backup_content)
-            Path('.gitignore.backup').unlink()
             print_success(".gitignore restored")
         sys.exit(1)
+    
+    finally:
+        # Clean up backup file
+        if backup_file.exists():
+            backup_file.unlink()
+            print_status("Backup file cleaned up")
 
 if __name__ == "__main__":
     main()
