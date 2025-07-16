@@ -160,7 +160,13 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     raise FileNotFoundError(f"Configuration '{config_name}' not found in search directories: {search_dirs}")
 
 def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 3, right_arm_id: int = 2):
-    """Execute a specific configuration by loading it from JSON."""
+    """Execute a specific configuration by loading it from JSON.
+    
+    Supports both dual-arm and single-arm configurations:
+    - If both arms are specified: moves both arms
+    - If only left_arm is specified: moves only left arm, keeps right arm steady
+    - If only right_arm is specified: moves only right arm, keeps left arm steady
+    """
     
     print(f"🤖 Loading and executing configuration: {config_name}")
     print("=" * 60)
@@ -177,16 +183,33 @@ def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id:
         
         config_data = config['configuration']
         
-        if 'left_arm' not in config_data or 'right_arm' not in config_data:
-            raise ValueError("Invalid configuration: missing arm configuration")
+        # Check which arms are configured
+        has_left_arm = 'left_arm' in config_data and config_data['left_arm'] is not None
+        has_right_arm = 'right_arm' in config_data and config_data['right_arm'] is not None
         
-        # Extract joint positions
-        left_joints = list(config_data['left_arm']['joints'].values())
-        right_joints = list(config_data['right_arm']['joints'].values())
+        if not has_left_arm and not has_right_arm:
+            raise ValueError("Invalid configuration: no arm configuration found")
+        
+        # Extract joint positions for configured arms
+        left_joints = None
+        right_joints = None
+        
+        if has_left_arm:
+            left_joints = list(config_data['left_arm']['joints'].values())
+        if has_right_arm:
+            right_joints = list(config_data['right_arm']['joints'].values())
         
         print(f"📋 Configuration: {config.get('name', 'Unknown')}")
         print(f"📝 Description: {config.get('description', 'No description')}")
         print(f"📊 Source: {config.get('source', {}).get('dataset', 'Unknown')}")
+        
+        # Show which arms will be moved
+        if has_left_arm and has_right_arm:
+            print("🎯 Mode: Dual-arm movement")
+        elif has_left_arm:
+            print("🎯 Mode: Left arm only (right arm stays steady)")
+        elif has_right_arm:
+            print("🎯 Mode: Right arm only (left arm stays steady)")
         
         # Initialize controller
         controller = PhosphobotJointController()
@@ -202,20 +225,30 @@ def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id:
                 print("\n⚠️  Skipping robot initialization to prevent collisions")
             
             print(f"\n🎯 Moving to configuration: {config.get('name', config_name)}")
-            print(f"Left arm (ID {left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
-            print(f"Right arm (ID {right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
             
-            # Move left arm (using configurable arm ID)
-            controller.write_joint_positions(left_arm_id, left_joints)
-            time.sleep(1)
+            # Move configured arms
+            if has_left_arm:
+                print(f"Left arm (ID {left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
+                controller.write_joint_positions(left_arm_id, left_joints)
+                time.sleep(1)
+            else:
+                print(f"Left arm (ID {left_arm_id}): keeping current position")
             
-            # Move right arm (using configurable arm ID)
-            controller.write_joint_positions(right_arm_id, right_joints)
-            time.sleep(3)
+            if has_right_arm:
+                print(f"Right arm (ID {right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
+                controller.write_joint_positions(right_arm_id, right_joints)
+                time.sleep(1)
+            else:
+                print(f"Right arm (ID {right_arm_id}): keeping current position")
+            
+            # Wait for movement completion
+            time.sleep(2)
             
             print("\n📖 Reading final joint positions...")
-            controller.read_joint_positions(left_arm_id)
-            controller.read_joint_positions(right_arm_id)
+            if has_left_arm:
+                controller.read_joint_positions(left_arm_id)
+            if has_right_arm:
+                controller.read_joint_positions(right_arm_id)
             
             print(f"\n🎉 Successfully moved to configuration: {config.get('name', config_name)}")
             
@@ -399,6 +432,8 @@ if __name__ == "__main__":
             print("Usage examples:")
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1")
             print(f"  python3 execute_rules.py --config dispensing_water_to_beaker")
+            print(f"  python3 execute_rules.py --config left_arm_only_demo  # Single arm movement")
+            print(f"  python3 execute_rules.py --config right_arm_only_demo  # Single arm movement")
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1 --init  # Enable init (risky)")
             print(f"  python3 execute_rules.py --config ready_to_pick_beaker --left-arm-id 3 --right-arm-id 2")
             print(f"  python3 execute_rules.py --legacy")

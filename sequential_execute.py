@@ -45,7 +45,13 @@ class SequentialRobotExecutor:
             print("\n⚠️  Skipping robot initialization to prevent collisions")
     
     def execute_configuration(self, config_name: str, pause_after: float = 3.0):
-        """Execute a single configuration with optional pause."""
+        """Execute a single configuration with optional pause.
+        
+        Supports both dual-arm and single-arm configurations:
+        - If both arms are specified: moves both arms
+        - If only left_arm is specified: moves only left arm, keeps right arm steady
+        - If only right_arm is specified: moves only right arm, keeps left arm steady
+        """
         print(f"\n🎯 Executing configuration: {config_name}")
         print("=" * 50)
         
@@ -59,37 +65,62 @@ class SequentialRobotExecutor:
             
             config_data = config['configuration']
             
-            if 'left_arm' not in config_data or 'right_arm' not in config_data:
-                raise ValueError(f"Invalid configuration '{config_name}': missing arm configuration")
+            # Check which arms are configured
+            has_left_arm = 'left_arm' in config_data and config_data['left_arm'] is not None
+            has_right_arm = 'right_arm' in config_data and config_data['right_arm'] is not None
             
-            # Extract joint positions
-            left_joints = list(config_data['left_arm']['joints'].values())
-            right_joints = list(config_data['right_arm']['joints'].values())
+            if not has_left_arm and not has_right_arm:
+                raise ValueError(f"Invalid configuration '{config_name}': no arm configuration found")
+            
+            # Extract joint positions for configured arms
+            left_joints = None
+            right_joints = None
+            
+            if has_left_arm:
+                left_joints = list(config_data['left_arm']['joints'].values())
+            if has_right_arm:
+                right_joints = list(config_data['right_arm']['joints'].values())
             
             print(f"📋 Configuration: {config.get('name', 'Unknown')}")
             print(f"📝 Description: {config.get('description', 'No description')}")
             print(f"📊 Source: {config.get('source', {}).get('dataset', config.get('source', {}).get('type', 'Unknown'))}")
             
+            # Show which arms will be moved
+            if has_left_arm and has_right_arm:
+                print("🎯 Mode: Dual-arm movement")
+            elif has_left_arm:
+                print("🎯 Mode: Left arm only (right arm stays steady)")
+            elif has_right_arm:
+                print("🎯 Mode: Right arm only (left arm stays steady)")
+            
             print(f"\n🎯 Moving to: {config.get('name', config_name)}")
-            print(f"Left arm (ID {self.left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
-            print(f"Right arm (ID {self.right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
             
-            # Move left arm (using configurable arm ID)
-            self.controller.write_joint_positions(self.left_arm_id, left_joints)
-            time.sleep(1)
+            # Move configured arms
+            if has_left_arm:
+                print(f"Left arm (ID {self.left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
+                self.controller.write_joint_positions(self.left_arm_id, left_joints)
+                time.sleep(1)
+            else:
+                print(f"Left arm (ID {self.left_arm_id}): keeping current position")
             
-            # Move right arm (using configurable arm ID)
-            self.controller.write_joint_positions(self.right_arm_id, right_joints)
+            if has_right_arm:
+                print(f"Right arm (ID {self.right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
+                self.controller.write_joint_positions(self.right_arm_id, right_joints)
+                time.sleep(1)
+            else:
+                print(f"Right arm (ID {self.right_arm_id}): keeping current position")
             
             # Pause to allow movement completion
             if pause_after > 0:
                 print(f"\n⏱️  Pausing {pause_after}s to complete movement...")
                 time.sleep(pause_after)
             
-            # Read final positions
+            # Read final positions for moved arms
             print("\n📖 Reading final joint positions...")
-            self.controller.read_joint_positions(self.left_arm_id)
-            self.controller.read_joint_positions(self.right_arm_id)
+            if has_left_arm:
+                self.controller.read_joint_positions(self.left_arm_id)
+            if has_right_arm:
+                self.controller.read_joint_positions(self.right_arm_id)
             
             print(f"\n✅ Successfully completed: {config.get('name', config_name)}")
             return True
@@ -204,6 +235,16 @@ PREDEFINED_SEQUENCES = {
         "ready_to_pick_beaker",
         "dispensing_water_to_beaker",
         "standoff_configuration_stage1"
+    ],
+    "single_arm_demo": [
+        "left_arm_only_demo",
+        "right_arm_only_demo",
+        "ready_to_pick_beaker"
+    ],
+    "independent_arm_movements": [
+        "standoff_configuration_stage1",
+        "left_arm_only_demo",
+        "right_arm_only_demo"
     ]
 }
 
