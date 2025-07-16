@@ -211,42 +211,31 @@ def main():
         print(f"\n❌ Sequence execution failed!")
         sys.exit(1)
 
-# Predefined sequences for common tasks
-PREDEFINED_SEQUENCES = {
-    "standoff_to_dispensing": [
-        "standoff_configuration_stage1",
-        "dispensing_water_to_beaker"
-    ],
-    "dispensing_to_standoff": [
-        "dispensing_water_to_beaker",
-        "standoff_configuration_stage1"
-    ],
-    "full_lab_procedure": [
-        "standoff_configuration_stage1",
-        "dispensing_water_to_beaker",
-        "standoff_configuration_stage1"
-    ],
-    "beaker_pickup_sequence": [
-        "standoff_configuration_stage1",
-        "ready_to_pick_beaker"
-    ],
-    "complete_beaker_workflow": [
-        "standoff_configuration_stage1",
-        "ready_to_pick_beaker",
-        "dispensing_water_to_beaker",
-        "standoff_configuration_stage1"
-    ],
-    "single_arm_demo": [
-        "left_arm_only_demo",
-        "right_arm_only_demo",
-        "ready_to_pick_beaker"
-    ],
-    "independent_arm_movements": [
-        "standoff_configuration_stage1",
-        "left_arm_only_demo",
-        "right_arm_only_demo"
-    ]
-}
+# Load predefined sequences from JSON file
+def load_predefined_sequences():
+    """Load predefined sequences from JSON file."""
+    sequences_file = Path("temp_rules/sequential_sequences.json")
+    
+    if not sequences_file.exists():
+        print(f"⚠️  Sequences file not found: {sequences_file}")
+        return {}
+    
+    try:
+        with open(sequences_file, 'r') as f:
+            data = json.load(f)
+        
+        # Convert to simple dict format expected by the rest of the code
+        sequences = {}
+        for name, seq_data in data.get("predefined_sequences", {}).items():
+            sequences[name] = seq_data["configurations"]
+        
+        return sequences
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"❌ Error loading sequences file: {e}")
+        return {}
+
+# Load sequences from JSON file
+PREDEFINED_SEQUENCES = load_predefined_sequences()
 
 if __name__ == "__main__":
     # Check for predefined sequences

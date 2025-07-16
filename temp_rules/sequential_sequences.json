@@ -1,0 +1,83 @@
+{
+  "predefined_sequences": {
+    "standoff_to_dispensing": {
+      "name": "standoff_to_dispensing",
+      "description": "Move from standoff position to water dispensing configuration",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "dispensing_water_to_beaker"
+      ]
+    },
+    "dispensing_to_standoff": {
+      "name": "dispensing_to_standoff", 
+      "description": "Move from water dispensing position back to standoff",
+      "configurations": [
+        "dispensing_water_to_beaker",
+        "standoff_configuration_stage1"
+      ]
+    },
+    "full_lab_procedure": {
+      "name": "full_lab_procedure",
+      "description": "Complete laboratory procedure: standoff → dispensing → standoff",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "dispensing_water_to_beaker",
+        "standoff_configuration_stage1"
+      ]
+    },
+    "beaker_pickup_sequence": {
+      "name": "beaker_pickup_sequence",
+      "description": "Sequence for picking up a beaker",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "ready_to_pick_beaker"
+      ]
+    },
+    "complete_beaker_workflow": {
+      "name": "complete_beaker_workflow",
+      "description": "Full beaker handling workflow: standoff → pickup → dispensing → standoff",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "ready_to_pick_beaker",
+        "dispensing_water_to_beaker",
+        "standoff_configuration_stage1"
+      ]
+    },
+    "single_arm_demo": {
+      "name": "single_arm_demo",
+      "description": "Demonstration of single arm movements",
+      "configurations": [
+        "left_arm_only_demo",
+        "right_arm_only_demo",
+        "ready_to_pick_beaker"
+      ]
+    },
+    "independent_arm_movements": {
+      "name": "independent_arm_movements", 
+      "description": "Demonstration of independent arm control capabilities",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "left_arm_only_demo",
+        "right_arm_only_demo"
+      ]
+    },
+    "right_arm_standoff_to_yellow": {
+      "name": "right_arm_standoff_to_yellow",
+      "description": "Right arm standoff position followed by yellow solution dispensing",
+      "configurations": [
+        "right_arm_standoff",
+        "dispensing_yellow_to_beaker"
+      ]
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "description": "Predefined sequential robot configuration sequences",
+    "created": "2025-07-16",
+    "total_sequences": 8,
+    "usage": {
+      "description": "These sequences can be executed using sequential_execute.py",
+      "example": "python3 sequential_execute.py full_lab_procedure"
+    }
+  }
+}
