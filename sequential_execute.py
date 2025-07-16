@@ -21,15 +21,21 @@ from execute_rules import PhosphobotJointController, load_configuration
 class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
-    def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True):
+    def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
+                 left_arm_id: int = 3, right_arm_id: int = 2):
         self.server_url = server_url
         self.skip_init = skip_init
+        self.left_arm_id = left_arm_id
+        self.right_arm_id = right_arm_id
         self.controller = None
         
     def initialize(self):
         """Initialize the robot controller."""
         self.controller = PhosphobotJointController(self.server_url)
         time.sleep(1)
+        
+        print(f"🔧 Left arm ID: {self.left_arm_id} (5A68011258)")
+        print(f"🔧 Right arm ID: {self.right_arm_id} (5A68009540)")
         
         if not self.skip_init:
             print("\n🔧 Initializing robots...")
@@ -65,15 +71,15 @@ class SequentialRobotExecutor:
             print(f"📊 Source: {config.get('source', {}).get('dataset', config.get('source', {}).get('type', 'Unknown'))}")
             
             print(f"\n🎯 Moving to: {config.get('name', config_name)}")
-            print(f"Left arm joints: {[f'{j:.3f}' for j in left_joints]}")
-            print(f"Right arm joints: {[f'{j:.3f}' for j in right_joints]}")
+            print(f"Left arm (ID {self.left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
+            print(f"Right arm (ID {self.right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
             
-            # Move left arm (robot_id=0)
-            self.controller.write_joint_positions(0, left_joints)
+            # Move left arm (using configurable arm ID)
+            self.controller.write_joint_positions(self.left_arm_id, left_joints)
             time.sleep(1)
             
-            # Move right arm (robot_id=1)
-            self.controller.write_joint_positions(1, right_joints)
+            # Move right arm (using configurable arm ID)
+            self.controller.write_joint_positions(self.right_arm_id, right_joints)
             
             # Pause to allow movement completion
             if pause_after > 0:
@@ -82,8 +88,8 @@ class SequentialRobotExecutor:
             
             # Read final positions
             print("\n📖 Reading final joint positions...")
-            self.controller.read_joint_positions(0)
-            self.controller.read_joint_positions(1)
+            self.controller.read_joint_positions(self.left_arm_id)
+            self.controller.read_joint_positions(self.right_arm_id)
             
             print(f"\n✅ Successfully completed: {config.get('name', config_name)}")
             return True
@@ -140,6 +146,10 @@ def main():
                        help="Enable robot initialization (WARNING: may cause collisions)")
     parser.add_argument("--server", default="http://localhost:80",
                        help="Phosphobot server URL")
+    parser.add_argument("--left-arm-id", type=int, default=3,
+                       help="Left arm robot ID (default: 3 for 5A68011258)")
+    parser.add_argument("--right-arm-id", type=int, default=2,
+                       help="Right arm robot ID (default: 2 for 5A68009540)")
     
     args = parser.parse_args()
     
@@ -151,7 +161,12 @@ def main():
         print("✅ Robot initialization DISABLED by default (safer)")
     
     # Execute sequence
-    executor = SequentialRobotExecutor(args.server, skip_init)
+    executor = SequentialRobotExecutor(
+        args.server, 
+        skip_init, 
+        left_arm_id=args.left_arm_id, 
+        right_arm_id=args.right_arm_id
+    )
     success = executor.execute_sequence(
         args.configs, 
         pause_between=args.pause_between,
@@ -198,10 +213,30 @@ if __name__ == "__main__":
         sequence_name = sys.argv[1]
         configs = PREDEFINED_SEQUENCES[sequence_name]
         
+        # Parse additional arguments for predefined sequences
+        parser = argparse.ArgumentParser(description=f"Execute predefined sequence: {sequence_name}")
+        parser.add_argument("sequence", help="Predefined sequence name")
+        parser.add_argument("--left-arm-id", type=int, default=3,
+                           help="Left arm robot ID (default: 3 for 5A68011258)")
+        parser.add_argument("--right-arm-id", type=int, default=2,
+                           help="Right arm robot ID (default: 2 for 5A68009540)")
+        parser.add_argument("--server", default="http://localhost:80",
+                           help="Phosphobot server URL")
+        
+        # Only parse known arguments to avoid conflicts
+        args, unknown = parser.parse_known_args()
+        
         print(f"🎯 Executing predefined sequence: {sequence_name}")
         print(f"📋 Configurations: {' → '.join(configs)}")
+        print(f"🔧 Left arm ID: {args.left_arm_id} (5A68011258)")
+        print(f"🔧 Right arm ID: {args.right_arm_id} (5A68009540)")
         
-        executor = SequentialRobotExecutor(skip_init=True)
+        executor = SequentialRobotExecutor(
+            server_url=args.server,
+            skip_init=True, 
+            left_arm_id=args.left_arm_id, 
+            right_arm_id=args.right_arm_id
+        )
         success = executor.execute_sequence(configs)
         
         if success:
@@ -221,8 +256,10 @@ if __name__ == "__main__":
         print("\nUsage:")
         print(f"  python3 {sys.argv[0]} standoff_to_dispensing")
         print(f"  python3 {sys.argv[0]} full_lab_procedure")
+        print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 3 --right-arm-id 2")
         print(f"  python3 {sys.argv[0]} config1 config2 config3 [options]")
         print("\nFor full options: python3 sequential_execute.py --help")
+        print("\nArm ID defaults: Left arm = 3 (5A68011258), Right arm = 2 (5A68009540)")
         sys.exit(0)
     
     # Run with command line arguments

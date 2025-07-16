@@ -159,11 +159,13 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     
     raise FileNotFoundError(f"Configuration '{config_name}' not found in search directories: {search_dirs}")
 
-def execute_configuration(config_name: str, skip_init: bool = True):
+def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 3, right_arm_id: int = 2):
     """Execute a specific configuration by loading it from JSON."""
     
     print(f"🤖 Loading and executing configuration: {config_name}")
     print("=" * 60)
+    print(f"🔧 Left arm ID: {left_arm_id} (5A68011258)")
+    print(f"🔧 Right arm ID: {right_arm_id} (5A68009540)")
     
     try:
         # Load configuration
@@ -200,20 +202,20 @@ def execute_configuration(config_name: str, skip_init: bool = True):
                 print("\n⚠️  Skipping robot initialization to prevent collisions")
             
             print(f"\n🎯 Moving to configuration: {config.get('name', config_name)}")
-            print(f"Left arm joints: {[f'{j:.3f}' for j in left_joints]}")
-            print(f"Right arm joints: {[f'{j:.3f}' for j in right_joints]}")
+            print(f"Left arm (ID {left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
+            print(f"Right arm (ID {right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
             
-            # Move left arm (robot_id=0)
-            controller.write_joint_positions(0, left_joints)
+            # Move left arm (using configurable arm ID)
+            controller.write_joint_positions(left_arm_id, left_joints)
             time.sleep(1)
             
-            # Move right arm (robot_id=1)
-            controller.write_joint_positions(1, right_joints)
+            # Move right arm (using configurable arm ID)
+            controller.write_joint_positions(right_arm_id, right_joints)
             time.sleep(3)
             
             print("\n📖 Reading final joint positions...")
-            controller.read_joint_positions(0)
-            controller.read_joint_positions(1)
+            controller.read_joint_positions(left_arm_id)
+            controller.read_joint_positions(right_arm_id)
             
             print(f"\n🎉 Successfully moved to configuration: {config.get('name', config_name)}")
             
@@ -313,6 +315,10 @@ if __name__ == "__main__":
                        help="Enable robot initialization (WARNING: may cause collisions)")
     parser.add_argument("--no-init", action="store_true", 
                        help="Explicitly disable robot initialization (default)")
+    parser.add_argument("--left-arm-id", type=int, default=3,
+                       help="Left arm robot ID (default: 3 for 5A68011258)")
+    parser.add_argument("--right-arm-id", type=int, default=2,
+                       help="Right arm robot ID (default: 2 for 5A68009540)")
     
     args = parser.parse_args()
     
@@ -327,7 +333,12 @@ if __name__ == "__main__":
     
     if args.config:
         # Execute specific configuration
-        success = execute_configuration(args.config, skip_init=skip_init)
+        success = execute_configuration(
+            args.config, 
+            skip_init=skip_init, 
+            left_arm_id=args.left_arm_id, 
+            right_arm_id=args.right_arm_id
+        )
         if success:
             print(f"\n✅ Configuration '{args.config}' executed successfully!")
         else:
@@ -389,6 +400,7 @@ if __name__ == "__main__":
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1")
             print(f"  python3 execute_rules.py --config dispensing_water_to_beaker")
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1 --init  # Enable init (risky)")
+            print(f"  python3 execute_rules.py --config ready_to_pick_beaker --left-arm-id 3 --right-arm-id 2")
             print(f"  python3 execute_rules.py --legacy")
         else:
             print("  No configuration files found.")
