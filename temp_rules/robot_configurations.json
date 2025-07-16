@@ -100,12 +100,62 @@
           "code": "left_arm.move_j([0.22708459198474884, 0.7456967234611511, 1.0541021823883057, -1.6699999570846558, -1.7292184829711914, -0.006137421354651451])\nright_arm.move_j([0.21941281855106354, 0.19793184101581573, 0.9098727703094482, -1.4100725650787354, -2.065242290496826, 0.4879250228404999])"
         }
       }
+    },
+    "ready_to_pick_beaker": {
+      "name": "ready_to_pick_beaker",
+      "description": "Ready to pick beaker position extracted from Hafnium49/example_dataset episode 2 at 1.6s",
+      "source": {
+        "dataset": "Hafnium49/example_dataset",
+        "episode": 2,
+        "timestamp": 1.6,
+        "frame_index": 48,
+        "extraction_method": "time_based"
+      },
+      "timestamp": "2025-07-15",
+      "configuration": {
+        "left_arm": {
+          "name": "SO-101 Left Arm",
+          "joints": {
+            "j1": -0.19639748334884644,
+            "j2": -1.5707999467849731,
+            "j3": 1.399999976158142,
+            "j4": -1.6699999570846558,
+            "j5": -1.4376909732818604,
+            "j6": 1.5
+          },
+          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "units": "radians"
+        },
+        "right_arm": {
+          "name": "SO-101 Right Arm",
+          "joints": {
+            "j1": 0.5416274666786194,
+            "j2": 0.9206132292747498,
+            "j3": 0.29766494035720825,
+            "j4": -1.482187271118164,
+            "j5": -1.4913934469223022,
+            "j6": 1.5
+          },
+          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "left_arm": "POST /joints/write with body: [-0.19639748334884644, -1.5707999467849731, 1.399999976158142, -1.6699999570846558, -1.4376909732818604, 1.5]",
+          "right_arm": "POST /joints/write with body: [0.5416274666786194, 0.9206132292747498, 0.29766494035720825, -1.482187271118164, -1.4913934469223022, 1.5]"
+        },
+        "python_example": {
+          "description": "Example usage with phosphobot SkillClient",
+          "code": "left_arm.move_j([-0.19639748334884644, -1.5707999467849731, 1.399999976158142, -1.6699999570846558, -1.4376909732818604, 1.5])\nright_arm.move_j([0.5416274666786194, 0.9206132292747498, 0.29766494035720825, -1.482187271118164, -1.4913934469223022, 1.5])"
+        }
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Robot configurations for dual SO-101 arms",
     "created": "2025-07-15",
-    "total_configurations": 2
+    "total_configurations": 3
   }
 }

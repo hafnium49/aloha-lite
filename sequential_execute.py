@@ -179,6 +179,16 @@ PREDEFINED_SEQUENCES = {
         "standoff_configuration_stage1",
         "dispensing_water_to_beaker",
         "standoff_configuration_stage1"
+    ],
+    "beaker_pickup_sequence": [
+        "standoff_configuration_stage1",
+        "ready_to_pick_beaker"
+    ],
+    "complete_beaker_workflow": [
+        "standoff_configuration_stage1",
+        "ready_to_pick_beaker",
+        "dispensing_water_to_beaker",
+        "standoff_configuration_stage1"
     ]
 }
 
