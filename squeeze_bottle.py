@@ -1,114 +1,141 @@
 #!/usr/bin/env python3
 """
 Squeezing Washing Bottle Function
-Dynamically squeezes the right arm end effector for a specified duration and returns to original position.
+Uses the enhanced partial configuration system to squeeze the washing bottle.
 """
 
 import time
 import json
 from pathlib import Path
-from execute_rules import PhosphobotJointController
+from execute_rules import execute_configuration
 
 
-def squeeze_washing_bottle(duration: float, squeeze_angle: float = 0.3, config_name: str = "dispensing_red_to_beaker", left_arm_id: int = 3, right_arm_id: int = 2):
+def squeeze_washing_bottle(duration: float, squeeze_angle: float = 0.3, base_config_name: str = "dispensing_red_to_beaker", release_config_name: str = None):
     """
-    Squeeze the washing bottle by closing the right arm end effector for a specified duration.
+    Squeeze the washing bottle using the partial configuration system.
     
     Args:
         duration (float): Duration in seconds to hold the squeeze
         squeeze_angle (float): Angle in radians for the squeeze (default: 0.3)
-        config_name (str): Base configuration to use (default: "dispensing_red_to_beaker")
-        left_arm_id (int): Left arm robot ID (default: 3)
-        right_arm_id (int): Right arm robot ID (default: 2)
+        base_config_name (str): Base configuration to move to first (default: "dispensing_red_to_beaker")
+        release_config_name (str): Configuration to return to after squeeze (default: same as base_config_name)
     
     Returns:
         bool: True if successful, False otherwise
     """
     
-    print(f"🧴 Starting washing bottle squeeze...")
+    # Use base config as release config if not specified
+    if release_config_name is None:
+        release_config_name = base_config_name
+    
+    print(f"🧴 Starting washing bottle squeeze using partial configuration system...")
     print(f"⏱️  Duration: {duration}s")
     print(f"🎯 Squeeze angle: {squeeze_angle} radians")
-    print(f"📋 Base configuration: {config_name}")
-    print(f"🔧 Left arm ID: {left_arm_id}, Right arm ID: {right_arm_id}")
+    print(f"📋 Base configuration: {base_config_name}")
+    print(f"� Release configuration: {release_config_name}")
     
     try:
-        # Initialize controller
-        controller = PhosphobotJointController()
+        # Step 1: Move to base position
+        print(f"🎯 Step 1: Moving to base position ({base_config_name})...")
+        if not execute_configuration(base_config_name):
+            print(f"❌ Failed to execute base configuration: {base_config_name}")
+            return False
         
-        # Load base configuration
-        config_path = Path(f"temp_rules/{config_name}.json")
-        if not config_path.exists():
-            # Try from robot_configurations.json
-            main_config_path = Path("temp_rules/robot_configurations.json")
-            if main_config_path.exists():
-                with open(main_config_path, 'r') as f:
-                    main_config = json.load(f)
-                    if config_name in main_config["configurations"]:
-                        base_config = main_config["configurations"][config_name]
-                    else:
-                        print(f"❌ Configuration '{config_name}' not found in robot_configurations.json")
-                        return False
-            else:
-                print(f"❌ Configuration file not found: {config_path}")
-                return False
-        else:
-            with open(config_path, 'r') as f:
-                base_config = json.load(f)
-        
-        # Extract joint positions
-        left_joints = list(base_config["configuration"]["left_arm"]["joints"].values())
-        right_joints = list(base_config["configuration"]["right_arm"]["joints"].values())
-        
-        # Store original right arm j6 position
-        original_j6 = right_joints[5]
-        
-        print(f"📖 Original right arm j6: {original_j6} radians")
-        print(f"🎯 Moving to base position...")
-        
-        # Move to base configuration
-        controller.write_joint_positions(left_arm_id, left_joints)
-        controller.write_joint_positions(right_arm_id, right_joints)
-        
-        # Wait a moment for movement to complete
+        # Brief pause between movements
         time.sleep(1.0)
         
-        # Create squeeze configuration (modify only right arm j6)
-        squeeze_right_joints = right_joints.copy()
-        squeeze_right_joints[5] = squeeze_angle
+        # Step 2: Create and execute dynamic squeeze configuration
+        print(f"🤏 Step 2: Creating dynamic squeeze configuration (j6: {squeeze_angle})...")
         
-        print(f"🤏 Squeezing bottle (j6: {original_j6} → {squeeze_angle})...")
+        # Create temporary squeeze configuration with custom angle
+        squeeze_config = {
+            "name": f"dynamic_squeeze_{squeeze_angle}",
+            "description": f"Dynamic squeeze configuration with j6={squeeze_angle} radians",
+            "source": {
+                "type": "dynamic_partial_configuration",
+                "purpose": "custom_bottle_squeezing"
+            },
+            "timestamp": "2025-07-16",
+            "configuration": {
+                "right_arm": {
+                    "name": "SO-101 Right Arm",
+                    "joints": {
+                        "j6": squeeze_angle
+                    },
+                    "description": f"Right arm with custom j6={squeeze_angle} for dynamic squeezing"
+                }
+            }
+        }
         
-        # Execute squeeze (only move right arm)
-        controller.write_joint_positions(right_arm_id, squeeze_right_joints)
+        # Save temporary configuration
+        temp_config_path = Path("temp_rules/dynamic_squeeze_temp.json")
+        with open(temp_config_path, 'w') as f:
+            json.dump(squeeze_config, f, indent=2)
         
-        # Hold squeeze for specified duration
-        print(f"⏸️  Holding squeeze for {duration} seconds...")
+        # Execute squeeze using partial configuration
+        if not execute_configuration("dynamic_squeeze_temp"):
+            print("❌ Failed to execute squeeze configuration")
+            return False
+        
+        # Step 3: Hold squeeze for specified duration
+        print(f"⏸️  Step 3: Holding squeeze for {duration} seconds...")
         time.sleep(duration)
         
-        # Release squeeze (return to original j6 position)
-        print(f"🔓 Releasing squeeze (j6: {squeeze_angle} → {original_j6})...")
-        controller.write_joint_positions(right_arm_id, right_joints)
+        # Step 4: Release squeeze by returning to release configuration
+        print(f"🔓 Step 4: Releasing squeeze (returning to {release_config_name})...")
+        if not execute_configuration(release_config_name):
+            print(f"❌ Failed to execute release configuration: {release_config_name}")
+            return False
         
-        # Wait for movement to complete
-        time.sleep(0.5)
+        # Cleanup temporary file
+        if temp_config_path.exists():
+            temp_config_path.unlink()
         
-        # Read final positions for verification
-        print("📖 Reading final joint positions...")
-        final_left = controller.read_joint_positions(left_arm_id)
-        final_right = controller.read_joint_positions(right_arm_id)
-        
-        if final_left and 'angles' in final_left:
-            print(f"📖 Final left arm joints: {[f'{j:.3f}' for j in final_left['angles']]}")
-        if final_right and 'angles' in final_right:
-            print(f"📖 Final right arm joints: {[f'{j:.3f}' for j in final_right['angles']]}")
-        
-        controller.close()
-        
-        print("🎉 Washing bottle squeeze completed successfully!")
+        print("🎉 Washing bottle squeeze completed successfully using partial configuration system!")
         return True
         
     except Exception as e:
         print(f"❌ Error during bottle squeeze: {e}")
+        return False
+
+
+def squeeze_washing_bottle_simple(duration: float = 2.0):
+    """
+    Simple squeeze function using the predefined squeeze_washing_bottle partial configuration.
+    
+    Args:
+        duration (float): Duration in seconds to hold the squeeze (default: 2.0)
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    
+    print(f"🧴 Starting simple washing bottle squeeze...")
+    print(f"⏱️  Duration: {duration}s")
+    print(f"🎯 Using predefined squeeze_washing_bottle partial configuration")
+    
+    try:
+        # Step 1: Execute squeeze using predefined partial configuration
+        print(f"🤏 Step 1: Executing squeeze_washing_bottle configuration...")
+        if not execute_configuration("squeeze_washing_bottle"):
+            print("❌ Failed to execute squeeze_washing_bottle configuration")
+            return False
+        
+        # Step 2: Hold squeeze for specified duration
+        print(f"⏸️  Step 2: Holding squeeze for {duration} seconds...")
+        time.sleep(duration)
+        
+        # Step 3: Release squeeze using dispensing configuration
+        print(f"🔓 Step 3: Releasing squeeze (returning to dispensing_red_to_beaker)...")
+        if not execute_configuration("dispensing_red_to_beaker"):
+            print("❌ Failed to execute release configuration")
+            return False
+        
+        print("🎉 Simple washing bottle squeeze completed successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error during simple bottle squeeze: {e}")
         return False
 
 
@@ -118,16 +145,19 @@ def main():
     """
     import argparse
     
-    parser = argparse.ArgumentParser(description="Squeeze washing bottle for specified duration")
+    parser = argparse.ArgumentParser(description="Squeeze washing bottle using partial configuration system")
     parser.add_argument("duration", type=float, help="Duration in seconds to hold squeeze")
     parser.add_argument("--angle", type=float, default=0.3, help="Squeeze angle in radians (default: 0.3)")
-    parser.add_argument("--config", type=str, default="dispensing_red_to_beaker", help="Base configuration name")
-    parser.add_argument("--left-arm-id", type=int, default=3, help="Left arm robot ID (default: 3)")
-    parser.add_argument("--right-arm-id", type=int, default=2, help="Right arm robot ID (default: 2)")
+    parser.add_argument("--base-config", type=str, default="dispensing_red_to_beaker", help="Base configuration name")
+    parser.add_argument("--release-config", type=str, help="Release configuration name (default: same as base)")
+    parser.add_argument("--simple", action="store_true", help="Use simple predefined squeeze_washing_bottle configuration")
     
     args = parser.parse_args()
     
-    success = squeeze_washing_bottle(args.duration, args.angle, args.config, args.left_arm_id, args.right_arm_id)
+    if args.simple:
+        success = squeeze_washing_bottle_simple(args.duration)
+    else:
+        success = squeeze_washing_bottle(args.duration, args.angle, args.base_config, args.release_config)
     
     if not success:
         exit(1)
