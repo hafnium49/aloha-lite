@@ -480,25 +480,25 @@
     },
     "left_arm_standoff_with_beaker": {
       "name": "left_arm_standoff_with_beaker",
-      "description": "Left arm standoff position with beaker - joints j1-j5 from ready_to_pick_beaker, right arm stays in current position",
+      "description": "Left arm standoff position with beaker - updated joints j1-j5 from current robot position, right arm stays in current position",
       "source": {
         "dataset": "Hafnium49/example_dataset",
         "episode": 2,
         "timestamp": 1.6,
         "frame_index": 48,
         "extraction_method": "time_based",
-        "modification": "left_arm_j1_to_j5_only_from_ready_to_pick_beaker"
+        "modification": "left_arm_j1_to_j5_updated_from_current_robot_position"
       },
       "timestamp": "2025-07-16",
       "configuration": {
         "left_arm": {
           "name": "SO-101 Left Arm",
           "joints": {
-            "j1": 0.5416274666786194,
-            "j2": 0.9206132292747498,
-            "j3": 0.29766494035720825,
-            "j4": -1.482187271118164,
-            "j5": -1.4913934469223022
+            "j1": 0.4726,
+            "j2": 0.3851,
+            "j3": 0.9467,
+            "j4": -1.4469,
+            "j5": -1.4991
           },
           "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
           "units": "radians"
