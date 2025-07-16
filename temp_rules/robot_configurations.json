@@ -19,7 +19,7 @@
             "j3": 1.459172010421753,
             "j4": -1.7568368911743164,
             "j5": -1.3824541568756104,
-            "j6": 0.7871243357658386
+            "j6": 1.58
           },
           "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
           "units": "radians"
