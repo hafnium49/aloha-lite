@@ -432,12 +432,42 @@
           "code": "left_arm.move_j([0.193329, -0.021481, -0.952835, 0.537024, -2.143494, 0.452635])\nright_arm.move_j([-0.251634, -0.937491, -0.345230, 1.014209, -1.299599, 1.5])"
         }
       }
+    },
+    "squeeze_washing_bottle": {
+      "name": "squeeze_washing_bottle",
+      "description": "Partial configuration to squeeze washing bottle - only modifies right arm j6 to 0.3 while preserving all other joint positions",
+      "source": {
+        "type": "partial_configuration",
+        "purpose": "bottle_squeezing",
+        "modification": "right_arm_j6_only"
+      },
+      "timestamp": "2025-07-16",
+      "configuration": {
+        "right_arm": {
+          "name": "SO-101 Right Arm",
+          "joints": {
+            "j6": 0.3
+          },
+          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "description": "This partial configuration only specifies j6 for the right arm. All other joints (j1-j5) will maintain their current values.",
+        "phosphobot_api": {
+          "right_arm": "POST /joints/write with j6=0.3 merged with current position"
+        },
+        "python_example": {
+          "description": "Example usage with enhanced execute_rules.py",
+          "code": "python3 execute_rules.py --config squeeze_washing_bottle"
+        }
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Robot configurations for dual SO-101 arms",
     "created": "2025-07-15",
-    "total_configurations": 10
+    "total_configurations": 11
   }
 }

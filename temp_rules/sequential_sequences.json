@@ -76,13 +76,22 @@
         "standoff_configuration_stage1",
         "dispensing_red_to_beaker"
       ]
+    },
+    "squeeze_demo_sequence": {
+      "name": "squeeze_demo_sequence",
+      "description": "Demonstration of bottle squeezing using partial configuration - position, squeeze, release",
+      "configurations": [
+        "dispensing_red_to_beaker",
+        "squeeze_washing_bottle",
+        "dispensing_red_to_beaker"
+      ]
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 9,
+    "total_sequences": 10,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure"
