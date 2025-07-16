@@ -1,0 +1,26 @@
+{
+  "name": "minimal_joint_test",
+  "description": "Test configuration with only j1 and j6 specified for right arm",
+  "source": {
+    "type": "test", 
+    "purpose": "minimal_joint_demo"
+  },
+  "timestamp": "2025-07-16",
+  "configuration": {
+    "right_arm": {
+      "name": "SO-101 Right Arm",
+      "joints": {
+        "j1": 0.2,
+        "j6": 0.8
+      },
+      "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+      "units": "radians"
+    }
+  },
+  "usage": {
+    "description": "This configuration only specifies j1 and j6 for the right arm. All other joints (j2-j5) will maintain their current values.",
+    "phosphobot_api": {
+      "right_arm": "POST /joints/write with minimal joints merged with current position"
+    }
+  }
+}

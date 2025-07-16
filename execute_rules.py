@@ -71,11 +71,83 @@ class PhosphobotJointController:
             print(f"❌ Failed to read joints for robot {robot_id}: {e}")
             return None
     
+    def get_current_joint_angles(self, robot_id: int):
+        """Get current joint angles as a list."""
+        result = self.read_joint_positions(robot_id)
+        if result and 'angles' in result:
+            return result['angles']
+        return None
+    
     def close(self):
         """Clean up resources."""
         if hasattr(self, 'session'):
             self.session.close()
         print("🔌 Controller disconnected")
+
+def merge_joint_configurations(target_joints: dict, current_joints: list):
+    """
+    Merge partial joint configuration with current joint positions.
+    
+    Args:
+        target_joints: dict with joint names as keys (j1, j2, etc.) and target angles as values
+        current_joints: list of current joint angles [j1, j2, j3, j4, j5, j6]
+    
+    Returns:
+        list: Complete joint configuration with partial updates applied
+    """
+    # Start with current joint positions
+    merged_joints = current_joints.copy() if current_joints else [0.0] * 6
+    
+    # Ensure we have 6 joints
+    while len(merged_joints) < 6:
+        merged_joints.append(0.0)
+    
+    # Update specified joints
+    joint_mapping = {'j1': 0, 'j2': 1, 'j3': 2, 'j4': 3, 'j5': 4, 'j6': 5}
+    
+    for joint_name, target_angle in target_joints.items():
+        if joint_name in joint_mapping:
+            joint_index = joint_mapping[joint_name]
+            merged_joints[joint_index] = target_angle
+            print(f"  📝 {joint_name} → {target_angle:.3f} rad")
+    
+    return merged_joints
+
+def prepare_arm_configuration(arm_config: dict, current_joints: list, arm_name: str):
+    """
+    Prepare arm configuration, handling partial joint specifications.
+    
+    Args:
+        arm_config: arm configuration from JSON
+        current_joints: current joint positions
+        arm_name: "left_arm" or "right_arm" for logging
+    
+    Returns:
+        list: Complete joint configuration
+    """
+    if not arm_config or 'joints' not in arm_config:
+        return None
+    
+    joints_config = arm_config['joints']
+    
+    # Check if we have a complete configuration (all 6 joints)
+    expected_joints = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6']
+    missing_joints = [j for j in expected_joints if j not in joints_config]
+    
+    if not missing_joints:
+        # Complete configuration - use as-is
+        print(f"  ✅ {arm_name}: Complete configuration (all 6 joints)")
+        return list(joints_config.values())
+    else:
+        # Partial configuration - merge with current positions
+        print(f"  🔄 {arm_name}: Partial configuration (missing {missing_joints})")
+        print(f"  🔄 Merging with current joint positions...")
+        
+        if current_joints is None:
+            print(f"  ⚠️  Warning: No current joint positions available, using defaults for missing joints")
+            current_joints = [0.0] * 6
+        
+        return merge_joint_configurations(joints_config, current_joints)
 
 def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     """Load configuration from JSON file by name."""
@@ -162,10 +234,10 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
 def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 3, right_arm_id: int = 2):
     """Execute a specific configuration by loading it from JSON.
     
-    Supports both dual-arm and single-arm configurations:
-    - If both arms are specified: moves both arms
-    - If only left_arm is specified: moves only left arm, keeps right arm steady
-    - If only right_arm is specified: moves only right arm, keeps left arm steady
+    Enhanced to support:
+    - Complete and partial joint configurations
+    - Single-arm and dual-arm movements  
+    - Automatic merging with current joint positions for incomplete configurations
     """
     
     print(f"🤖 Loading and executing configuration: {config_name}")
@@ -189,15 +261,6 @@ def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id:
         
         if not has_left_arm and not has_right_arm:
             raise ValueError("Invalid configuration: no arm configuration found")
-        
-        # Extract joint positions for configured arms
-        left_joints = None
-        right_joints = None
-        
-        if has_left_arm:
-            left_joints = list(config_data['left_arm']['joints'].values())
-        if has_right_arm:
-            right_joints = list(config_data['right_arm']['joints'].values())
         
         print(f"📋 Configuration: {config.get('name', 'Unknown')}")
         print(f"📝 Description: {config.get('description', 'No description')}")
@@ -224,17 +287,49 @@ def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id:
             else:
                 print("\n⚠️  Skipping robot initialization to prevent collisions")
             
+            # Read current joint positions for partial configuration support
+            current_left_joints = None
+            current_right_joints = None
+            
+            if has_left_arm:
+                print(f"\n📖 Reading current left arm (ID {left_arm_id}) position...")
+                current_left_joints = controller.get_current_joint_angles(left_arm_id)
+                
+            if has_right_arm:
+                print(f"📖 Reading current right arm (ID {right_arm_id}) position...")
+                current_right_joints = controller.get_current_joint_angles(right_arm_id)
+            
+            # Prepare joint configurations (supporting partial configs)
+            left_joints = None
+            right_joints = None
+            
+            print(f"\n🔧 Preparing joint configurations...")
+            
+            if has_left_arm:
+                left_joints = prepare_arm_configuration(
+                    config_data['left_arm'], 
+                    current_left_joints, 
+                    "left_arm"
+                )
+                
+            if has_right_arm:
+                right_joints = prepare_arm_configuration(
+                    config_data['right_arm'], 
+                    current_right_joints, 
+                    "right_arm"
+                )
+            
             print(f"\n🎯 Moving to configuration: {config.get('name', config_name)}")
             
             # Move configured arms
-            if has_left_arm:
+            if has_left_arm and left_joints:
                 print(f"Left arm (ID {left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
                 controller.write_joint_positions(left_arm_id, left_joints)
                 time.sleep(1)
             else:
                 print(f"Left arm (ID {left_arm_id}): keeping current position")
             
-            if has_right_arm:
+            if has_right_arm and right_joints:
                 print(f"Right arm (ID {right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
                 controller.write_joint_positions(right_arm_id, right_joints)
                 time.sleep(1)

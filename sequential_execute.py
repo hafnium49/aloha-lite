@@ -16,7 +16,7 @@ import requests
 
 # Import the existing functionality from execute_rules.py
 sys.path.append(str(Path(__file__).parent))
-from execute_rules import PhosphobotJointController, load_configuration
+from execute_rules import PhosphobotJointController, load_configuration, prepare_arm_configuration
 
 class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
@@ -47,10 +47,10 @@ class SequentialRobotExecutor:
     def execute_configuration(self, config_name: str, pause_after: float = 3.0):
         """Execute a single configuration with optional pause.
         
-        Supports both dual-arm and single-arm configurations:
-        - If both arms are specified: moves both arms
-        - If only left_arm is specified: moves only left arm, keeps right arm steady
-        - If only right_arm is specified: moves only right arm, keeps left arm steady
+        Enhanced to support:
+        - Complete and partial joint configurations
+        - Single-arm and dual-arm movements  
+        - Automatic merging with current joint positions for incomplete configurations
         """
         print(f"\n🎯 Executing configuration: {config_name}")
         print("=" * 50)
@@ -72,15 +72,6 @@ class SequentialRobotExecutor:
             if not has_left_arm and not has_right_arm:
                 raise ValueError(f"Invalid configuration '{config_name}': no arm configuration found")
             
-            # Extract joint positions for configured arms
-            left_joints = None
-            right_joints = None
-            
-            if has_left_arm:
-                left_joints = list(config_data['left_arm']['joints'].values())
-            if has_right_arm:
-                right_joints = list(config_data['right_arm']['joints'].values())
-            
             print(f"📋 Configuration: {config.get('name', 'Unknown')}")
             print(f"📝 Description: {config.get('description', 'No description')}")
             print(f"📊 Source: {config.get('source', {}).get('dataset', config.get('source', {}).get('type', 'Unknown'))}")
@@ -93,17 +84,45 @@ class SequentialRobotExecutor:
             elif has_right_arm:
                 print("🎯 Mode: Right arm only (left arm stays steady)")
             
+            # Read current joint positions for partial configuration support
+            current_left_joints = None
+            current_right_joints = None
+            
+            if has_left_arm:
+                current_left_joints = self.controller.get_current_joint_angles(self.left_arm_id)
+                
+            if has_right_arm:
+                current_right_joints = self.controller.get_current_joint_angles(self.right_arm_id)
+            
+            # Prepare joint configurations (supporting partial configs)
+            left_joints = None
+            right_joints = None
+            
+            if has_left_arm:
+                left_joints = prepare_arm_configuration(
+                    config_data['left_arm'], 
+                    current_left_joints, 
+                    "left_arm"
+                )
+                
+            if has_right_arm:
+                right_joints = prepare_arm_configuration(
+                    config_data['right_arm'], 
+                    current_right_joints, 
+                    "right_arm"
+                )
+            
             print(f"\n🎯 Moving to: {config.get('name', config_name)}")
             
             # Move configured arms
-            if has_left_arm:
+            if has_left_arm and left_joints:
                 print(f"Left arm (ID {self.left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
                 self.controller.write_joint_positions(self.left_arm_id, left_joints)
                 time.sleep(1)
             else:
                 print(f"Left arm (ID {self.left_arm_id}): keeping current position")
             
-            if has_right_arm:
+            if has_right_arm and right_joints:
                 print(f"Right arm (ID {self.right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
                 self.controller.write_joint_positions(self.right_arm_id, right_joints)
                 time.sleep(1)

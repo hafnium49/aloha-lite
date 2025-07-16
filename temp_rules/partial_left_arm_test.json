@@ -1,0 +1,29 @@
+{
+  "name": "partial_left_arm_test",
+  "description": "Test configuration with partial left arm joints (j1-j5 only, j6 preserved)",
+  "source": {
+    "type": "test",
+    "purpose": "partial_configuration_demo"
+  },
+  "timestamp": "2025-07-16",
+  "configuration": {
+    "left_arm": {
+      "name": "SO-101 Left Arm",
+      "joints": {
+        "j1": 0.5,
+        "j2": -0.5,
+        "j3": 1.0,
+        "j4": -1.2,
+        "j5": -1.5
+      },
+      "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+      "units": "radians"
+    }
+  },
+  "usage": {
+    "description": "This configuration only specifies j1-j5 for the left arm. j6 will maintain its current value.",
+    "phosphobot_api": {
+      "left_arm": "POST /joints/write with partial joints merged with current position"
+    }
+  }
+}
