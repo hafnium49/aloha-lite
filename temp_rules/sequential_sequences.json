@@ -68,13 +68,21 @@
         "right_arm_standoff",
         "dispensing_yellow_to_beaker"
       ]
+    },
+    "both_arms_standoff_to_red": {
+      "name": "both_arms_standoff_to_red",
+      "description": "Both arms standoff position followed by red solution dispensing",
+      "configurations": [
+        "standoff_configuration_stage1",
+        "dispensing_red_to_beaker"
+      ]
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 8,
+    "total_sequences": 9,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure"
