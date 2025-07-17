@@ -1,13 +1,44 @@
 # Aloha Lite
 
-This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, and configuration-based robot control. The system supports both dual-arm and single-arm operations with configurable arm IDs for four-arm phosphobot systems.
+This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, configuration-based robot control, and **smooth trajectory planning** with ModernRobotics integration.
+
+## Quick Start
+
+### Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+cd aloha-lite
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or use the automated setup script
+./setup.sh
+
+# Verify installation
+python3 verify_installation.py
+```
+
+### Basic Usage
+```bash
+# Test trajectory planning
+python3 trajectory_example.py
+
+# Execute smooth trajectories
+python3 trajectory_executor.py --config your_config_name
+
+# Traditional step-based control
+python3 execute_rules.py --config your_config_name
+```
 
 ## Features
 
-- **Flexible Arm Control** - Support for dual-arm, left-arm-only, or right-arm-only configurations
-- **Four-Arm System Support** - Configurable arm IDs for multi-arm phosphobot setups
-- **Advanced Dataset Processing** - LeRobot v2 dataset integration with CSV/Python rule extraction
-- **Time-Based Configuration Extraction** - Extract precise joint values at specific timestamps
+- **🎯 Smooth Trajectory Planning** - ModernRobotics-based joint trajectory generation with velocity control
+- **🤖 Flexible Arm Control** - Support for dual-arm, left-arm-only, or right-arm-only configurations
+- **🔧 Four-Arm System Support** - Configurable arm IDs for multi-arm phosphobot setups
+- **📊 Advanced Dataset Processing** - LeRobot v2 dataset integration with CSV/Python rule extraction
+- **⏱️ Time-Based Configuration Extraction** - Extract precise joint values at specific timestamps
 - **JSON Configuration Management** - Comprehensive robot configuration system with metadata
 - **Sequential Execution Tools** - Multi-step procedure automation with timing control
 - **Single-Arm Operations** - Individual arm control while keeping other arms steady

@@ -1,0 +1,27 @@
+# ALOHA-Lite Robot Control System Requirements
+# =============================================
+
+# Core numerical computing
+numpy>=1.20.0
+
+# HTTP requests for robot communication (phosphobot API)
+requests>=2.25.0
+
+# ModernRobotics library for trajectory planning
+# Install from local subtree with: pip install -e ./ModernRobotics/packages/Python
+# Or install from PyPI with: pip install modern_robotics
+modern_robotics>=1.0.0
+
+# Additional dependency for generate-parameter-library-py
+typeguard
+
+# Optional: For enhanced trajectory analysis and visualization
+# matplotlib>=3.3.0  # Uncomment if you want to add plotting capabilities
+
+# Optional: For advanced data handling
+# pandas>=1.2.0  # Uncomment if you need data manipulation features
+
+# Development and testing dependencies (optional)
+# pytest>=6.0.0  # Uncomment for running tests
+# black>=21.0.0   # Uncomment for code formatting
+# flake8>=3.8.0  # Uncomment for linting

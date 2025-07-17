@@ -1,0 +1,29 @@
+# ALOHA-Lite Development Requirements
+# ===================================
+# Extended requirements for development, testing, and analysis
+
+# Core requirements (same as requirements.txt)
+numpy
+requests
+modern_robotics
+
+# Development tools
+pytest>=6.0.0          # Testing framework
+pytest-cov>=2.10.0     # Coverage reporting
+black>=21.0.0           # Code formatting
+flake8>=3.8.0           # Linting
+mypy>=0.800             # Type checking
+
+# Data analysis and visualization
+matplotlib>=3.3.0       # Plotting and visualization
+pandas>=1.2.0           # Data manipulation
+scipy>=1.6.0            # Scientific computing
+jupyter>=1.0.0          # Jupyter notebooks for analysis
+
+# Documentation
+sphinx>=3.5.0           # Documentation generation
+sphinx-rtd-theme>=0.5.0 # Read the Docs theme
+
+# Optional: Advanced robotics libraries
+# robotics-toolbox-python  # Peter Corke's robotics toolbox
+# spatial-math             # 3D spatial math utilities
