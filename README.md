@@ -25,11 +25,17 @@ python3 verify_installation.py
 # Test trajectory planning
 python3 trajectory_example.py
 
-# Execute smooth trajectories
-python3 trajectory_executor.py --config your_config_name
-
-# Traditional step-based control
+# Execute smooth trajectories (default mode)
 python3 execute_rules.py --config your_config_name
+
+# Execute with custom trajectory parameters
+python3 execute_rules.py --config your_config_name --duration 5.0 --max-velocity 0.2
+
+# Force step-based movement (traditional mode)
+python3 execute_rules.py --config your_config_name --step
+
+# Standalone trajectory executor
+python3 trajectory_executor.py --config your_config_name
 ```
 
 ## Features
