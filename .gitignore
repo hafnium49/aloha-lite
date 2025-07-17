@@ -1,6 +1,7 @@
 # Subtree directories (keep local but don't track in git)
 phosphobot/
 aloha-lite-demo2rule/
+ModernRobotics/
 
 # Python
 __pycache__/
