@@ -1,5 +1,5 @@
 # Subtree directories (keep local but don't track in git)
-phosphobot/
+# phosphobot/ - temporarily commented for subtree push
 aloha-lite-demo2rule/
 
 # Python
