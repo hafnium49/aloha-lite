@@ -8,8 +8,7 @@ numpy>=1.20.0
 requests>=2.25.0
 
 # ModernRobotics library for trajectory planning
-# Install from local subtree with: pip install -e ./ModernRobotics/packages/Python
-# Or install from PyPI with: pip install modern_robotics
+# Install from PyPI
 modern_robotics>=1.0.0
 
 # Additional dependency for generate-parameter-library-py

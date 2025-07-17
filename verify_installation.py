@@ -40,7 +40,7 @@ def verify_installation():
             
     except ImportError as e:
         print(f"❌ modern_robotics - FAILED: {e}")
-        print("  💡 Try: cd ModernRobotics/packages/Python && pip install -e .")
+        print("  💡 Try: pip install modern_robotics")
         return False
     
     # Test trajectory planner

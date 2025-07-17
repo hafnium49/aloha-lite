@@ -14,17 +14,10 @@ if [ ! -f "execute_rules.py" ]; then
     exit 1
 fi
 
-echo "📦 Installing Python dependencies..."
+echo "📦 Installing Python dependencies from PyPI..."
 
-# Install basic requirements
+# Install all requirements from PyPI (includes modern_robotics)
 pip install -r requirements.txt
-
-echo "🤖 Installing ModernRobotics from local subtree..."
-
-# Install ModernRobotics from subtree in development mode
-cd ModernRobotics/packages/Python
-pip install -e .
-cd ../../../
 
 echo "✅ Setup completed successfully!"
 echo ""

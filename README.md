@@ -1,6 +1,6 @@
 # Aloha Lite
 
-This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, configuration-based robot control, and **smooth trajectory planning** with ModernRobotics integration.
+This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, configuration-based robot control, and **smooth trajectory planning** using the ModernRobotics library from PyPI.
 
 ## Quick Start
 
@@ -10,7 +10,7 @@ This repository provides a comprehensive robotics stack for controlling SO-101 a
 git clone <repository-url>
 cd aloha-lite
 
-# Install dependencies
+# Install dependencies (includes modern_robotics from PyPI)
 pip install -r requirements.txt
 
 # Or use the automated setup script

@@ -137,18 +137,11 @@ Peak velocity occurs at `τ ≈ 0.5` with magnitude `1.875 × (total_displacemen
 
 ### Installing ModernRobotics
 
-**Option 1: Install from subtree (Recommended)**
-```bash
-cd /home/hafnium/aloha-lite/ModernRobotics/packages/Python
-pip install -e .
-```
-
-**Option 2: Install from PyPI**
 ```bash
 pip install modern_robotics
 ```
 
-The subtree installation ensures you're using the exact version included in your project.
+This installs the official ModernRobotics package from PyPI.
 
 ## Robot IDs
 - **Robot ID 2**: Right arm (5A68009540)  
