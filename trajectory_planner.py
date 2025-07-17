@@ -5,20 +5,16 @@ Wrapper around ModernRobotics JointTrajectory function for easy waypoint generat
 """
 
 import sys
-import os
 import numpy as np
 from typing import List, Tuple, Optional
 
-# Add ModernRobotics to Python path
-mr_path = os.path.join(os.path.dirname(__file__), 'ModernRobotics', 'packages', 'Python')
-sys.path.insert(0, mr_path)
-
+# Import ModernRobotics package (should be installed via pip)
 try:
     import modern_robotics as mr
 except ImportError as e:
     print(f"❌ Failed to import ModernRobotics: {e}")
-    print(f"📍 Searched path: {mr_path}")
-    print("💡 Make sure ModernRobotics subtree is properly installed")
+    print(f"� Install with: pip install modern_robotics")
+    print(f"   Or from subtree: cd ModernRobotics/packages/Python && pip install -e .")
     raise
 
 class JointTrajectoryPlanner:
