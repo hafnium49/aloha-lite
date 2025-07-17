@@ -1,0 +1,26 @@
+{
+  "name": "complete_left_arm_standoff_with_beaker",
+  "description": "Complete left arm standoff with beaker position - all 6 joints specified for reliable movement",
+  "source": {
+    "dataset": "Hafnium49/example_dataset",
+    "episode": 2,
+    "timestamp": 1.6,
+    "modification": "complete_configuration_with_gradual_movement"
+  },
+  "timestamp": "2025-07-17",
+  "configuration": {
+    "left_arm": {
+      "name": "SO-101 Left Arm",
+      "joints": {
+        "j1": 0.4726,
+        "j2": 0.3851,
+        "j3": 0.9467,
+        "j4": -1.4469,
+        "j5": -1.4991,
+        "j6": 1.837
+      },
+      "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+      "units": "radians"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "custom_arm2_position",
+  "description": "Custom position for Robot ID 2 (Leader Arm #2)",
+  "source": {
+    "dataset": "user_specified",
+    "modification": "manual_position_command"
+  },
+  "timestamp": "2025-07-17",
+  "configuration": {
+    "left_arm": {
+      "name": "SO-101 Left Arm",
+      "joints": {
+        "j1": -0.190,
+        "j2": -0.836,
+        "j3": 1.037,
+        "j4": -1.111,
+        "j5": -1.683,
+        "j6": 1.837
+      },
+      "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+      "units": "radians"
+    }
+  }
+}
