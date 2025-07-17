@@ -1,0 +1,102 @@
+{
+  "robot_id": 0,
+  "timestamp": "2025-07-17T11:51:18.084928",
+  "joints": {
+    "1": {
+      "joint_id": 1,
+      "joint_name": "shoulder_pan",
+      "initial_position": 0.885323057934706,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 0.0,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 90,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:23.131482"
+    },
+    "2": {
+      "joint_id": 2,
+      "joint_name": "shoulder_lift",
+      "initial_position": -1.7553025620057257,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 0.0,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 90,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:28.180847"
+    },
+    "3": {
+      "joint_id": 3,
+      "joint_name": "elbow",
+      "initial_position": 1.5543020063914337,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 0.0,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 90,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:33.229708"
+    },
+    "4": {
+      "joint_id": 4,
+      "joint_name": "wrist_1",
+      "initial_position": -0.9114070995029729,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 1.232595164407831e-32,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 90,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:38.281245"
+    },
+    "5": {
+      "joint_id": 5,
+      "joint_name": "wrist_2",
+      "initial_position": 0.046030661591059244,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 0.0,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 89,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:43.313543"
+    },
+    "6": {
+      "joint_id": 6,
+      "joint_name": "wrist_3",
+      "initial_position": 0.015343553863686413,
+      "analysis": {
+        "hunting_detected": false,
+        "position_variance": 3.009265538105056e-36,
+        "position_range_rad": 0.0,
+        "position_range_deg": 0.0,
+        "min_voltage": 12.0,
+        "voltage_sag": false,
+        "sample_count": 89,
+        "recommendations": []
+      },
+      "timestamp": "2025-07-17T11:51:48.344314"
+    }
+  }
+}
