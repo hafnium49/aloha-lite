@@ -1,20 +1,49 @@
 #!/bin/bash
 """
-Push phosphobot Subtree Script (Enhanced Version)
-=================================================
+Universal Subtree Push Script (Enhanced Version)
+===============================================
 
-This script automates the process of pushing the phosphobot subtree
-to the remote repository rule_base branch while handling .gitignore modifications and fallback
+This script automates the process of pushing subtrees to their respective
+remote repositories while handling .gitignore modifications and fallback
 to force push when necessary.
 
-Usage:
-    ./push_subtree.sh [commit_message]
+Supported Subtrees:
+  - demo2rules: pushes to main branch of https://github.com/hafnium49/aloha-lite-demo2rule
+  - phosphobot: pushes to rule_base branch of https://github.com/hafnium49/phosphobot
 
-Example:
-    ./push_subtree.sh "Update phosphobot with new configurations"
+Usage:
+    ./push_subtree.sh <subtree_name> [commit_message]
+
+Examples:
+    ./push_subtree.sh demo2rules "Update demo2rules with new CSV features"
+    ./push_subtree.sh phosphobot "Update phosphobot with new configurations"
 """
 
 set -e  # Exit on any error
+
+# Subtree configurations
+declare -A SUBTREE_CONFIGS
+SUBTREE_CONFIGS[demo2rules_dir]="aloha-lite-demo2rule"
+SUBTREE_CONFIGS[demo2rules_url]="https://github.com/hafnium49/aloha-lite-demo2rule.git"
+SUBTREE_CONFIGS[demo2rules_branch]="main"
+
+SUBTREE_CONFIGS[phosphobot_dir]="phosphobot"
+SUBTREE_CONFIGS[phosphobot_url]="https://github.com/hafnium49/phosphobot.git"
+SUBTREE_CONFIGS[phosphobot_branch]="rule_base"
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 <subtree_name> [commit_message]"
+    echo ""
+    echo "Supported subtrees:"
+    echo "  demo2rules  - Push to main branch of aloha-lite-demo2rule repository"
+    echo "  phosphobot  - Push to rule_base branch of phosphobot repository"
+    echo ""
+    echo "Examples:"
+    echo "  $0 demo2rules \"Update demo2rules with new CSV features\""
+    echo "  $0 phosphobot \"Update phosphobot with new configurations\""
+    exit 1
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -58,8 +87,10 @@ run_command() {
 # Fallback function using subtree split and force push
 push_subtree_fallback() {
     local commit_message="$1"
-    local temp_branch="temp-phosphobot-push"
-    local remote_url="https://github.com/hafnium49/phosphobot.git"
+    local subtree_dir="$2"
+    local remote_url="$3"
+    local target_branch="$4"
+    local temp_branch="temp-${subtree_dir//\//-}-push"
     
     print_warning "Regular subtree push failed, trying fallback method..."
     
@@ -68,20 +99,20 @@ push_subtree_fallback() {
     
     # Split the subtree into a temporary branch
     print_status "Creating temporary subtree branch..."
-    if ! run_command "git subtree split --prefix=phosphobot -b $temp_branch"; then
+    if ! run_command "git subtree split --prefix=$subtree_dir -b $temp_branch"; then
         print_error "Failed to create subtree split"
         return 1
     fi
     print_success "Created temporary branch: $temp_branch"
     
-    # Force push the temporary branch to remote rule_base branch
-    print_status "Force pushing subtree to remote repository rule_base branch..."
-    if ! run_command "git push $remote_url $temp_branch:rule_base --force"; then
+    # Force push the temporary branch to remote
+    print_status "Force pushing subtree to remote repository $target_branch branch..."
+    if ! run_command "git push $remote_url $temp_branch:$target_branch --force"; then
         print_error "Failed to force push subtree"
         run_command "git branch -D $temp_branch" false
         return 1
     fi
-    print_success "Subtree force pushed successfully to rule_base branch"
+    print_success "Subtree force pushed successfully to $target_branch branch"
     
     # Clean up temporary branch
     print_status "Cleaning up temporary branch..."
@@ -103,14 +134,39 @@ cleanup() {
 # Set up trap for cleanup on exit
 trap cleanup EXIT
 
-# Get commit message from argument or use default
-COMMIT_MESSAGE="${1:-Update phosphobot subtree}"
+# Parse command line arguments
+if [ $# -lt 1 ]; then
+    print_error "Missing required argument: subtree_name"
+    show_usage
+fi
 
-print_status "Starting phosphobot subtree push process..."
+SUBTREE_NAME="$1"
+COMMIT_MESSAGE="${2:-Update $SUBTREE_NAME subtree}"
+
+# Validate subtree name and get configuration
+case "$SUBTREE_NAME" in
+    "demo2rules")
+        SUBTREE_DIR="${SUBTREE_CONFIGS[demo2rules_dir]}"
+        REMOTE_URL="${SUBTREE_CONFIGS[demo2rules_url]}"
+        TARGET_BRANCH="${SUBTREE_CONFIGS[demo2rules_branch]}"
+        ;;
+    "phosphobot")
+        SUBTREE_DIR="${SUBTREE_CONFIGS[phosphobot_dir]}"
+        REMOTE_URL="${SUBTREE_CONFIGS[phosphobot_url]}"
+        TARGET_BRANCH="${SUBTREE_CONFIGS[phosphobot_branch]}"
+        ;;
+    *)
+        print_error "Unknown subtree: $SUBTREE_NAME"
+        show_usage
+        ;;
+esac
+
+print_status "Starting $SUBTREE_NAME subtree push process..."
+print_status "Target: $REMOTE_URL ($TARGET_BRANCH branch)"
 
 # Ensure we're in the right directory
-if [ ! -d "phosphobot" ]; then
-    print_error "phosphobot directory not found. Please run this script from the aloha-lite root directory."
+if [ ! -d "$SUBTREE_DIR" ]; then
+    print_error "$SUBTREE_DIR directory not found. Please run this script from the aloha-lite root directory."
     exit 1
 fi
 
@@ -121,32 +177,31 @@ print_success ".gitignore backed up"
 
 # Step 2: Temporarily modify .gitignore to allow tracking
 print_status "Temporarily modifying .gitignore..."
-sed -i 's|phosphobot/|# phosphobot/ - temporarily commented for subtree push|g' .gitignore
+sed -i "s|${SUBTREE_DIR}/|# ${SUBTREE_DIR}/ - temporarily commented for subtree push|g" .gitignore
 print_success ".gitignore modified"
 
-# Step 3: Add and commit the phosphobot directory
-print_status "Adding phosphobot to git tracking..."
-run_command "git add phosphobot/"
+# Step 3: Add and commit the subtree directory
+print_status "Adding $SUBTREE_DIR to git tracking..."
+run_command "git add $SUBTREE_DIR/"
 run_command "git add .gitignore"
 
 # Check if there are actually changes to commit
 if git diff --cached --quiet; then
     print_warning "No changes to commit"
 else
-    run_command "git commit -m \"Temporarily track phosphobot for subtree push: $COMMIT_MESSAGE\""
+    run_command "git commit -m \"Temporarily track $SUBTREE_DIR for subtree push: $COMMIT_MESSAGE\""
     print_success "Changes committed"
 fi
 
 # Step 4: Try regular subtree push first
 print_status "Attempting regular subtree push..."
-REMOTE_URL="https://github.com/hafnium49/phosphobot.git"
 
-if run_command "git subtree push --prefix=phosphobot $REMOTE_URL rule_base" false; then
+if run_command "git subtree push --prefix=$SUBTREE_DIR $REMOTE_URL $TARGET_BRANCH" false; then
     print_success "Regular subtree push succeeded"
     SUBTREE_PUSH_SUCCESS=true
 else
     # Step 5: Fallback to force push method
-    if push_subtree_fallback "$COMMIT_MESSAGE"; then
+    if push_subtree_fallback "$COMMIT_MESSAGE" "$SUBTREE_DIR" "$REMOTE_URL" "$TARGET_BRANCH"; then
         SUBTREE_PUSH_SUCCESS=true
     else
         SUBTREE_PUSH_SUCCESS=false
@@ -187,7 +242,8 @@ run_command "git status" false
 
 print_success "🎉 Subtree push process completed successfully!"
 print_status "Summary:"
-print_status "  ✅ phosphobot subtree pushed to remote rule_base branch"
+print_status "  ✅ $SUBTREE_NAME subtree pushed to remote $TARGET_BRANCH branch"
+print_status "  ✅ Repository: $REMOTE_URL"
 print_status "  ✅ .gitignore restored to original state"
 print_status "  ✅ Local repository is clean and up to date"
 
