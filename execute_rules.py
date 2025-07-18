@@ -93,7 +93,7 @@ class PhosphobotJointController:
                                 target_joints: List[float],
                                 duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
-                                num_waypoints: int = 3,
+                                num_waypoints: int = 30,
                                 method: int = 5,
                                 pause_between_waypoints: float = 0.05) -> bool:
         """
@@ -358,7 +358,7 @@ def execute_configuration_smooth(config_name: str,
                                 use_trajectory: bool = True,
                                 trajectory_duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
-                                num_waypoints: int = 3):
+                                num_waypoints: int = 30):
     """Execute a specific configuration using smooth trajectories.
     
     Enhanced to support:
@@ -746,8 +746,8 @@ if __name__ == "__main__":
                        help="Trajectory duration in seconds (auto-calculated if not specified)")
     parser.add_argument("--max-velocity", type=float, default=0.3,
                        help="Maximum joint velocity for trajectory planning (default: 0.3 rad/s)")
-    parser.add_argument("--waypoints", type=int, default=3,
-                       help="Number of trajectory waypoints (default: 3)")
+    parser.add_argument("--waypoints", type=int, default=30,
+                       help="Number of trajectory waypoints (default: 30)")
     
     args = parser.parse_args()
     
@@ -854,7 +854,7 @@ if __name__ == "__main__":
             print(f"  python3 execute_rules.py --config beaker_ready --step   # Force step-based")
             print(f"  python3 execute_rules.py --config beaker_ready --duration 5.0  # Custom duration")
             print(f"  python3 execute_rules.py --config beaker_ready --max-velocity 0.2  # Slower movement")
-            print(f"  python3 execute_rules.py --config beaker_ready --waypoints 10  # More waypoints (default: 3)")
+            print(f"  python3 execute_rules.py --config beaker_ready --waypoints 10  # Fewer waypoints (default: 30)")
             print()
             print("  # Arm-specific controls:")
             print(f"  python3 execute_rules.py --config left_arm_only_demo  # Single arm movement")
