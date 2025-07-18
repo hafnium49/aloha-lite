@@ -107,17 +107,33 @@
         "smooth": true,
         "description": "Execute with smooth transitions between configurations"
       }
+    },
+    "left_arm_positioning_sequence": {
+      "name": "left_arm_positioning_sequence",
+      "description": "Left arm positioning sequence: blue standoff → yellow standoff → beaker standoff → right arm standoff → serving beaker position",
+      "configurations": [
+        "left_arm_standoff_blue",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "right_arm_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute with smooth transitions between configurations"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 11,
+    "total_sequences": 12,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
-      "multi_color_example": "python3 sequential_execute.py multi_color_dispensing_workflow --smooth"
+      "multi_color_example": "python3 sequential_execute.py multi_color_dispensing_workflow --smooth",
+      "positioning_example": "python3 sequential_execute.py left_arm_positioning_sequence"
     }
   }
 }
