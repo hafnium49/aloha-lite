@@ -118,20 +118,61 @@ class SequentialRobotExecutor:
                 print("=" * 50)
                 
                 try:
-                    # Use the simple squeeze function
-                    success = squeeze_washing_bottle_simple(duration)
+                    # Store current joint positions before squeeze operation
+                    print("📖 Storing current robot positions before squeeze operation...")
+                    current_left_joints = None
+                    current_right_joints = None
                     
-                    if success:
-                        print(f"✅ Successfully completed squeeze bottle function")
+                    # Ensure controller is available
+                    if not self.controller:
+                        print("❌ Robot controller not available")
+                        return False
+                    
+                    # Read current positions with retry logic
+                    for attempt in range(3):
+                        current_left_joints = self.controller.get_current_joint_angles(self.left_arm_id)
+                        current_right_joints = self.controller.get_current_joint_angles(self.right_arm_id)
+                        
+                        if current_left_joints is not None and current_right_joints is not None:
+                            break
+                        
+                        if attempt < 2:
+                            print(f"⚠️  Attempt {attempt + 1} failed, retrying position read...")
+                            time.sleep(0.5)
+                    
+                    if current_left_joints is None or current_right_joints is None:
+                        print("❌ Failed to read current joint positions after 3 attempts")
+                        return False
+                    
+                    print(f"💾 Stored left arm position: {[f'{j:.3f}' for j in current_left_joints]}")
+                    print(f"💾 Stored right arm position: {[f'{j:.3f}' for j in current_right_joints]}")
+                    
+                    # Execute squeeze operation (only affects right arm j6)
+                    print("🤏 Executing squeeze operation...")
+                    success = self._execute_squeeze_operation(duration)
+                    
+                    if not success:
+                        print("❌ Failed to execute squeeze operation")
+                        # Try to restore positions even if squeeze failed
+                        print("🔄 Attempting to restore positions after failed squeeze...")
+                        self._restore_joint_positions(current_left_joints, current_right_joints)
+                        return False
+                    
+                    # Restore both arms to their previous positions
+                    print("🔄 Restoring robot positions after squeeze operation...")
+                    restore_success = self._restore_joint_positions(current_left_joints, current_right_joints)
+                    
+                    if restore_success:
+                        print(f"✅ Successfully completed squeeze bottle function with position restoration")
                     else:
-                        print(f"❌ Failed to execute squeeze bottle function")
+                        print(f"⚠️  Squeeze completed but position restoration had issues")
                     
                     # Apply pause after special function
                     if pause_after > 0:
                         print(f"\n⏱️  Pausing {pause_after}s after special function...")
                         time.sleep(pause_after)
                     
-                    return success
+                    return True
                     
                 except Exception as e:
                     print(f"❌ Error executing squeeze bottle function: {e}")
@@ -139,6 +180,89 @@ class SequentialRobotExecutor:
         
         print(f"❌ Unknown special function: {step}")
         return False
+    
+    def _restore_joint_positions(self, left_joints: list, right_joints: list) -> bool:
+        """Restore joint positions for both arms with error handling."""
+        restore_success = True
+        
+        try:
+            # Restore left arm position
+            print(f"🦾 Restoring left arm (ID {self.left_arm_id}) to stored position...")
+            result_left = self.controller.write_joint_positions(self.left_arm_id, left_joints)
+            if result_left is None:
+                print("⚠️  Warning: Failed to restore left arm position")
+                restore_success = False
+            
+            # Restore right arm position (this will release the squeeze)
+            print(f"🦾 Restoring right arm (ID {self.right_arm_id}) to stored position...")
+            result_right = self.controller.write_joint_positions(self.right_arm_id, right_joints)
+            if result_right is None:
+                print("⚠️  Warning: Failed to restore right arm position")
+                restore_success = False
+            
+            # Allow time for movement completion
+            time.sleep(2.0)
+            
+            # Verify final positions
+            print("📖 Verifying restored positions...")
+            final_left = self.controller.get_current_joint_angles(self.left_arm_id)
+            final_right = self.controller.get_current_joint_angles(self.right_arm_id)
+            
+            if final_left and final_right:
+                print(f"✅ Final left arm position: {[f'{j:.3f}' for j in final_left]}")
+                print(f"✅ Final right arm position: {[f'{j:.3f}' for j in final_right]}")
+                
+                # Check if positions are reasonably close to target
+                left_error = max(abs(f - t) for f, t in zip(final_left, left_joints))
+                right_error = max(abs(f - t) for f, t in zip(final_right, right_joints))
+                
+                if left_error > 0.1:  # 0.1 radians ~ 5.7 degrees
+                    print(f"⚠️  Left arm position error: {left_error:.3f} rad")
+                    restore_success = False
+                
+                if right_error > 0.1:
+                    print(f"⚠️  Right arm position error: {right_error:.3f} rad")
+                    restore_success = False
+            else:
+                print("❌ Failed to read final positions for verification")
+                restore_success = False
+            
+            return restore_success
+            
+        except Exception as e:
+            print(f"❌ Error during position restoration: {e}")
+            return False
+    
+    def _execute_squeeze_operation(self, duration: float) -> bool:
+        """Execute the actual squeeze operation (right arm j6 only)."""
+        try:
+            # Get current right arm position
+            current_right_joints = self.controller.get_current_joint_angles(self.right_arm_id)
+            if current_right_joints is None:
+                print("❌ Failed to read current right arm position")
+                return False
+            
+            # Create squeeze position (modify only j6 to 0.3)
+            squeeze_joints = current_right_joints.copy()
+            squeeze_joints[5] = 0.3  # j6 = 0.3 for squeeze
+            
+            print(f"🤏 Squeezing: Right arm j6 from {current_right_joints[5]:.3f} to 0.300")
+            
+            # Execute squeeze
+            result = self.controller.write_joint_positions(self.right_arm_id, squeeze_joints)
+            if result is None:
+                print("❌ Failed to execute squeeze")
+                return False
+            
+            # Hold squeeze for specified duration
+            print(f"⏸️  Holding squeeze for {duration} seconds...")
+            time.sleep(duration)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error during squeeze operation: {e}")
+            return False
     
     def execute_configuration(self, config_name: str, pause_after: float = 3.0,
                              use_trajectory: bool = True, trajectory_duration: float = None,
