@@ -88,14 +88,53 @@ class PhosphobotJointController:
             return result['angles']
         return None
     
+    def calculate_adaptive_waypoints(self, current_joints: List[float], target_joints: List[float], 
+                                   min_waypoints: int = 5, max_waypoints: int = 50, 
+                                   base_scale: float = 10.0) -> int:
+        """
+        Calculate number of waypoints based on squared sum of joint displacements (excluding gripper).
+        
+        Args:
+            current_joints: Current joint positions [j1, j2, j3, j4, j5, j6]
+            target_joints: Target joint positions [j1, j2, j3, j4, j5, j6]
+            min_waypoints: Minimum number of waypoints
+            max_waypoints: Maximum number of waypoints
+            base_scale: Scaling factor for displacement to waypoints conversion
+            
+        Returns:
+            Number of waypoints to use
+        """
+        # Calculate squared sum of displacements for joints 1-5 (excluding gripper joint 6)
+        displacements = []
+        for i in range(min(5, len(current_joints), len(target_joints))):  # Only first 5 joints
+            displacement = target_joints[i] - current_joints[i]
+            displacements.append(displacement ** 2)
+        
+        squared_sum = sum(displacements)
+        
+        # Calculate waypoints based on squared sum
+        # More displacement = more waypoints for smoother motion
+        calculated_waypoints = int(base_scale * squared_sum + min_waypoints)
+        
+        # Clamp to min/max bounds
+        waypoints = max(min_waypoints, min(calculated_waypoints, max_waypoints))
+        
+        print(f"📊 Adaptive waypoints calculation:")
+        print(f"   📐 Joint displacements (J1-J5): {[f'{d:.3f}' for d in [target_joints[i] - current_joints[i] for i in range(min(5, len(current_joints)))]]}")
+        print(f"   📊 Squared sum: {squared_sum:.3f}")
+        print(f"   📍 Calculated waypoints: {calculated_waypoints} → {waypoints} (range: {min_waypoints}-{max_waypoints})")
+        
+        return waypoints
+    
     def execute_smooth_trajectory(self,
                                 robot_id: int,
                                 target_joints: List[float],
                                 duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
-                                num_waypoints: int = 30,
+                                num_waypoints: Optional[int] = None,
                                 method: int = 5,
-                                pause_between_waypoints: float = 0.05) -> bool:
+                                pause_between_waypoints: float = 0.05,
+                                adaptive_waypoints: bool = True) -> bool:
         """
         Execute a smooth trajectory from current position to target position using ModernRobotics.
         
@@ -104,9 +143,10 @@ class PhosphobotJointController:
             target_joints: Target joint angles [j1, j2, j3, j4, j5, j6] in radians
             duration: Total trajectory time (auto-calculated if None)
             max_velocity: Maximum joint velocity in rad/s for auto duration
-            num_waypoints: Number of trajectory waypoints
+            num_waypoints: Number of trajectory waypoints (auto-calculated if None and adaptive_waypoints=True)
             method: Time scaling method (3=cubic, 5=quintic)
             pause_between_waypoints: Sleep time between waypoints in seconds
+            adaptive_waypoints: If True, calculate waypoints based on joint displacement magnitude
         
         Returns:
             True if successful, False otherwise
@@ -129,6 +169,12 @@ class PhosphobotJointController:
             
             print(f"📍 Current: {[f'{j:.3f}' for j in current_joints]}")
             print(f"🎯 Target:  {[f'{j:.3f}' for j in target_joints]}")
+            
+            # Calculate adaptive waypoints if enabled and num_waypoints not specified
+            if adaptive_waypoints and num_waypoints is None:
+                num_waypoints = self.calculate_adaptive_waypoints(current_joints, target_joints)
+            elif num_waypoints is None:
+                num_waypoints = 30  # Default fallback
             
             # Plan trajectory
             if duration is None:
@@ -358,11 +404,13 @@ def execute_configuration_smooth(config_name: str,
                                 use_trajectory: bool = True,
                                 trajectory_duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
-                                num_waypoints: int = 30):
+                                num_waypoints: Optional[int] = None,
+                                adaptive_waypoints: bool = True):
     """Execute a specific configuration using smooth trajectories.
     
     Enhanced to support:
     - Smooth trajectory planning with ModernRobotics
+    - Adaptive waypoint calculation based on joint displacement magnitude
     - Complete and partial joint configurations
     - Single-arm and dual-arm movements  
     - Automatic merging with current joint positions for incomplete configurations
@@ -468,7 +516,8 @@ def execute_configuration_smooth(config_name: str,
                         left_joints,
                         duration=trajectory_duration,
                         max_velocity=max_velocity,
-                        num_waypoints=num_waypoints
+                        num_waypoints=num_waypoints,
+                        adaptive_waypoints=adaptive_waypoints
                     )
                 else:
                     result = controller.write_joint_positions(left_arm_id, left_joints)
@@ -485,7 +534,8 @@ def execute_configuration_smooth(config_name: str,
                         right_joints,
                         duration=trajectory_duration,
                         max_velocity=max_velocity,
-                        num_waypoints=num_waypoints
+                        num_waypoints=num_waypoints,
+                        adaptive_waypoints=adaptive_waypoints
                     )
                 else:
                     result = controller.write_joint_positions(right_arm_id, right_joints)
@@ -746,8 +796,10 @@ if __name__ == "__main__":
                        help="Trajectory duration in seconds (auto-calculated if not specified)")
     parser.add_argument("--max-velocity", type=float, default=0.3,
                        help="Maximum joint velocity for trajectory planning (default: 0.3 rad/s)")
-    parser.add_argument("--waypoints", type=int, default=30,
-                       help="Number of trajectory waypoints (default: 30)")
+    parser.add_argument("--waypoints", type=int,
+                       help="Number of trajectory waypoints (auto-calculated if not specified)")
+    parser.add_argument("--no-adaptive-waypoints", action="store_true",
+                       help="Disable adaptive waypoint calculation based on joint displacement")
     
     args = parser.parse_args()
     
@@ -785,7 +837,8 @@ if __name__ == "__main__":
             use_trajectory=use_trajectory,
             trajectory_duration=args.duration,
             max_velocity=args.max_velocity,
-            num_waypoints=args.waypoints
+            num_waypoints=args.waypoints,
+            adaptive_waypoints=not args.no_adaptive_waypoints
         )
         if success:
             print(f"\n✅ Configuration '{args.config}' executed successfully!")
