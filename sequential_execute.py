@@ -9,13 +9,7 @@ complex multi-step robot procedures with proper timing and safety checks.
 import sys
 import os
 import time
-import     parser.add_argument("--left-arm-id", type=int, default=0,
-                       help="Left arm robot         parser.add_argument("--left-arm-id", type=int, default=0,
-                           help="Left arm robot ID (default: 0 for 5A68011258)")
-        parser.add_argument("--right-arm-id", type=int, default=2,
-                           help="Right arm robot ID (default: 2 for 5A68009540)")default: 0 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=2,
-                       help="Right arm robot ID (default: 2 for 5A68009540)")
+import json
 import argparse
 from pathlib import Path
 import requests
@@ -271,8 +265,8 @@ def main():
                        help="Phosphobot server URL")
     parser.add_argument("--left-arm-id", type=int, default=0,
                        help="Left arm robot ID (default: 0 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=3,
-                       help="Right arm robot ID (default: 3 for 5A68009540)")
+    parser.add_argument("--right-arm-id", type=int, default=2,
+                       help="Right arm robot ID (default: 2 for 5A68009540)")
     
     # Trajectory planning arguments
     parser.add_argument("--smooth", action="store_true",
@@ -374,8 +368,8 @@ if __name__ == "__main__":
         parser.add_argument("sequence", help="Predefined sequence name")
         parser.add_argument("--left-arm-id", type=int, default=0,
                            help="Left arm robot ID (default: 0 for 5A68011258)")
-        parser.add_argument("--right-arm-id", type=int, default=3,
-                           help="Right arm robot ID (default: 3 for 5A68009540)")
+        parser.add_argument("--right-arm-id", type=int, default=2,
+                           help="Right arm robot ID (default: 2 for 5A68009540)")
         parser.add_argument("--server", default="http://localhost:80",
                            help="Phosphobot server URL")
         parser.add_argument("--smooth", action="store_true",
