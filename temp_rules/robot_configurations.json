@@ -413,12 +413,12 @@
         "left_arm": {
           "name": "SO-101 Left Arm",
           "joints": {
-            "j1": -0.0629085708411143,
-            "j2": -0.029152752341004187,
-            "j3": -0.8546359502073332,
-            "j4": 0.7533684947070028,
-            "j5": -1.963974894551861,
-            "j6": 1.0326211750260956
+            "j1": 0.02454968618189826,
+            "j2": -0.01074048770458049,
+            "j3": -0.8607733717528078,
+            "j4": 0.6873912130931513,
+            "j5": -2.5608391398492625,
+            "j6": 1.0510334396625194
           },
           "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
           "units": "radians"
@@ -439,12 +439,12 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with body: [-0.0629085708411143, -0.029152752341004187, -0.8546359502073332, 0.7533684947070028, -1.963974894551861, 1.0326211750260956]",
+          "left_arm": "POST /joints/write with body: [0.02454968618189826, -0.01074048770458049, -0.8607733717528078, 0.6873912130931513, -2.5608391398492625, 1.0510334396625194]",
           "right_arm": "POST /joints/write with body: [-0.251634, -0.937491, -0.345230, 1.014209, -1.299599, 1.5]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([-0.0629085708411143, -0.029152752341004187, -0.8546359502073332, 0.7533684947070028, -1.963974894551861, 1.0326211750260956])\nright_arm.move_j([-0.251634, -0.937491, -0.345230, 1.014209, -1.299599, 1.5])"
+          "code": "left_arm.move_j([0.02454968618189826, -0.01074048770458049, -0.8607733717528078, 0.6873912130931513, -2.5608391398492625, 1.0510334396625194])\nright_arm.move_j([-0.251634, -0.937491, -0.345230, 1.014209, -1.299599, 1.5])"
         }
       }
     },
@@ -602,12 +602,56 @@
           "code": "left_arm.move_j([0.16724473711418192, -0.6797194361613081, 0.11661100936401675, 0.7595059162524774, -1.8795853483015856, 1.0709800596853116])"
         }
       }
+    },
+    "left_arm_serving_beaker": {
+      "name": "left_arm_serving_beaker",
+      "description": "Left arm serving beaker position - current position captured for beaker serving operations",
+      "source": {
+        "dataset": "current_robot_state",
+        "extraction_method": "real_time_capture",
+        "context": "left_arm_position_during_beaker_serving",
+        "purpose": "beaker_serving_operations"
+      },
+      "timestamp": "2025-07-18",
+      "configuration": {
+        "left_arm": {
+          "name": "SO-101 Left Arm",
+          "id": 3,
+          "device_id": "5A68011258",
+          "joints": {
+            "j1": -0.7748494701161639,
+            "j2": 0.07211470315932614,
+            "j3": 1.5266836094367982,
+            "j4": -1.561973783323277,
+            "j5": -1.6417602634144461,
+            "j6": 0.906804033343867
+          },
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "left_arm": "POST /robot/3/joints/write with body: [-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.906804033343867]"
+        },
+        "python_example": {
+          "description": "Example usage with phosphobot SkillClient",
+          "code": "left_arm.move_j([-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.906804033343867])"
+        }
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Robot configurations for dual SO-101 arms",
     "created": "2025-07-15",
-    "total_configurations": 14
+    "total_configurations": 15
   }
 }
