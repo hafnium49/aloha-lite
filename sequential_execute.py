@@ -332,7 +332,7 @@ def main():
 
 # Load predefined sequences from JSON file
 def load_predefined_sequences():
-    """Load predefined sequences from JSON file."""
+    """Load predefined sequences from JSON file with execution options support."""
     sequences_file = Path("temp_rules/sequential_sequences.json")
     
     if not sequences_file.exists():
@@ -343,10 +343,14 @@ def load_predefined_sequences():
         with open(sequences_file, 'r') as f:
             data = json.load(f)
         
-        # Convert to simple dict format expected by the rest of the code
+        # Return the full sequence data including execution_options
         sequences = {}
         for name, seq_data in data.get("predefined_sequences", {}).items():
-            sequences[name] = seq_data["configurations"]
+            sequences[name] = {
+                "configurations": seq_data["configurations"],
+                "execution_options": seq_data.get("execution_options", {}),
+                "description": seq_data.get("description", "")
+            }
         
         return sequences
     except (json.JSONDecodeError, KeyError) as e:
@@ -360,7 +364,9 @@ if __name__ == "__main__":
     # Check for predefined sequences
     if len(sys.argv) > 1 and sys.argv[1] in PREDEFINED_SEQUENCES:
         sequence_name = sys.argv[1]
-        configs = PREDEFINED_SEQUENCES[sequence_name]
+        sequence_data = PREDEFINED_SEQUENCES[sequence_name]
+        configs = sequence_data["configurations"]
+        execution_options = sequence_data.get("execution_options", {})
         
         # Parse additional arguments for predefined sequences
         parser = argparse.ArgumentParser(description=f"Execute predefined sequence: {sequence_name}")
@@ -375,17 +381,35 @@ if __name__ == "__main__":
                            help="Use smooth trajectory planning with ModernRobotics")
         parser.add_argument("--step", action="store_true", 
                            help="Use step-based movement (default behavior)")
+        parser.add_argument("--pause-between", type=float, default=2.0,
+                           help="Pause between configurations (seconds)")
+        parser.add_argument("--pause-after", type=float, default=3.0,
+                           help="Pause after each configuration movement (seconds)")
+        parser.add_argument("--duration", "-d", type=float,
+                           help="Trajectory duration in seconds (auto-calculated if not specified)")
+        parser.add_argument("--max-velocity", type=float, default=0.3,
+                           help="Maximum joint velocity for trajectory planning (default: 0.3 rad/s)")
+        parser.add_argument("--waypoints", type=int,
+                           help="Number of trajectory waypoints (auto-calculated if not specified)")
+        parser.add_argument("--no-adaptive-waypoints", action="store_true",
+                           help="Disable adaptive waypoint calculation based on joint displacement")
         
         # Only parse known arguments to avoid conflicts
         args, unknown = parser.parse_known_args()
         
-        # Determine execution mode
+        # Apply execution options from sequence definition (can be overridden by command line)
+        use_trajectory_from_options = execution_options.get("smooth", False)
+        
+        # Determine execution mode (command line overrides sequence options)
         if args.step:
             use_trajectory = False
-            print("📐 Using STEP-BASED movement (traditional)")
+            print("📐 Using STEP-BASED movement (command line override)")
         elif args.smooth:
             use_trajectory = True
-            print("🎬 Using SMOOTH trajectory planning")
+            print("🎬 Using SMOOTH trajectory planning (command line override)")
+        elif use_trajectory_from_options:
+            use_trajectory = True
+            print("🎬 Using SMOOTH trajectory planning (from sequence execution_options)")
         else:
             # Default behavior: use step-based movement (more predictable)
             use_trajectory = False
@@ -394,7 +418,11 @@ if __name__ == "__main__":
                 print("💡 Tip: Use --smooth for smooth trajectory planning")
         
         print(f"🎯 Executing predefined sequence: {sequence_name}")
+        if sequence_data.get("description"):
+            print(f"📝 Description: {sequence_data['description']}")
         print(f"📋 Configurations: {' → '.join(configs)}")
+        if execution_options:
+            print(f"⚙️  Execution options: {execution_options}")
         print(f"🔧 Left arm ID: {args.left_arm_id} (5A68011258)")
         print(f"🔧 Right arm ID: {args.right_arm_id} (5A68009540)")
         
@@ -406,8 +434,13 @@ if __name__ == "__main__":
         )
         success = executor.execute_sequence(
             configs,
+            pause_between=args.pause_between,
+            pause_after_each=args.pause_after,
             use_trajectory=use_trajectory,
-            adaptive_waypoints=True  # Enable adaptive waypoints for predefined sequences
+            trajectory_duration=args.duration,
+            max_velocity=args.max_velocity,
+            num_waypoints=args.waypoints,
+            adaptive_waypoints=not args.no_adaptive_waypoints
         )
         
         if success:
@@ -421,12 +454,21 @@ if __name__ == "__main__":
         print("🤖 Sequential Robot Configuration Executor")
         print("=" * 50)
         print("\nPredefined sequences:")
-        for name, configs in PREDEFINED_SEQUENCES.items():
+        for name, seq_data in PREDEFINED_SEQUENCES.items():
+            configs = seq_data["configurations"]
+            description = seq_data.get("description", "")
+            execution_options = seq_data.get("execution_options", {})
+            
             print(f"  • {name}: {' → '.join(configs)}")
+            if description:
+                print(f"    Description: {description}")
+            if execution_options:
+                print(f"    Options: {execution_options}")
         
         print("\nUsage:")
         print(f"  python3 {sys.argv[0]} standoff_to_dispensing")
         print(f"  python3 {sys.argv[0]} full_lab_procedure")
+        print(f"  python3 {sys.argv[0]} multi_color_dispensing_workflow")
         print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 0 --right-arm-id 2")
         print(f"  python3 {sys.argv[0]} config1 config2 config3 [options]")
         print("\nFor full options: python3 sequential_execute.py --help")
