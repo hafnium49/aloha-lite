@@ -122,18 +122,34 @@
         "smooth": true,
         "description": "Execute with smooth transitions between configurations"
       }
+    },
+    "squeeze_bottle_demo": {
+      "name": "squeeze_bottle_demo",
+      "description": "Demonstration of squeeze bottle functionality with positioning sequence",
+      "configurations": [
+        "left_arm_standoff_with_beaker",
+        "dispensing_red_to_beaker",
+        "squeeze washing bottle for 1.5 seconds",
+        "right_arm_standoff",
+        "left_arm_standoff_with_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute with smooth transitions and squeeze bottle action"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 12,
+    "total_sequences": 13,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
       "multi_color_example": "python3 sequential_execute.py multi_color_dispensing_workflow --smooth",
-      "positioning_example": "python3 sequential_execute.py left_arm_positioning_sequence"
+      "positioning_example": "python3 sequential_execute.py left_arm_positioning_sequence",
+      "squeeze_bottle_example": "python3 sequential_execute.py squeeze_bottle_demo"
     }
   }
 }

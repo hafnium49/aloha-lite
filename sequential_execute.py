@@ -13,10 +13,14 @@ import json
 import argparse
 from pathlib import Path
 import requests
+import re
 
 # Import the existing functionality from execute_rules.py
 sys.path.append(str(Path(__file__).parent))
 from execute_rules import PhosphobotJointController, load_configuration, prepare_arm_configuration
+
+# Import squeeze bottle functions
+from squeeze_bottle import squeeze_washing_bottle_simple, squeeze_washing_bottle
 
 # Check if ModernRobotics is available for trajectory planning
 try:
@@ -51,7 +55,92 @@ class SequentialRobotExecutor:
         else:
             print("\n⚠️  Skipping robot initialization to prevent collisions")
     
-    def execute_configuration(self, config_name: str, pause_after: float = 3.0, 
+    def execute_step(self, step: str, pause_after: float = 3.0, 
+                    use_trajectory: bool = True, trajectory_duration: float = None,
+                    max_velocity: float = 0.3, num_waypoints: int = None,
+                    adaptive_waypoints: bool = True):
+        """Execute a single step which can be either a configuration or a special function.
+        
+        Args:
+            step (str): Either a configuration name or a special function call
+            pause_after (float): Pause after step execution
+            use_trajectory (bool): Use trajectory planning for configurations
+            trajectory_duration (float): Optional trajectory duration
+            max_velocity (float): Maximum velocity for trajectories
+            num_waypoints (int): Number of waypoints
+            adaptive_waypoints (bool): Use adaptive waypoint calculation
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        
+        # Check if this is a special function call
+        if self._is_special_function(step):
+            return self._execute_special_function(step, pause_after)
+        else:
+            # Execute as a regular configuration
+            return self.execute_configuration(
+                step, pause_after, use_trajectory, trajectory_duration,
+                max_velocity, num_waypoints, adaptive_waypoints
+            )
+    
+    def _is_special_function(self, step: str) -> bool:
+        """Check if a step is a special function call."""
+        special_patterns = [
+            r"squeeze.*bottle.*for.*(\d+\.?\d*)\s*seconds?",
+            r"squeeze.*washing.*bottle.*(\d+\.?\d*)",
+            r"squeeze.*(\d+\.?\d*)"
+        ]
+        
+        step_lower = step.lower()
+        for pattern in special_patterns:
+            if re.search(pattern, step_lower):
+                return True
+        return False
+    
+    def _execute_special_function(self, step: str, pause_after: float = 3.0) -> bool:
+        """Execute a special function based on the step description."""
+        step_lower = step.lower()
+        
+        # Pattern for squeeze bottle functions
+        squeeze_patterns = [
+            r"squeeze.*bottle.*for.*(\d+\.?\d*)\s*seconds?",
+            r"squeeze.*washing.*bottle.*(\d+\.?\d*)",
+            r"squeeze.*(\d+\.?\d*)"
+        ]
+        
+        for pattern in squeeze_patterns:
+            match = re.search(pattern, step_lower)
+            if match:
+                duration = float(match.group(1))
+                print(f"\n🧴 Executing special function: Squeeze washing bottle")
+                print(f"⏱️  Duration: {duration} seconds")
+                print("=" * 50)
+                
+                try:
+                    # Use the simple squeeze function
+                    success = squeeze_washing_bottle_simple(duration)
+                    
+                    if success:
+                        print(f"✅ Successfully completed squeeze bottle function")
+                    else:
+                        print(f"❌ Failed to execute squeeze bottle function")
+                    
+                    # Apply pause after special function
+                    if pause_after > 0:
+                        print(f"\n⏱️  Pausing {pause_after}s after special function...")
+                        time.sleep(pause_after)
+                    
+                    return success
+                    
+                except Exception as e:
+                    print(f"❌ Error executing squeeze bottle function: {e}")
+                    return False
+        
+        print(f"❌ Unknown special function: {step}")
+        return False
+    
+    def execute_configuration(self, config_name: str, pause_after: float = 3.0,
                              use_trajectory: bool = True, trajectory_duration: float = None,
                              max_velocity: float = 0.3, num_waypoints: int = None,
                              adaptive_waypoints: bool = True):
@@ -192,12 +281,12 @@ class SequentialRobotExecutor:
             print(f"❌ Error executing configuration '{config_name}': {e}")
             return False
     
-    def execute_sequence(self, config_names: list[str], pause_between: float = 2.0, pause_after_each: float = 3.0,
+    def execute_sequence(self, steps: list[str], pause_between: float = 2.0, pause_after_each: float = 3.0,
                         use_trajectory: bool = True, trajectory_duration: float = None,
                         max_velocity: float = 0.3, num_waypoints: int = None,
                         adaptive_waypoints: bool = True):
-        """Execute a sequence of configurations."""
-        print(f"🤖 Starting sequential execution of {len(config_names)} configurations")
+        """Execute a sequence of steps (configurations and/or special functions)."""
+        print(f"🤖 Starting sequential execution of {len(steps)} steps")
         
         # Show trajectory settings
         trajectory_status = "🎬 SMOOTH TRAJECTORY" if use_trajectory and TRAJECTORY_AVAILABLE else "📐 STEP-BASED"
@@ -217,11 +306,11 @@ class SequentialRobotExecutor:
         try:
             self.initialize()
             
-            for i, config_name in enumerate(config_names, 1):
-                print(f"\n🔄 Step {i}/{len(config_names)}: {config_name}")
+            for i, step in enumerate(steps, 1):
+                print(f"\n🔄 Step {i}/{len(steps)}: {step}")
                 
-                success = self.execute_configuration(
-                    config_name, 
+                success = self.execute_step(
+                    step, 
                     pause_after_each,
                     use_trajectory=use_trajectory,
                     trajectory_duration=trajectory_duration,
@@ -236,13 +325,13 @@ class SequentialRobotExecutor:
                     print(f"❌ Failed to execute step {i}, aborting sequence")
                     break
                 
-                # Pause between configurations (except after the last one)
-                if i < len(config_names) and pause_between > 0:
-                    print(f"\n⏳ Pausing {pause_between}s before next configuration...")
+                # Pause between steps (except after the last one)
+                if i < len(steps) and pause_between > 0:
+                    print(f"\n⏳ Pausing {pause_between}s before next step...")
                     time.sleep(pause_between)
             
-            print(f"\n🎉 Sequence completed! {success_count}/{len(config_names)} configurations executed successfully")
-            return success_count == len(config_names)
+            print(f"\n🎉 Sequence completed! {success_count}/{len(steps)} steps executed successfully")
+            return success_count == len(steps)
             
         except Exception as e:
             print(f"❌ Error during sequence execution: {e}")
