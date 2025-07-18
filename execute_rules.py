@@ -139,7 +139,7 @@ class PhosphobotJointController:
         Execute a smooth trajectory from current position to target position using ModernRobotics.
         
         Args:
-            robot_id: Robot arm ID (0 for left arm, 3 for right arm)
+            robot_id: Robot arm ID (0 for left arm, 2 for right arm)
             target_joints: Target joint angles [j1, j2, j3, j4, j5, j6] in radians
             duration: Total trajectory time (auto-calculated if None)
             max_velocity: Maximum joint velocity in rad/s for auto duration
@@ -400,7 +400,7 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
 def execute_configuration_smooth(config_name: str, 
                                 skip_init: bool = True, 
                                 left_arm_id: int = 0, 
-                                right_arm_id: int = 3,
+                                right_arm_id: int = 2,
                                 use_trajectory: bool = True,
                                 trajectory_duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
@@ -570,7 +570,7 @@ def execute_configuration_smooth(config_name: str,
         print(f"❌ Error loading configuration: {e}")
         return False
 
-def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 0, right_arm_id: int = 3):
+def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 0, right_arm_id: int = 2):
     """Execute a specific configuration by loading it from JSON.
     
     Enhanced to support:
@@ -784,8 +784,8 @@ if __name__ == "__main__":
                        help="Explicitly disable robot initialization (default)")
     parser.add_argument("--left-arm-id", type=int, default=0,
                        help="Left arm robot ID (default: 0 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=3,
-                       help="Right arm robot ID (default: 3 for 5A68009540)")
+    parser.add_argument("--right-arm-id", type=int, default=2,
+                       help="Right arm robot ID (default: 2 for 5A68009540)")
     
     # Trajectory planning arguments
     parser.add_argument("--smooth", action="store_true",

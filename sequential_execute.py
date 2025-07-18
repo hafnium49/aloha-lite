@@ -9,7 +9,13 @@ complex multi-step robot procedures with proper timing and safety checks.
 import sys
 import os
 import time
-import json
+import     parser.add_argument("--left-arm-id", type=int, default=0,
+                       help="Left arm robot         parser.add_argument("--left-arm-id", type=int, default=0,
+                           help="Left arm robot ID (default: 0 for 5A68011258)")
+        parser.add_argument("--right-arm-id", type=int, default=2,
+                           help="Right arm robot ID (default: 2 for 5A68009540)")default: 0 for 5A68011258)")
+    parser.add_argument("--right-arm-id", type=int, default=2,
+                       help="Right arm robot ID (default: 2 for 5A68009540)")
 import argparse
 from pathlib import Path
 import requests
@@ -29,7 +35,7 @@ class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
     def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
-                 left_arm_id: int = 0, right_arm_id: int = 3):
+                 left_arm_id: int = 0, right_arm_id: int = 2):
         self.server_url = server_url
         self.skip_init = skip_init
         self.left_arm_id = left_arm_id
@@ -423,10 +429,10 @@ if __name__ == "__main__":
         print("\nUsage:")
         print(f"  python3 {sys.argv[0]} standoff_to_dispensing")
         print(f"  python3 {sys.argv[0]} full_lab_procedure")
-        print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 0 --right-arm-id 3")
+        print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 0 --right-arm-id 2")
         print(f"  python3 {sys.argv[0]} config1 config2 config3 [options]")
         print("\nFor full options: python3 sequential_execute.py --help")
-        print("\nArm ID defaults: Left arm = 0 (5A68011258), Right arm = 3 (5A68009540)")
+        print("\nArm ID defaults: Left arm = 0 (5A68011258), Right arm = 2 (5A68009540)")
         print("Trajectory mode: Smooth with adaptive waypoints (default)")
         sys.exit(0)
     
