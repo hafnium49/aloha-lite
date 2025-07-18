@@ -85,16 +85,39 @@
         "squeeze_washing_bottle",
         "dispensing_red_to_beaker"
       ]
+    },
+    "multi_color_dispensing_workflow": {
+      "name": "multi_color_dispensing_workflow",
+      "description": "Complete multi-color solution dispensing workflow: red → yellow → blue with coordinated arm movements and standoff positions",
+      "configurations": [
+        "left_arm_standoff_with_beaker",
+        "dispensing_red_to_beaker",
+        "right_arm_standoff",
+        "left_arm_standoff_with_beaker",
+        "left_arm_standoff_yellow",
+        "right_arm_standoff_yellow",
+        "dispensing_yellow_to_beaker",
+        "right_arm_standoff_yellow",
+        "right_arm_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_blue",
+        "dispensing_blue_to_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute with smooth transitions between configurations"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 10,
+    "total_sequences": 11,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
-      "example": "python3 sequential_execute.py full_lab_procedure"
+      "example": "python3 sequential_execute.py full_lab_procedure",
+      "multi_color_example": "python3 sequential_execute.py multi_color_dispensing_workflow --smooth"
     }
   }
 }
