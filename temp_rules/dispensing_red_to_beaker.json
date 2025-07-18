@@ -20,7 +20,7 @@
         "j3": 1.146163,
         "j4": -1.018812,
         "j5": -1.664776,
-        "j6": 1.015743
+        "j6": 0.906804033343867
       },
       "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
       "units": "radians"
@@ -41,12 +41,12 @@
   },
   "usage": {
     "phosphobot_api": {
-      "left_arm": "POST /joints/write with body: [0.148832, -0.093596, 1.146163, -1.018812, -1.664776, 1.015743]",
+      "left_arm": "POST /joints/write with body: [0.148832, -0.093596, 1.146163, -1.018812, -1.664776, 0.906804033343867]",
       "right_arm": "POST /joints/write with body: [-0.03529, -0.34523, 1.181454, -0.807071, -1.390126, 1.503668]"
     },
     "python_example": {
       "description": "Example usage with phosphobot SkillClient",
-      "code": "left_arm.move_j([0.148832, -0.093596, 1.146163, -1.018812, -1.664776, 1.015743])\nright_arm.move_j([-0.03529, -0.34523, 1.181454, -0.807071, -1.390126, 1.503668])"
+      "code": "left_arm.move_j([0.148832, -0.093596, 1.146163, -1.018812, -1.664776, 0.906804033343867])\nright_arm.move_j([-0.03529, -0.34523, 1.181454, -0.807071, -1.390126, 1.503668])"
     }
   }
 }
