@@ -270,9 +270,9 @@ def main():
     
     # Trajectory planning arguments
     parser.add_argument("--smooth", action="store_true",
-                       help="Use smooth trajectory planning (requires modern_robotics)")
+                       help="Use smooth trajectory planning with ModernRobotics")
     parser.add_argument("--step", action="store_true", 
-                       help="Use step-based movement (traditional mode)")
+                       help="Use step-based movement (default behavior)")
     parser.add_argument("--duration", "-d", type=float,
                        help="Trajectory duration in seconds (auto-calculated if not specified)")
     parser.add_argument("--max-velocity", type=float, default=0.3,
@@ -299,12 +299,11 @@ def main():
         use_trajectory = True
         print("🎬 Using SMOOTH trajectory planning")
     else:
-        # Default behavior: use smooth if available, fallback to step-based
-        use_trajectory = TRAJECTORY_AVAILABLE
+        # Default behavior: use step-based movement (more predictable)
+        use_trajectory = False
+        print("📐 Using STEP-BASED movement (default)")
         if TRAJECTORY_AVAILABLE:
-            print("🎬 Using SMOOTH trajectory planning (default)")
-        else:
-            print("📐 Using STEP-BASED movement (ModernRobotics not available)")
+            print("� Tip: Use --smooth for smooth trajectory planning")
     
     # Execute sequence
     executor = SequentialRobotExecutor(
@@ -373,9 +372,9 @@ if __name__ == "__main__":
         parser.add_argument("--server", default="http://localhost:80",
                            help="Phosphobot server URL")
         parser.add_argument("--smooth", action="store_true",
-                           help="Use smooth trajectory planning (requires modern_robotics)")
+                           help="Use smooth trajectory planning with ModernRobotics")
         parser.add_argument("--step", action="store_true", 
-                           help="Use step-based movement (traditional mode)")
+                           help="Use step-based movement (default behavior)")
         
         # Only parse known arguments to avoid conflicts
         args, unknown = parser.parse_known_args()
@@ -383,11 +382,16 @@ if __name__ == "__main__":
         # Determine execution mode
         if args.step:
             use_trajectory = False
+            print("📐 Using STEP-BASED movement (traditional)")
         elif args.smooth:
             use_trajectory = True
+            print("🎬 Using SMOOTH trajectory planning")
         else:
-            # Default behavior: use smooth if available
-            use_trajectory = TRAJECTORY_AVAILABLE
+            # Default behavior: use step-based movement (more predictable)
+            use_trajectory = False
+            print("📐 Using STEP-BASED movement (default)")
+            if TRAJECTORY_AVAILABLE:
+                print("💡 Tip: Use --smooth for smooth trajectory planning")
         
         print(f"🎯 Executing predefined sequence: {sequence_name}")
         print(f"📋 Configurations: {' → '.join(configs)}")
