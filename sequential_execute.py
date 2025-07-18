@@ -18,11 +18,18 @@ import requests
 sys.path.append(str(Path(__file__).parent))
 from execute_rules import PhosphobotJointController, load_configuration, prepare_arm_configuration
 
+# Check if ModernRobotics is available for trajectory planning
+try:
+    import modern_robotics as mr
+    TRAJECTORY_AVAILABLE = True
+except ImportError:
+    TRAJECTORY_AVAILABLE = False
+
 class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
     def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
-                 left_arm_id: int = 3, right_arm_id: int = 2):
+                 left_arm_id: int = 0, right_arm_id: int = 3):
         self.server_url = server_url
         self.skip_init = skip_init
         self.left_arm_id = left_arm_id
@@ -44,10 +51,15 @@ class SequentialRobotExecutor:
         else:
             print("\n⚠️  Skipping robot initialization to prevent collisions")
     
-    def execute_configuration(self, config_name: str, pause_after: float = 3.0):
+    def execute_configuration(self, config_name: str, pause_after: float = 3.0, 
+                             use_trajectory: bool = True, trajectory_duration: float = None,
+                             max_velocity: float = 0.3, num_waypoints: int = None,
+                             adaptive_waypoints: bool = True):
         """Execute a single configuration with optional pause.
         
         Enhanced to support:
+        - Smooth trajectory planning with ModernRobotics
+        - Adaptive waypoint calculation based on joint displacement magnitude
         - Complete and partial joint configurations
         - Single-arm and dual-arm movements  
         - Automatic merging with current joint positions for incomplete configurations
@@ -114,25 +126,54 @@ class SequentialRobotExecutor:
             
             print(f"\n🎯 Moving to: {config.get('name', config_name)}")
             
+            # Determine execution mode
+            trajectory_status = "🎬 SMOOTH TRAJECTORY" if use_trajectory and TRAJECTORY_AVAILABLE else "📐 STEP-BASED"
+            print(f"🎯 Execution mode: {trajectory_status}")
+            
+            success = True
+            
             # Move configured arms
             if has_left_arm and left_joints:
-                print(f"Left arm (ID {self.left_arm_id}) joints: {[f'{j:.3f}' for j in left_joints]}")
-                self.controller.write_joint_positions(self.left_arm_id, left_joints)
-                time.sleep(1)
+                print(f"\n🦾 Left arm (ID {self.left_arm_id}) target: {[f'{j:.3f}' for j in left_joints]}")
+                if use_trajectory and TRAJECTORY_AVAILABLE:
+                    success &= self.controller.execute_smooth_trajectory(
+                        self.left_arm_id, 
+                        left_joints,
+                        duration=trajectory_duration,
+                        max_velocity=max_velocity,
+                        num_waypoints=num_waypoints,
+                        adaptive_waypoints=adaptive_waypoints
+                    )
+                else:
+                    result = self.controller.write_joint_positions(self.left_arm_id, left_joints)
+                    success &= result is not None
+                    time.sleep(1)
             else:
                 print(f"Left arm (ID {self.left_arm_id}): keeping current position")
             
             if has_right_arm and right_joints:
-                print(f"Right arm (ID {self.right_arm_id}) joints: {[f'{j:.3f}' for j in right_joints]}")
-                self.controller.write_joint_positions(self.right_arm_id, right_joints)
-                time.sleep(1)
+                print(f"\n🦾 Right arm (ID {self.right_arm_id}) target: {[f'{j:.3f}' for j in right_joints]}")
+                if use_trajectory and TRAJECTORY_AVAILABLE:
+                    success &= self.controller.execute_smooth_trajectory(
+                        self.right_arm_id, 
+                        right_joints,
+                        duration=trajectory_duration,
+                        max_velocity=max_velocity,
+                        num_waypoints=num_waypoints,
+                        adaptive_waypoints=adaptive_waypoints
+                    )
+                else:
+                    result = self.controller.write_joint_positions(self.right_arm_id, right_joints)
+                    success &= result is not None
+                    time.sleep(1)
             else:
                 print(f"Right arm (ID {self.right_arm_id}): keeping current position")
             
-            # Pause to allow movement completion
+            # Pause to allow movement completion (shorter for smooth trajectories)
             if pause_after > 0:
-                print(f"\n⏱️  Pausing {pause_after}s to complete movement...")
-                time.sleep(pause_after)
+                pause_time = pause_after if not (use_trajectory and TRAJECTORY_AVAILABLE) else max(1.0, pause_after * 0.5)
+                print(f"\n⏱️  Pausing {pause_time}s to complete movement...")
+                time.sleep(pause_time)
             
             # Read final positions for moved arms
             print("\n📖 Reading final joint positions...")
@@ -141,16 +182,34 @@ class SequentialRobotExecutor:
             if has_right_arm:
                 self.controller.read_joint_positions(self.right_arm_id)
             
-            print(f"\n✅ Successfully completed: {config.get('name', config_name)}")
-            return True
+            if success:
+                print(f"\n✅ Successfully completed: {config.get('name', config_name)}")
+            else:
+                print(f"\n⚠️  Completed with errors: {config.get('name', config_name)}")
+            return success
             
         except Exception as e:
             print(f"❌ Error executing configuration '{config_name}': {e}")
             return False
     
-    def execute_sequence(self, config_names: list[str], pause_between: float = 2.0, pause_after_each: float = 3.0):
+    def execute_sequence(self, config_names: list[str], pause_between: float = 2.0, pause_after_each: float = 3.0,
+                        use_trajectory: bool = True, trajectory_duration: float = None,
+                        max_velocity: float = 0.3, num_waypoints: int = None,
+                        adaptive_waypoints: bool = True):
         """Execute a sequence of configurations."""
         print(f"🤖 Starting sequential execution of {len(config_names)} configurations")
+        
+        # Show trajectory settings
+        trajectory_status = "🎬 SMOOTH TRAJECTORY" if use_trajectory and TRAJECTORY_AVAILABLE else "📐 STEP-BASED"
+        print(f"🎯 Execution mode: {trajectory_status}")
+        print("=" * 70)
+        print(f"🔧 Left arm ID: {self.left_arm_id} (5A68011258)")
+        print(f"🔧 Right arm ID: {self.right_arm_id} (5A68009540)")
+        if use_trajectory and TRAJECTORY_AVAILABLE:
+            print(f"📊 Trajectory settings:")
+            print(f"   ⏱️  Duration: {'Auto' if trajectory_duration is None else f'{trajectory_duration}s'}")
+            print(f"   🎚️  Max velocity: {max_velocity:.3f} rad/s")
+            print(f"   📍 Waypoints: {'Auto-adaptive' if num_waypoints is None and adaptive_waypoints else num_waypoints or 'Auto-adaptive'}")
         print("=" * 70)
         
         success_count = 0
@@ -161,7 +220,15 @@ class SequentialRobotExecutor:
             for i, config_name in enumerate(config_names, 1):
                 print(f"\n🔄 Step {i}/{len(config_names)}: {config_name}")
                 
-                success = self.execute_configuration(config_name, pause_after_each)
+                success = self.execute_configuration(
+                    config_name, 
+                    pause_after_each,
+                    use_trajectory=use_trajectory,
+                    trajectory_duration=trajectory_duration,
+                    max_velocity=max_velocity,
+                    num_waypoints=num_waypoints,
+                    adaptive_waypoints=adaptive_waypoints
+                )
                 
                 if success:
                     success_count += 1
@@ -196,10 +263,24 @@ def main():
                        help="Enable robot initialization (WARNING: may cause collisions)")
     parser.add_argument("--server", default="http://localhost:80",
                        help="Phosphobot server URL")
-    parser.add_argument("--left-arm-id", type=int, default=3,
-                       help="Left arm robot ID (default: 3 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=2,
-                       help="Right arm robot ID (default: 2 for 5A68009540)")
+    parser.add_argument("--left-arm-id", type=int, default=0,
+                       help="Left arm robot ID (default: 0 for 5A68011258)")
+    parser.add_argument("--right-arm-id", type=int, default=3,
+                       help="Right arm robot ID (default: 3 for 5A68009540)")
+    
+    # Trajectory planning arguments
+    parser.add_argument("--smooth", action="store_true",
+                       help="Use smooth trajectory planning (requires modern_robotics)")
+    parser.add_argument("--step", action="store_true", 
+                       help="Use step-based movement (traditional mode)")
+    parser.add_argument("--duration", "-d", type=float,
+                       help="Trajectory duration in seconds (auto-calculated if not specified)")
+    parser.add_argument("--max-velocity", type=float, default=0.3,
+                       help="Maximum joint velocity for trajectory planning (default: 0.3 rad/s)")
+    parser.add_argument("--waypoints", type=int,
+                       help="Number of trajectory waypoints (auto-calculated if not specified)")
+    parser.add_argument("--no-adaptive-waypoints", action="store_true",
+                       help="Disable adaptive waypoint calculation based on joint displacement")
     
     args = parser.parse_args()
     
@@ -209,6 +290,21 @@ def main():
         print("⚠️  Robot initialization ENABLED - use with caution!")
     else:
         print("✅ Robot initialization DISABLED by default (safer)")
+    
+    # Determine execution mode
+    if args.step:
+        use_trajectory = False
+        print("📐 Using STEP-BASED movement (traditional)")
+    elif args.smooth:
+        use_trajectory = True
+        print("🎬 Using SMOOTH trajectory planning")
+    else:
+        # Default behavior: use smooth if available, fallback to step-based
+        use_trajectory = TRAJECTORY_AVAILABLE
+        if TRAJECTORY_AVAILABLE:
+            print("🎬 Using SMOOTH trajectory planning (default)")
+        else:
+            print("📐 Using STEP-BASED movement (ModernRobotics not available)")
     
     # Execute sequence
     executor = SequentialRobotExecutor(
@@ -220,7 +316,12 @@ def main():
     success = executor.execute_sequence(
         args.configs, 
         pause_between=args.pause_between,
-        pause_after_each=args.pause_after
+        pause_after_each=args.pause_after,
+        use_trajectory=use_trajectory,
+        trajectory_duration=args.duration,
+        max_velocity=args.max_velocity,
+        num_waypoints=args.waypoints,
+        adaptive_waypoints=not args.no_adaptive_waypoints
     )
     
     if success:
@@ -265,15 +366,28 @@ if __name__ == "__main__":
         # Parse additional arguments for predefined sequences
         parser = argparse.ArgumentParser(description=f"Execute predefined sequence: {sequence_name}")
         parser.add_argument("sequence", help="Predefined sequence name")
-        parser.add_argument("--left-arm-id", type=int, default=3,
-                           help="Left arm robot ID (default: 3 for 5A68011258)")
-        parser.add_argument("--right-arm-id", type=int, default=2,
-                           help="Right arm robot ID (default: 2 for 5A68009540)")
+        parser.add_argument("--left-arm-id", type=int, default=0,
+                           help="Left arm robot ID (default: 0 for 5A68011258)")
+        parser.add_argument("--right-arm-id", type=int, default=3,
+                           help="Right arm robot ID (default: 3 for 5A68009540)")
         parser.add_argument("--server", default="http://localhost:80",
                            help="Phosphobot server URL")
+        parser.add_argument("--smooth", action="store_true",
+                           help="Use smooth trajectory planning (requires modern_robotics)")
+        parser.add_argument("--step", action="store_true", 
+                           help="Use step-based movement (traditional mode)")
         
         # Only parse known arguments to avoid conflicts
         args, unknown = parser.parse_known_args()
+        
+        # Determine execution mode
+        if args.step:
+            use_trajectory = False
+        elif args.smooth:
+            use_trajectory = True
+        else:
+            # Default behavior: use smooth if available
+            use_trajectory = TRAJECTORY_AVAILABLE
         
         print(f"🎯 Executing predefined sequence: {sequence_name}")
         print(f"📋 Configurations: {' → '.join(configs)}")
@@ -286,7 +400,11 @@ if __name__ == "__main__":
             left_arm_id=args.left_arm_id, 
             right_arm_id=args.right_arm_id
         )
-        success = executor.execute_sequence(configs)
+        success = executor.execute_sequence(
+            configs,
+            use_trajectory=use_trajectory,
+            adaptive_waypoints=True  # Enable adaptive waypoints for predefined sequences
+        )
         
         if success:
             print(f"\n🎉 Predefined sequence '{sequence_name}' completed successfully!")
@@ -305,10 +423,11 @@ if __name__ == "__main__":
         print("\nUsage:")
         print(f"  python3 {sys.argv[0]} standoff_to_dispensing")
         print(f"  python3 {sys.argv[0]} full_lab_procedure")
-        print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 3 --right-arm-id 2")
+        print(f"  python3 {sys.argv[0]} beaker_pickup_sequence --left-arm-id 0 --right-arm-id 3")
         print(f"  python3 {sys.argv[0]} config1 config2 config3 [options]")
         print("\nFor full options: python3 sequential_execute.py --help")
-        print("\nArm ID defaults: Left arm = 3 (5A68011258), Right arm = 2 (5A68009540)")
+        print("\nArm ID defaults: Left arm = 0 (5A68011258), Right arm = 3 (5A68009540)")
+        print("Trajectory mode: Smooth with adaptive waypoints (default)")
         sys.exit(0)
     
     # Run with command line arguments
