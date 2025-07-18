@@ -239,7 +239,7 @@ class SequentialRobotExecutor:
             # Get current right arm position
             current_right_joints = self.controller.get_current_joint_angles(self.right_arm_id)
             if current_right_joints is None:
-                print("❌ Failed to read current right arm position")
+                print("❌ Failed to read current right arm position for squeeze operation")
                 return False
             
             # Create squeeze position (modify only j6 to 0.3)
@@ -251,7 +251,7 @@ class SequentialRobotExecutor:
             # Execute squeeze
             result = self.controller.write_joint_positions(self.right_arm_id, squeeze_joints)
             if result is None:
-                print("❌ Failed to execute squeeze")
+                print("❌ Failed to execute squeeze movement")
                 return False
             
             # Hold squeeze for specified duration
@@ -315,9 +315,13 @@ class SequentialRobotExecutor:
             
             if has_left_arm:
                 current_left_joints = self.controller.get_current_joint_angles(self.left_arm_id)
+                if current_left_joints is None:
+                    print(f"⚠️  Warning: Failed to read left arm current position")
                 
             if has_right_arm:
                 current_right_joints = self.controller.get_current_joint_angles(self.right_arm_id)
+                if current_right_joints is None:
+                    print(f"⚠️  Warning: Failed to read right arm current position")
             
             # Prepare joint configurations (supporting partial configs)
             left_joints = None

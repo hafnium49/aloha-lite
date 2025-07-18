@@ -75,7 +75,15 @@ class PhosphobotJointController:
             )
             response.raise_for_status()
             result = response.json()
-            print(f"📖 Robot {robot_id} joints: {[f'{a:.3f}' for a in result.get('angles', [])]}")
+            angles = result.get('angles', [])
+            # Check for None values in angles before formatting
+            safe_angles = []
+            for i, a in enumerate(angles):
+                if a is None:
+                    safe_angles.append(f"None(j{i+1})")
+                else:
+                    safe_angles.append(f'{a:.3f}')
+            print(f"📖 Robot {robot_id} joints: {safe_angles}")
             return result
         except requests.RequestException as e:
             print(f"❌ Failed to read joints for robot {robot_id}: {e}")
@@ -85,7 +93,12 @@ class PhosphobotJointController:
         """Get current joint angles as a list."""
         result = self.read_joint_positions(robot_id)
         if result and 'angles' in result:
-            return result['angles']
+            angles = result['angles']
+            # Check if all angles are None (robot not connected/responding)
+            if angles and all(a is None for a in angles):
+                print(f"⚠️  Robot {robot_id} returning all None values - may not be connected")
+                return None
+            return angles
         return None
     
     def calculate_adaptive_waypoints(self, current_joints: List[float], target_joints: List[float], 
@@ -274,6 +287,10 @@ def merge_joint_configurations(target_joints: dict, current_joints: list):
     for joint_name, target_angle in target_joints.items():
         if joint_name in joint_mapping:
             joint_index = joint_mapping[joint_name]
+            # Check for None values before formatting
+            if target_angle is None:
+                print(f"  ⚠️  Warning: {joint_name} has None value, skipping")
+                continue
             merged_joints[joint_index] = target_angle
             print(f"  📝 {joint_name} → {target_angle:.3f} rad")
     
