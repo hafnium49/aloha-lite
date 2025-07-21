@@ -4,28 +4,122 @@
 body{font-family:Arial,Helvetica,sans-serif;margin:2rem;max-width:480px}
 label,button{display:block;margin-top:1rem}
 img{max-width:100%}
+.color-ratio{display:flex;align-items:center;gap:1rem;margin-top:0.5rem}
+.color-ratio input{flex:1;min-width:60px}
+.color-ratio span{min-width:60px;font-weight:bold}
+#total-volume{margin-top:1rem}
+#color-preview{width:100%;height:40px;margin-top:1rem;border:2px solid #ccc;border-radius:4px}
 </style>
-<h1>Dispense + Snapshot Demo</h1>
+<h1>Color Mix + Snapshot Demo</h1>
 
-<label>Colour
-  <select id="colour"><option>blue</option><option>red</option><option>green</option></select>
+<label>Color Ratios (parts)</label>
+<div class="color-ratio">
+  <span style="color:#dc3545">Red:</span>
+  <input id="red-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+</div>
+<div class="color-ratio">
+  <span style="color:#ffc107">Yellow:</span>
+  <input id="yellow-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+</div>
+<div class="color-ratio">
+  <span style="color:#007bff">Blue:</span>
+  <input id="blue-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+</div>
+
+<div id="color-preview"></div>
+
+<label id="total-volume">Total Volume (ml)
+  <input id="vol" type="number" min="1" max="150" value="75">
 </label>
-<label>Volume\u00a0(ml)
-  <input id="vol" type="number" min="1" max="50" value="25">
-</label>
-<button onclick="send()">Dispense & Snap</button>
+<button onclick="send()">Dispense Mix & Snap</button>
 <pre id="log"></pre>
 <img id="snap">
 
 <script>
 async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
+function updatePreview(){
+  const red = parseInt(document.querySelector('#red-ratio').value) || 0
+  const yellow = parseInt(document.querySelector('#yellow-ratio').value) || 0
+  const blue = parseInt(document.querySelector('#blue-ratio').value) || 0
+  
+  const total = red + yellow + blue
+  if(total === 0) {
+    document.querySelector('#color-preview').style.background = '#f8f9fa'
+    return
+  }
+  
+  // Calculate percentages
+  const redPct = (red / total * 100).toFixed(0)
+  const yellowPct = (yellow / total * 100).toFixed(0)
+  const bluePct = (blue / total * 100).toFixed(0)
+  
+  // Create gradient preview
+  const gradient = `linear-gradient(to right, 
+    #dc3545 0%, #dc3545 ${redPct}%, 
+    #ffc107 ${redPct}%, #ffc107 ${parseInt(redPct) + parseInt(yellowPct)}%, 
+    #007bff ${parseInt(redPct) + parseInt(yellowPct)}%, #007bff 100%)`
+  
+  document.querySelector('#color-preview').style.background = gradient
+  
+  // Update button text with ratios
+  const button = document.querySelector('button')
+  button.textContent = `Dispense Mix (${red}:${yellow}:${blue}) & Snap`
+}
+
 async function send(){
   try {
-    const colour=document.querySelector('#colour').value
-    const vol=document.querySelector('#vol').value
-    const body={mix_id:1,run_id:1,colour,volume_ml:parseFloat(vol)}
-    log('POST /robot/dispense '+JSON.stringify(body))
+    const redRatio = parseInt(document.querySelector('#red-ratio').value) || 0
+    const yellowRatio = parseInt(document.querySelector('#yellow-ratio').value) || 0
+    const blueRatio = parseInt(document.querySelector('#blue-ratio').value) || 0
+    const totalVolume = parseFloat(document.querySelector('#vol').value)
+    
+    const totalParts = redRatio + yellowRatio + blueRatio
+    if(totalParts === 0) {
+      log('Error: At least one color ratio must be greater than 0')
+      return
+    }
+    
+    // Calculate individual volumes based on ratios
+    const redVolume = (redRatio / totalParts * totalVolume).toFixed(1)
+    const yellowVolume = (yellowRatio / totalParts * totalVolume).toFixed(1)
+    const blueVolume = (blueRatio / totalParts * totalVolume).toFixed(1)
+    
+    log(`Mix ratios - Red:${redRatio} Yellow:${yellowRatio} Blue:${blueRatio} (${totalParts} parts total)`)
+    log(`Volumes - Red:${redVolume}ml Yellow:${yellowVolume}ml Blue:${blueVolume}ml`)
+    
+    // For now, we'll send the dominant color or create a mix request
+    // You may need to modify the backend to handle multiple colors
+    let dominantColor = 'red'
+    let dominantVolume = parseFloat(redVolume)
+    
+    if(parseFloat(yellowVolume) > dominantVolume) {
+      dominantColor = 'yellow'
+      dominantVolume = parseFloat(yellowVolume)
+    }
+    if(parseFloat(blueVolume) > dominantVolume) {
+      dominantColor = 'blue'
+      dominantVolume = parseFloat(blueVolume)
+    }
+    
+    const body = {
+      mix_id: 1,
+      run_id: 1,
+      colour: dominantColor,
+      volume_ml: totalVolume,
+      color_ratios: {
+        red: redRatio,
+        yellow: yellowRatio, 
+        blue: blueRatio
+      },
+      individual_volumes: {
+        red: parseFloat(redVolume),
+        yellow: parseFloat(yellowVolume),
+        blue: parseFloat(blueVolume)
+      }
+    }
+    
+    log('POST /robot/dispense ' + JSON.stringify(body, null, 2))
 
     let r=await fetch('/robot/dispense',{
       method:'POST',
@@ -89,6 +183,11 @@ function log(txt){
   const logEl = document.querySelector('#log')
   logEl.textContent += new Date().toLocaleTimeString() + ': ' + txt + "\n"
   logEl.scrollTop = logEl.scrollHeight
+}
+
+// Initialize preview on page load
+window.onload = function() {
+  updatePreview()
 }
 </script>
 
