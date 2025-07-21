@@ -15,22 +15,19 @@ img{max-width:100%}
 <label>Color Ratios (parts)</label>
 <div class="color-ratio">
   <span style="color:#dc3545">Red:</span>
-  <input id="red-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+  <input id="red-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 <div class="color-ratio">
   <span style="color:#ffc107">Yellow:</span>
-  <input id="yellow-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+  <input id="yellow-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 <div class="color-ratio">
   <span style="color:#007bff">Blue:</span>
-  <input id="blue-ratio" type="number" min="0" max="100" value="1" onchange="updatePreview()">
+  <input id="blue-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 
 <div id="color-preview"></div>
 
-<label id="total-volume">Total Volume (ml)
-  <input id="vol" type="number" min="1" max="150" value="75">
-</label>
 <button onclick="send()">Dispense Mix & Snap</button>
 <pre id="log"></pre>
 <img id="snap">
@@ -39,9 +36,9 @@ img{max-width:100%}
 async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
 function updatePreview(){
-  const red = parseInt(document.querySelector('#red-ratio').value) || 0
-  const yellow = parseInt(document.querySelector('#yellow-ratio').value) || 0
-  const blue = parseInt(document.querySelector('#blue-ratio').value) || 0
+  const red = parseFloat(document.querySelector('#red-ratio').value) || 0
+  const yellow = parseFloat(document.querySelector('#yellow-ratio').value) || 0
+  const blue = parseFloat(document.querySelector('#blue-ratio').value) || 0
   
   const total = red + yellow + blue
   if(total === 0) {
@@ -50,29 +47,31 @@ function updatePreview(){
   }
   
   // Calculate percentages
-  const redPct = (red / total * 100).toFixed(0)
-  const yellowPct = (yellow / total * 100).toFixed(0)
-  const bluePct = (blue / total * 100).toFixed(0)
+  const redPct = (red / total * 100).toFixed(1)
+  const yellowPct = (yellow / total * 100).toFixed(1)
+  const bluePct = (blue / total * 100).toFixed(1)
   
   // Create gradient preview
   const gradient = `linear-gradient(to right, 
     #dc3545 0%, #dc3545 ${redPct}%, 
-    #ffc107 ${redPct}%, #ffc107 ${parseInt(redPct) + parseInt(yellowPct)}%, 
-    #007bff ${parseInt(redPct) + parseInt(yellowPct)}%, #007bff 100%)`
+    #ffc107 ${redPct}%, #ffc107 ${parseFloat(redPct) + parseFloat(yellowPct)}%, 
+    #007bff ${parseFloat(redPct) + parseFloat(yellowPct)}%, #007bff 100%)`
   
   document.querySelector('#color-preview').style.background = gradient
   
-  // Update button text with ratios
+  // Update button text with ratios (show up to 1 decimal place)
   const button = document.querySelector('button')
-  button.textContent = `Dispense Mix (${red}:${yellow}:${blue}) & Snap`
+  const redDisplay = red % 1 === 0 ? red.toString() : red.toFixed(1)
+  const yellowDisplay = yellow % 1 === 0 ? yellow.toString() : yellow.toFixed(1)
+  const blueDisplay = blue % 1 === 0 ? blue.toString() : blue.toFixed(1)
+  button.textContent = `Dispense Mix (${redDisplay}:${yellowDisplay}:${blueDisplay}) & Snap`
 }
 
 async function send(){
   try {
-    const redRatio = parseInt(document.querySelector('#red-ratio').value) || 0
-    const yellowRatio = parseInt(document.querySelector('#yellow-ratio').value) || 0
-    const blueRatio = parseInt(document.querySelector('#blue-ratio').value) || 0
-    const totalVolume = parseFloat(document.querySelector('#vol').value)
+    const redRatio = parseFloat(document.querySelector('#red-ratio').value) || 0
+    const yellowRatio = parseFloat(document.querySelector('#yellow-ratio').value) || 0
+    const blueRatio = parseFloat(document.querySelector('#blue-ratio').value) || 0
     
     const totalParts = redRatio + yellowRatio + blueRatio
     if(totalParts === 0) {
@@ -80,42 +79,40 @@ async function send(){
       return
     }
     
-    // Calculate individual volumes based on ratios
-    const redVolume = (redRatio / totalParts * totalVolume).toFixed(1)
-    const yellowVolume = (yellowRatio / totalParts * totalVolume).toFixed(1)
-    const blueVolume = (blueRatio / totalParts * totalVolume).toFixed(1)
+    // Calculate normalized ratios (as percentages)
+    const redPercent = (redRatio / totalParts * 100).toFixed(2)
+    const yellowPercent = (yellowRatio / totalParts * 100).toFixed(2)
+    const bluePercent = (blueRatio / totalParts * 100).toFixed(2)
     
-    log(`Mix ratios - Red:${redRatio} Yellow:${yellowRatio} Blue:${blueRatio} (${totalParts} parts total)`)
-    log(`Volumes - Red:${redVolume}ml Yellow:${yellowVolume}ml Blue:${blueVolume}ml`)
+    log(`Mix ratios - Red:${redRatio} Yellow:${yellowRatio} Blue:${blueRatio}`)
+    log(`Percentages - Red:${redPercent}% Yellow:${yellowPercent}% Blue:${bluePercent}%`)
     
-    // For now, we'll send the dominant color or create a mix request
-    // You may need to modify the backend to handle multiple colors
+    // Determine dominant color for compatibility
     let dominantColor = 'red'
-    let dominantVolume = parseFloat(redVolume)
+    let dominantRatio = redRatio
     
-    if(parseFloat(yellowVolume) > dominantVolume) {
+    if(yellowRatio > dominantRatio) {
       dominantColor = 'yellow'
-      dominantVolume = parseFloat(yellowVolume)
+      dominantRatio = yellowRatio
     }
-    if(parseFloat(blueVolume) > dominantVolume) {
+    if(blueRatio > dominantRatio) {
       dominantColor = 'blue'
-      dominantVolume = parseFloat(blueVolume)
+      dominantRatio = blueRatio
     }
     
     const body = {
       mix_id: 1,
       run_id: 1,
       colour: dominantColor,
-      volume_ml: totalVolume,
       color_ratios: {
         red: redRatio,
         yellow: yellowRatio, 
         blue: blueRatio
       },
-      individual_volumes: {
-        red: parseFloat(redVolume),
-        yellow: parseFloat(yellowVolume),
-        blue: parseFloat(blueVolume)
+      normalized_percentages: {
+        red: parseFloat(redPercent),
+        yellow: parseFloat(yellowPercent),
+        blue: parseFloat(bluePercent)
       }
     }
     
