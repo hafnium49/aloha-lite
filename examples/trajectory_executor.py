@@ -13,6 +13,10 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import numpy as np
 
+# Add paths for imports
+sys.path.append(str(Path(__file__).parent.parent / "utilities"))
+sys.path.append(str(Path(__file__).parent.parent / "robot_service"))
+
 # Import our trajectory planner
 from trajectory_planner import JointTrajectoryPlanner
 

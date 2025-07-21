@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 # Import the existing functionality from execute_rules.py
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent.parent / "robot_service"))
 from execute_rules import PhosphobotJointController
 
 class RobotJointReader:

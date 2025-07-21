@@ -10,8 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-# Add the current directory to the path so we can import our modules
-sys.path.append(str(Path(__file__).parent))
+# Add the utilities directory to the path so we can import our modules
+sys.path.append(str(Path(__file__).parent.parent / "utilities"))
 
 from joint_reader import RobotJointReader
 

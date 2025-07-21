@@ -3,6 +3,13 @@
 Installation verification script for ALOHA-Lite trajectory planner
 """
 
+import sys
+from pathlib import Path
+
+# Add robot_service and examples directories to Python path for imports
+sys.path.append(str(Path(__file__).parent.parent / "robot_service"))
+sys.path.append(str(Path(__file__).parent.parent / "examples"))
+
 def verify_installation():
     """Verify that all required packages are installed and working."""
     

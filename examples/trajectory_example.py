@@ -3,6 +3,12 @@
 Simple example demonstrating JointTrajectory wrapper usage
 """
 
+import sys
+from pathlib import Path
+
+# Add utilities directory to path for trajectory_planner import
+sys.path.append(str(Path(__file__).parent.parent / "utilities"))
+
 from trajectory_planner import JointTrajectoryPlanner
 import numpy as np
 
