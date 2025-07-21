@@ -21,21 +21,107 @@ python3 verify_installation.py
 ```
 
 ### Basic Usage
+
+#### Robot Operations (robot_service/)
+```bash
+# Execute robot configurations using main service scripts
+python3 robot_service/execute_rules.py --config your_config_name
+
+# Execute with smooth trajectory planning
+python3 robot_service/execute_rules.py --config your_config_name --duration 5.0 --max-velocity 0.2
+
+# Sequential multi-step procedures
+python3 robot_service/sequential_execute.py standoff_to_dispensing
+
+# Bottle operations
+python3 robot_service/squeeze_bottle.py --duration 2.0
+python3 robot_service/bottle_operations.py --quick-squeeze
+```
+
+#### Utilities (utilities/)
+```bash
+# Verify installation
+python3 utilities/verify_installation.py
+
+# Trajectory planning tools
+python3 utilities/trajectory_planner.py --config your_config_name
+
+# Joint diagnostics and reading
+python3 utilities/joint_reader.py --arm left
+python3 utilities/servo_diagnosis.py --joint 3 --fix-deadband
+
+# System analysis
+python3 utilities/analyze_quintic.py
+```
+
+#### Examples (examples/)
 ```bash
 # Test trajectory planning
-python3 trajectory_example.py
+python3 examples/trajectory_example.py
 
-# Execute smooth trajectories (default mode)
-python3 execute_rules.py --config your_config_name
+# Advanced trajectory execution
+python3 examples/trajectory_executor.py --config your_config_name
 
-# Execute with custom trajectory parameters
-python3 execute_rules.py --config your_config_name --duration 5.0 --max-velocity 0.2
+# Joint reader examples
+python3 examples/joint_reader_examples.py
+```
 
-# Force step-based movement (traditional mode)
-python3 execute_rules.py --config your_config_name --step
+## Development Workflow
 
-# Standalone trajectory executor
-python3 trajectory_executor.py --config your_config_name
+### Working with the Reorganized Structure
+
+**For Robot Operations:**
+- Use scripts in `robot_service/` for actual robot control and operations
+- All robot execution scripts are now in this directory
+- The FastAPI service (`main.py`) provides web API access to robot functions
+
+**For Development and Diagnostics:**  
+- Use tools in `utilities/` for development, testing, and troubleshooting
+- Joint diagnostics, trajectory analysis, and system verification tools
+- Installation verification and system analysis utilities
+
+**For Learning and Testing:**
+- Use code in `examples/` to understand how to use the system
+- Sample implementations and demonstrations
+- Safe testing environment for new features
+
+**Cross-Directory Dependencies:**
+- Import paths are automatically resolved using `sys.path` modifications
+- Examples can import from both `utilities/` and `robot_service/` directories  
+- Utilities can import from `robot_service/` when needed
+
+## Project Structure
+
+The repository is organized into the following directories:
+
+```
+aloha-lite/
+├── robot_service/          # Robot control and operation scripts
+│   ├── main.py            # FastAPI service for robot operations
+│   ├── execute_rules.py   # Configuration-based robot execution
+│   ├── sequential_execute.py  # Multi-step procedure automation
+│   ├── squeeze_bottle.py  # Bottle squeezing operations
+│   ├── bottle_operations.py   # Advanced bottle handling
+│   └── *.md              # Related documentation
+├── utilities/             # Development and diagnostic tools
+│   ├── trajectory_planner.py  # ModernRobotics trajectory planning
+│   ├── joint_reader.py    # Joint position reading utility
+│   ├── servo_diagnosis.py # Servo troubleshooting tools
+│   ├── verify_installation.py  # System verification
+│   ├── analyze_quintic.py # Trajectory analysis
+│   └── *.md              # Tool documentation
+├── examples/              # Sample code and demonstrations
+│   ├── trajectory_example.py    # Basic trajectory examples
+│   ├── trajectory_executor.py  # Advanced trajectory execution
+│   └── joint_reader_examples.py # Joint reading examples
+├── frontend/              # Web interface
+├── vision_bridge/         # Image processing service
+├── phosphobot/           # Robot control system (git subtree)
+├── aloha-lite-demo2rule/ # Dataset processing tools
+├── temp_rules/           # Configuration files
+├── tests/                # Test files
+├── scripts/              # Setup and utility scripts
+└── docker-compose.yml    # Service orchestration
 ```
 
 ## Features
@@ -80,19 +166,19 @@ Execute pre-defined robot configurations safely:
 
 ```bash
 # Execute dual-arm configurations
-python3 execute_rules.py --config standoff_configuration_stage1
-python3 execute_rules.py --config dispensing_water_to_beaker
+python3 robot_service/execute_rules.py --config standoff_configuration_stage1
+python3 robot_service/execute_rules.py --config dispensing_water_to_beaker
 
 # Execute single-arm configurations
-python3 execute_rules.py --config ready_to_pick_beaker  # Left arm only
-python3 execute_rules.py --config left_arm_only_demo    # Left arm only
-python3 execute_rules.py --config right_arm_only_demo   # Right arm only
+python3 robot_service/execute_rules.py --config ready_to_pick_beaker  # Left arm only
+python3 robot_service/execute_rules.py --config left_arm_only_demo    # Left arm only
+python3 robot_service/execute_rules.py --config right_arm_only_demo   # Right arm only
 
 # Specify custom arm IDs for four-arm systems
-python3 execute_rules.py --config ready_to_pick_beaker --left-arm-id 3 --right-arm-id 2
+python3 robot_service/execute_rules.py --config ready_to_pick_beaker --left-arm-id 3 --right-arm-id 2
 
 # Enable initialization (use with caution - may cause collisions)
-python3 execute_rules.py --config standoff_configuration_stage1 --init
+python3 robot_service/execute_rules.py --config standoff_configuration_stage1 --init
 ```
 
 ### Sequential Procedure Execution
@@ -100,19 +186,19 @@ Execute multi-step robot procedures with mixed arm configurations:
 
 ```bash
 # Execute predefined sequences
-python3 sequential_execute.py standoff_to_dispensing
-python3 sequential_execute.py full_lab_procedure
-python3 sequential_execute.py single_arm_demo
-python3 sequential_execute.py independent_arm_movements
+python3 robot_service/sequential_execute.py standoff_to_dispensing
+python3 robot_service/sequential_execute.py full_lab_procedure
+python3 robot_service/sequential_execute.py single_arm_demo
+python3 robot_service/sequential_execute.py independent_arm_movements
 
 # Manual sequences with custom timing
-python3 sequential_execute.py left_arm_only_demo ready_to_pick_beaker dispensing_water_to_beaker --pause-between 2.0
+python3 robot_service/sequential_execute.py left_arm_only_demo ready_to_pick_beaker dispensing_water_to_beaker --pause-between 2.0
 
 # Specify arm IDs for predefined sequences
-python3 sequential_execute.py beaker_pickup_sequence --left-arm-id 3 --right-arm-id 2
+python3 robot_service/sequential_execute.py beaker_pickup_sequence --left-arm-id 3 --right-arm-id 2
 
 # List available sequences
-python3 sequential_execute.py --list
+python3 robot_service/sequential_execute.py --list
 ```
 
 ### Dataset Rule Extraction
@@ -169,7 +255,7 @@ Intelligent git subtree operations with automatic fallback:
 # Enhanced automated subtree push (recommended)
 ./push_subtree.sh "Your commit message"
 # or
-python3 push_subtree.py "Your commit message"
+python3 utilities/push_subtree.py "Your commit message"
 ```
 
 **New Features:**
@@ -183,19 +269,20 @@ python3 push_subtree.py "Your commit message"
 
 The system consists of:
 
-1. **Phosphobot Core** - Robot control system with ZMQ state publishing
-2. **Robot Service** - FastAPI service for dispense operations  
-3. **Vision Bridge** - Image capture and processing service
-4. **Frontend** - Web interface for robot control
-3. **Demo2Rules** - Dataset processing and rule extraction with CSV/Python output
-4. **Extract At Time** - Precise joint value extraction at specific timestamps
-5. **Execute Rules** - Configuration-based robot execution with safety features
-6. **Sequential Execute** - Multi-step procedure automation
-7. **Enhanced Subtree Management** - Intelligent git subtree operations
-8. **MinIO** - S3-compatible object storage for images
-9. **Traefik** - API gateway and load balancer
+1. **Robot Service** - FastAPI service for robot operations and control
+2. **Vision Bridge** - Image capture and processing service  
+3. **Frontend** - Web interface for robot control
+4. **Phosphobot Core** - Robot control system (managed separately)
+5. **Demo2Rules** - Dataset processing and rule extraction with CSV/Python output
+6. **Extract At Time** - Precise joint value extraction at specific timestamps
+7. **Utilities** - Development tools, diagnostics, and trajectory planning
+8. **Examples** - Sample implementations and demonstrations
+9. **MinIO** - S3-compatible object storage for images
+10. **Traefik** - API gateway and load balancer
 
 ## Running locally
+
+**Note:** Phosphobot service is commented out in docker-compose.yml and should be managed separately.
 
 1. Copy the environment configuration:
 ```bash
@@ -210,8 +297,10 @@ docker-compose up --build -d
 
 Once started you can access:
 
-- `http://localhost:8080/` – web front-end for dispense operations
-- `http://localhost:80/` – phosphobot dashboard and robot control
+- `http://localhost:8080/` – web front-end for robot operations
+- `http://localhost:8080/robot/docs` – Robot Service Swagger UI  
+- `http://localhost:9001/` – MinIO Console
+- Phosphobot dashboard: Manage separately as needed
 - `http://localhost:8080/robot/docs` – Robot Service Swagger UI
 - `http://localhost:9001/metrics` – Robot Service Prometheus metrics
 - `http://localhost:9003/metrics` – Vision Bridge Prometheus metrics
