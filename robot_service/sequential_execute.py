@@ -120,7 +120,11 @@ class SequentialRobotExecutor:
         special_patterns = [
             r"squeeze.*bottle.*for.*(\d+\.?\d*)\s*seconds?",
             r"squeeze.*washing.*bottle.*(\d+\.?\d*)",
-            r"squeeze.*(\d+\.?\d*)"
+            r"squeeze.*(\d+\.?\d*)",
+            r"await.*(\d+\.?\d*)\s*seconds?",
+            r"wait.*(\d+\.?\d*)\s*seconds?",
+            r"pause.*(\d+\.?\d*)\s*seconds?",
+            r"delay.*(\d+\.?\d*)\s*seconds?"
         ]
         
         step_lower = step.lower()
@@ -140,6 +144,57 @@ class SequentialRobotExecutor:
             r"squeeze.*(\d+\.?\d*)"
         ]
         
+        # Pattern for await/wait/pause/delay functions
+        await_patterns = [
+            r"await.*(\d+\.?\d*)\s*seconds?",
+            r"wait.*(\d+\.?\d*)\s*seconds?",
+            r"pause.*(\d+\.?\d*)\s*seconds?",
+            r"delay.*(\d+\.?\d*)\s*seconds?"
+        ]
+        
+        # Check for await/wait patterns first
+        for pattern in await_patterns:
+            match = re.search(pattern, step_lower)
+            if match:
+                duration = float(match.group(1))
+                print(f"\n⏳ Executing special function: Await/Wait")
+                print(f"⏱️  Duration: {duration} seconds")
+                print("=" * 50)
+                
+                try:
+                    print(f"⏸️  Robot staying in current position for {duration} seconds...")
+                    print("💡 This allows time for external processes, settling, or user observation")
+                    
+                    # Simple countdown for user feedback
+                    if duration >= 5.0:
+                        # For longer waits, show countdown every 5 seconds
+                        remaining = duration
+                        while remaining > 0:
+                            if remaining >= 5:
+                                print(f"⏳ {remaining:.1f} seconds remaining...")
+                                time.sleep(5.0)
+                                remaining -= 5.0
+                            else:
+                                time.sleep(remaining)
+                                remaining = 0
+                    else:
+                        # For shorter waits, just wait
+                        time.sleep(duration)
+                    
+                    print(f"✅ Successfully completed {duration}s await/wait period")
+                    
+                    # Apply additional pause if specified (usually 0 for await functions)
+                    if pause_after > 0:
+                        print(f"\n⏱️  Additional pause {pause_after}s after await function...")
+                        time.sleep(pause_after)
+                    
+                    return True
+                    
+                except Exception as e:
+                    print(f"❌ Error executing await function: {e}")
+                    return False
+        
+        # Check for squeeze bottle patterns
         for pattern in squeeze_patterns:
             match = re.search(pattern, step_lower)
             if match:
