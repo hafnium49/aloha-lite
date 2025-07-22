@@ -690,12 +690,57 @@
           "code": "right_arm.move_j([0.095130, -1.265843, 1.405470, -0.504803, -1.376317, 1.845830])"
         }
       }
+    },
+    "left_arm_stirer_standoff": {
+      "name": "left_arm_stirer_standoff",
+      "description": "Left arm stirer standoff position - current position captured for stirring operations, based on left_arm_standoff_yellow with updated joints j1-j5",
+      "source": {
+        "dataset": "current_robot_state",
+        "extraction_method": "real_time_capture",
+        "context": "left_arm_position_during_stirring_operations",
+        "base_configuration": "left_arm_standoff_yellow",
+        "modification": "j1_to_j5_updated_from_current_readings_j6_preserved"
+      },
+      "timestamp": "2025-07-22",
+      "configuration": {
+        "left_arm": {
+          "name": "SO-101 Left Arm",
+          "id": 2,
+          "device_id": "5A68011529",
+          "joints": {
+            "j1": 1.043362,
+            "j2": -0.081321,
+            "j3": 1.077117,
+            "j4": -1.041827,
+            "j5": -1.497531,
+            "j6": 0.906804033343867
+          },
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "left_arm": "POST /robot/2/joints/write with body: [1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.906804033343867]"
+        },
+        "python_example": {
+          "description": "Example usage with phosphobot SkillClient",
+          "code": "left_arm.move_j([1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.906804033343867])"
+        }
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Robot configurations for dual SO-101 arms",
     "created": "2025-07-15",
-    "total_configurations": 16
+    "total_configurations": 17
   }
 }
