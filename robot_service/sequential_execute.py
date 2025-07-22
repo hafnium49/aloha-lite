@@ -15,6 +15,37 @@ from pathlib import Path
 import requests
 import re
 
+def load_robot_arm_config():
+    """Load robot arm configuration from JSON file."""
+    config_path = os.path.join(os.path.dirname(__file__), "../temp_rules/robot_arm_config.json")
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            return config
+    except FileNotFoundError:
+        print(f"⚠️  Robot arm config not found at {config_path}, using defaults")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in robot arm config: {e}")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+
+# Load robot arm configuration at module level
+ROBOT_ARM_CONFIG = load_robot_arm_config()
+LEFT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["robot_id"]
+RIGHT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["robot_id"]
+LEFT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["device_id"]
+RIGHT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["device_id"]
+
 # Import the existing functionality from execute_rules.py
 sys.path.append(str(Path(__file__).parent))
 from execute_rules import PhosphobotJointController, load_configuration, prepare_arm_configuration
@@ -33,7 +64,7 @@ class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
     def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
-                 left_arm_id: int = 0, right_arm_id: int = 2):
+                 left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID):
         self.server_url = server_url
         self.skip_init = skip_init
         self.left_arm_id = left_arm_id
@@ -45,8 +76,8 @@ class SequentialRobotExecutor:
         self.controller = PhosphobotJointController(self.server_url)
         time.sleep(1)
         
-        print(f"🔧 Left arm ID: {self.left_arm_id} (5A68011258)")
-        print(f"🔧 Right arm ID: {self.right_arm_id} (5A68009540)")
+        print(f"🔧 Left arm ID: {self.left_arm_id} ({LEFT_ARM_DEVICE})")
+        print(f"🔧 Right arm ID: {self.right_arm_id} ({RIGHT_ARM_DEVICE})")
         
         if not self.skip_init:
             print("\n🔧 Initializing robots...")
@@ -480,10 +511,10 @@ def main():
                        help="Enable robot initialization (WARNING: may cause collisions)")
     parser.add_argument("--server", default="http://localhost:80",
                        help="Phosphobot server URL")
-    parser.add_argument("--left-arm-id", type=int, default=0,
-                       help="Left arm robot ID (default: 0 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=2,
-                       help="Right arm robot ID (default: 2 for 5A68009540)")
+    parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
+                       help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
+    parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,
+                       help=f"Right arm robot ID (default: {RIGHT_ARM_ID} for {RIGHT_ARM_DEVICE})")
     
     # Trajectory planning arguments
     parser.add_argument("--smooth", action="store_true",
@@ -588,10 +619,10 @@ if __name__ == "__main__":
         # Parse additional arguments for predefined sequences
         parser = argparse.ArgumentParser(description=f"Execute predefined sequence: {sequence_name}")
         parser.add_argument("sequence", help="Predefined sequence name")
-        parser.add_argument("--left-arm-id", type=int, default=0,
-                           help="Left arm robot ID (default: 0 for 5A68011258)")
-        parser.add_argument("--right-arm-id", type=int, default=2,
-                           help="Right arm robot ID (default: 2 for 5A68009540)")
+        parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
+                           help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
+        parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,
+                           help=f"Right arm robot ID (default: {RIGHT_ARM_ID} for {RIGHT_ARM_DEVICE})")
         parser.add_argument("--server", default="http://localhost:80",
                            help="Phosphobot server URL")
         parser.add_argument("--smooth", action="store_true",

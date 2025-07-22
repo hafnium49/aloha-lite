@@ -6,8 +6,40 @@ Uses the enhanced partial configuration system to squeeze the washing bottle.
 
 import time
 import json
+import os
 from pathlib import Path
 from execute_rules import execute_configuration
+
+def load_robot_arm_config():
+    """Load robot arm configuration from JSON file."""
+    config_path = os.path.join(os.path.dirname(__file__), "../temp_rules/robot_arm_config.json")
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            return config
+    except FileNotFoundError:
+        print(f"⚠️  Robot arm config not found at {config_path}, using defaults")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in robot arm config: {e}")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+
+# Load robot arm configuration at module level
+ROBOT_ARM_CONFIG = load_robot_arm_config()
+LEFT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["robot_id"]
+RIGHT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["robot_id"]
+LEFT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["device_id"]
+RIGHT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["device_id"]
 
 
 def squeeze_washing_bottle(duration: float, squeeze_angle: float = 0.3, base_config_name: str = "dispensing_red_to_beaker", release_config_name: str = None):
@@ -144,6 +176,11 @@ def main():
     Main function for command line usage
     """
     import argparse
+    
+    print(f"🔧 Using robot configuration:")
+    print(f"   Left arm ID: {LEFT_ARM_ID} ({LEFT_ARM_DEVICE})")
+    print(f"   Right arm ID: {RIGHT_ARM_ID} ({RIGHT_ARM_DEVICE})")
+    print()
     
     parser = argparse.ArgumentParser(description="Squeeze washing bottle using partial configuration system")
     parser.add_argument("duration", type=float, help="Duration in seconds to hold squeeze")
