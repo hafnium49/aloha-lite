@@ -425,7 +425,8 @@ class SequentialRobotExecutor:
             print(f"📋 Available cameras in response: {list(frames_data.keys())}")
             
             # Check if the requested camera ID exists in the response
-            camera_key = str(camera_id)
+            # API returns keys like 'camera_0', 'camera_1', 'camera_2'
+            camera_key = f"camera_{camera_id}"
             if camera_key not in frames_data:
                 print(f"❌ Camera {camera_id} not found in available cameras")
                 print(f"💡 Available cameras: {list(frames_data.keys())}")
