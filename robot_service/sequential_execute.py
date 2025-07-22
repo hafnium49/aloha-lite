@@ -14,6 +14,8 @@ import argparse
 from pathlib import Path
 import requests
 import re
+import base64
+from datetime import datetime
 
 def load_robot_arm_config():
     """Load robot arm configuration from JSON file."""
@@ -124,7 +126,12 @@ class SequentialRobotExecutor:
             r"await.*(\d+\.?\d*)\s*seconds?",
             r"wait.*(\d+\.?\d*)\s*seconds?",
             r"pause.*(\d+\.?\d*)\s*seconds?",
-            r"delay.*(\d+\.?\d*)\s*seconds?"
+            r"delay.*(\d+\.?\d*)\s*seconds?",
+            r"take.*picture",
+            r"capture.*image",
+            r"snap.*photo",
+            r"take.*photo.*camera.*(\d+)",
+            r"capture.*camera.*(\d+)"
         ]
         
         step_lower = step.lower()
@@ -152,7 +159,52 @@ class SequentialRobotExecutor:
             r"delay.*(\d+\.?\d*)\s*seconds?"
         ]
         
-        # Check for await/wait patterns first
+        # Pattern for camera capture functions
+        camera_patterns = [
+            r"take.*picture",
+            r"capture.*image",
+            r"snap.*photo",
+            r"take.*photo.*camera.*(\d+)",
+            r"capture.*camera.*(\d+)"
+        ]
+        
+        # Check for camera capture patterns first
+        for pattern in camera_patterns:
+            match = re.search(pattern, step_lower)
+            if match:
+                # Extract camera ID if specified, otherwise default to camera 2
+                camera_id = 2  # Default camera
+                if match.groups():
+                    try:
+                        camera_id = int(match.group(1))
+                    except (ValueError, IndexError):
+                        camera_id = 2
+                
+                print(f"\n📷 Executing special function: Camera Capture")
+                print(f"📹 Camera ID: {camera_id}")
+                print("=" * 50)
+                
+                try:
+                    print(f"📸 Capturing image from camera {camera_id}...")
+                    success = self._execute_camera_capture(camera_id)
+                    
+                    if success:
+                        print(f"✅ Successfully captured and saved image from camera {camera_id}")
+                    else:
+                        print(f"❌ Failed to capture image from camera {camera_id}")
+                    
+                    # Apply additional pause if specified
+                    if pause_after > 0:
+                        print(f"\n⏱️  Pausing {pause_after}s after camera capture...")
+                        time.sleep(pause_after)
+                    
+                    return success
+                    
+                except Exception as e:
+                    print(f"❌ Error executing camera capture function: {e}")
+                    return False
+        
+        # Check for await/wait patterns
         for pattern in await_patterns:
             match = re.search(pattern, step_lower)
             if match:
@@ -348,6 +400,82 @@ class SequentialRobotExecutor:
             
         except Exception as e:
             print(f"❌ Error during squeeze operation: {e}")
+            return False
+    
+    def _execute_camera_capture(self, camera_id: int = 2) -> bool:
+        """Execute camera capture using Phospho API and save to temporary images directory."""
+        try:
+            # Create temporary images directory if it doesn't exist
+            temp_images_dir = Path("../temporary_images")
+            temp_images_dir.mkdir(exist_ok=True)
+            
+            print(f"📁 Images will be saved to: {temp_images_dir.absolute()}")
+            
+            # Make API request to capture frames from all cameras
+            frames_url = f"{self.server_url}/frames"
+            print(f"🌐 Making API request: GET {frames_url}")
+            
+            response = requests.get(frames_url, timeout=10)
+            
+            if response.status_code != 200:
+                print(f"❌ API request failed with status {response.status_code}: {response.text}")
+                return False
+            
+            frames_data = response.json()
+            print(f"📋 Available cameras in response: {list(frames_data.keys())}")
+            
+            # Check if the requested camera ID exists in the response
+            camera_key = str(camera_id)
+            if camera_key not in frames_data:
+                print(f"❌ Camera {camera_id} not found in available cameras")
+                print(f"💡 Available cameras: {list(frames_data.keys())}")
+                return False
+            
+            # Get the base64 encoded image for the specified camera
+            base64_image = frames_data[camera_key]
+            
+            if base64_image is None:
+                print(f"❌ Camera {camera_id} returned None (camera might be unavailable)")
+                return False
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"camera_{camera_id}_{timestamp}.jpg"
+            filepath = temp_images_dir / filename
+            
+            # Decode base64 and save image
+            print(f"💾 Decoding and saving image to: {filename}")
+            image_data = base64.b64decode(base64_image)
+            
+            with open(filepath, 'wb') as f:
+                f.write(image_data)
+            
+            # Verify file was saved successfully
+            if filepath.exists():
+                file_size = filepath.stat().st_size
+                print(f"✅ Image saved successfully: {filename} ({file_size} bytes)")
+                return True
+            else:
+                print(f"❌ Failed to save image file: {filename}")
+                return False
+            
+        except requests.exceptions.Timeout:
+            print(f"❌ Request timeout - camera capture took too long")
+            return False
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error during camera capture: {e}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON response from camera API: {e}")
+            return False
+        except base64.binascii.Error as e:
+            print(f"❌ Failed to decode base64 image data: {e}")
+            return False
+        except OSError as e:
+            print(f"❌ File system error while saving image: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error during camera capture: {e}")
             return False
     
     def execute_configuration(self, config_name: str, pause_after: float = 3.0,

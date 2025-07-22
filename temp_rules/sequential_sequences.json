@@ -189,13 +189,30 @@
         "smooth": true,
         "description": "Execute with smooth transitions, squeeze actions, and timed delays for process control"
       }
+    },
+    "camera_demo_sequence": {
+      "name": "camera_demo_sequence",
+      "description": "Demonstration sequence with camera capture functionality",
+      "configurations": [
+        "left_arm_standoff_with_beaker",
+        "take picture",
+        "dispensing_red_to_beaker",
+        "capture image",
+        "await 2 seconds",
+        "snap photo",
+        "right_arm_standoff"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute with smooth transitions and camera capture demonstrations"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 15,
+    "total_sequences": 16,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
@@ -203,7 +220,8 @@
       "positioning_example": "python3 sequential_execute.py left_arm_positioning_sequence",
       "squeeze_bottle_example": "python3 sequential_execute.py squeeze_bottle_demo",
       "advanced_squeeze_example": "python3 sequential_execute.py multi_color_dispensing_with_squeeze",
-      "timed_procedure_example": "python3 sequential_execute.py timed_laboratory_procedure --smooth"
+      "timed_procedure_example": "python3 sequential_execute.py timed_laboratory_procedure --smooth",
+      "camera_demo_example": "python3 sequential_execute.py camera_demo_sequence --smooth"
     }
   }
 }
