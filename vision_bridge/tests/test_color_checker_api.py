@@ -62,8 +62,8 @@ def test_color_checker(image_path, api_url):
         return False
 
 if __name__ == "__main__":
-    # Test image path
-    image_path = "temporary_images/aloha_lite_20250723.jpg"
+    # Test image path - adjusted for new location
+    image_path = "../../temporary_images/aloha_lite_20250723.jpg"
     
     # Try different possible API endpoints
     endpoints_to_try = [

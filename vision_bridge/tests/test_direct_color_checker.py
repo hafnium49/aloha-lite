@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
 Direct color checker test that runs inside the vision bridge container.
+Updated for vision_bridge/tests location.
 """
 import sys
 import os
+
+# Add the parent directories to path for imports
 sys.path.append('/app')
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import cv2
 import numpy as np
@@ -69,15 +74,15 @@ if __name__ == "__main__":
     print("🚀 Direct Color Checker Detection Test")
     print("="*60)
     
-    # Test with sample color checker first
+    # Test with sample color checker first - adjusted paths for new location
     print("\n1️⃣  Testing with sample color checker image:")
     print("-" * 50)
-    sample_success = test_color_checker("/app/samples/ColorCheckerClassic_24patch_sRGB.png")
+    sample_success = test_color_checker("../samples/ColorCheckerClassic_24patch_sRGB.png")
     
-    # Test with our target image
+    # Test with our target image - adjusted for new location
     print("\n2️⃣  Testing with target image (aloha_lite_20250723.jpg):")
     print("-" * 50)
-    target_success = test_color_checker("/tmp/test_image.jpg")
+    target_success = test_color_checker("../../temporary_images/aloha_lite_20250723.jpg")
     
     print("\n" + "="*60)
     print("📋 SUMMARY:")

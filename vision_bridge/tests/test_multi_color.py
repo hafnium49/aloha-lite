@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
 Test script for multi-color dispensing backend.
+Updated for vision_bridge/tests location.
 """
 
 import json
 import time
 import requests
+import sys
+import os
+
+# Add the parent directories to path for any needed imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 def test_multi_color_dispensing():
     """Test the multi-color dispensing API."""

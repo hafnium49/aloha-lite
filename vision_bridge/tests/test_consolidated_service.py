@@ -2,6 +2,7 @@
 """
 Test script to verify the consolidated robot service functionality.
 This tests the multi-color dispensing logic without requiring Docker.
+Updated for vision_bridge/tests location.
 """
 
 import asyncio
@@ -9,8 +10,8 @@ import sys
 import os
 from pathlib import Path
 
-# Add robot_service to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'robot_service'))
+# Add robot_service to Python path - adjusted for new location
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'robot_service'))
 
 # Import the models and functions
 from main import ColorRatios, execute_multi_color_dispensing_task, CONFIG_MAP
