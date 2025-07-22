@@ -336,7 +336,8 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     """Load configuration from JSON file by name."""
     if search_dirs is None:
         search_dirs = [
-            "./temp_rules",
+            "../temp_rules",
+            "./temp_rules", 
             "./",
             "./aloha-lite-demo2rule",
             "./configs"
@@ -876,7 +877,7 @@ if __name__ == "__main__":
         print("\nAvailable configurations:")
         
         # Look for JSON config files
-        search_dirs = ["./temp_rules", "./", "./aloha-lite-demo2rule", "./configs"]
+        search_dirs = ["../temp_rules", "./temp_rules", "./", "./aloha-lite-demo2rule", "./configs"]
         found_configs = []
         
         for search_dir in search_dirs:
