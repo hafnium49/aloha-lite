@@ -1,8 +1,8 @@
-import os, json, asyncio, uuid, time, logging
-from typing import List
+import os, json, asyncio, uuid, time, logging, subprocess, sys
+from typing import List, Dict, Optional
 
 import httpx, zmq, zmq.asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, start_http_server
@@ -54,11 +54,52 @@ class DispenseStatus(BaseModel):
     status: str
     predicted_squeeze_sec: float | None = None
     created_at: float = Field(default_factory=time.time)
+    # Extended fields for multi-color support
+    request_id: Optional[str] = None
+    current_operation: Optional[object] = None  # Will be ColorOperation
+    operations: List[object] = []  # Will be List[ColorOperation]
+    completed_operations: List[object] = []  # Will be List[ColorOperation]
+    error_message: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+class ColorRatios(BaseModel):
+    red: float = Field(ge=0.0, le=100.0)
+    yellow: float = Field(ge=0.0, le=100.0) 
+    blue: float = Field(ge=0.0, le=100.0)
+
+class NormalizedPercentages(BaseModel):
+    red: float = Field(ge=0.0, le=100.0)
+    yellow: float = Field(ge=0.0, le=100.0)
+    blue: float = Field(ge=0.0, le=100.0)
+
+class MultiColorDispenseRequest(BaseModel):
+    mix_id: int
+    run_id: int
+    colour: str = Field(pattern="^(red|yellow|blue)$")  # dominant color for compatibility
+    color_ratios: ColorRatios
+    normalized_percentages: NormalizedPercentages
+    base_duration: float = Field(default=3.0, gt=0.0, le=10.0, description="Base duration in seconds")
+
+class ColorOperation(BaseModel):
+    color: str
+    ratio: float
+    duration: float
+    config: str
+    status: str = "pending"
 
 # in-memory store; replace w/ DB table in prod
 TASKS: dict[str, DispenseStatus] = {}
 TASK_CLEANUP_INTERVAL = 300  # 5 minutes
 MAX_TASK_AGE = 3600  # 1 hour
+
+# Multi-color dispensing state
+CURRENT_DISPENSE_STATUS = DispenseStatus(status="idle")
+CONFIG_MAP = {
+    "red": "dispensing_red_to_beaker.json",
+    "yellow": "dispensing_yellow_to_beaker.json", 
+    "blue": "dispensing_blue_to_beaker.json"
+}
 
 
 def pose_close(q: List[float]) -> bool:
@@ -130,47 +171,211 @@ asyncio.create_task(cleanup_old_tasks())
 start_http_server(9001)     # Prometheus
 
 # --------------------------------------------------------------------------- #
+# Multi-color dispensing functions
+
+async def execute_squeeze_operation(color: str, duration: float, config: str) -> bool:
+    """Execute a single squeeze operation for a specific color."""
+    try:
+        logger.info(f"Starting squeeze operation: {color} for {duration:.2f}s with config {config}")
+        
+        # Path to squeeze_bottle.py script
+        squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
+        
+        # Command to run squeeze operation
+        cmd = [
+            sys.executable,
+            squeeze_bottle_path,
+            "--duration", str(duration),
+            "--base-config", config
+        ]
+        
+        # Execute the squeeze operation
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=duration + 10,  # Add buffer time
+            cwd=os.path.dirname(__file__)
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Squeeze operation failed for {color}: {result.stderr}")
+            return False
+        
+        logger.info(f"Successfully completed squeeze operation for {color}")
+        return True
+        
+    except subprocess.TimeoutExpired:
+        logger.error(f"Squeeze operation timed out for {color}")
+        return False
+    except Exception as e:
+        logger.error(f"Error during {color} squeeze operation: {e}")
+        return False
+
+async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float):
+    """
+    Background task to execute multi-color dispensing with proportional squeeze durations.
+    
+    Args:
+        cmd_id: Unique command identifier
+        color_ratios: Color ratios from frontend
+        base_duration: Base duration for scaling
+    """
+    try:
+        async with TASKS_LOCK:
+            if cmd_id not in TASKS:
+                logger.error(f"Command ID {cmd_id} not found in TASKS")
+                return
+            TASKS[cmd_id].status = "running"
+        
+        # Convert ratios to dict for easier processing
+        ratios_dict = {
+            "red": color_ratios.red,
+            "yellow": color_ratios.yellow,
+            "blue": color_ratios.blue
+        }
+        
+        # Calculate total parts and individual durations
+        total_parts = sum(ratios_dict.values())
+        if total_parts == 0:
+            raise ValueError("Total color ratios cannot be zero")
+        
+        color_operations = []
+        total_duration = 0
+        
+        # Process each color with non-zero ratio
+        for color, ratio in ratios_dict.items():
+            if ratio > 0:
+                # Calculate squeeze duration proportional to ratio
+                squeeze_duration = (ratio / total_parts) * base_duration
+                squeeze_duration = max(squeeze_duration, 0.5)  # Minimum 0.5 seconds
+                squeeze_duration = min(squeeze_duration, 8.0)   # Maximum 8.0 seconds
+                
+                config_name = CONFIG_MAP.get(color)
+                if not config_name:
+                    logger.warning(f"No configuration found for color: {color}")
+                    continue
+                
+                operation = ColorOperation(
+                    color=color,
+                    ratio=ratio,
+                    duration=squeeze_duration,
+                    config=config_name,
+                    status="pending"
+                )
+                color_operations.append(operation)
+                total_duration += squeeze_duration + 1.0  # Add 1s between operations
+        
+        # Update task with operation details
+        async with TASKS_LOCK:
+            if hasattr(TASKS[cmd_id], 'operations'):
+                TASKS[cmd_id].operations = color_operations
+        
+        logger.info(f"Starting multi-color dispensing for cmd_id={cmd_id}")
+        logger.info(f"Total operations: {len(color_operations)}, estimated duration: {total_duration:.2f}s")
+        
+        # Execute each color operation sequentially
+        for i, operation in enumerate(color_operations):
+            # Update current operation status
+            async with TASKS_LOCK:
+                TASKS[cmd_id].current_operation = operation
+                operation.status = "running"
+            
+            logger.info(f"Dispensing {operation.color} for {operation.duration:.2f}s (ratio: {operation.ratio})")
+            
+            # Execute squeeze operation
+            success = await execute_squeeze_operation(
+                operation.color,
+                operation.duration,
+                operation.config
+            )
+            
+            if not success:
+                async with TASKS_LOCK:
+                    operation.status = "failed"
+                    TASKS[cmd_id].status = "failed"
+                    TASKS[cmd_id].error_message = f"Failed to dispense {operation.color}"
+                raise RuntimeError(f"Failed to dispense {operation.color}")
+            
+            # Mark operation as completed
+            async with TASKS_LOCK:
+                operation.status = "completed"
+                if hasattr(TASKS[cmd_id], 'completed_operations'):
+                    TASKS[cmd_id].completed_operations.append(operation)
+            
+            # Small delay between colors to allow settling
+            if i < len(color_operations) - 1:  # Not the last operation
+                logger.info("Waiting 1s between color operations...")
+                await asyncio.sleep(1.0)
+        
+        # Mark entire task as completed
+        async with TASKS_LOCK:
+            TASKS[cmd_id].status = "completed"
+            TASKS[cmd_id].current_operation = None
+        
+        logger.info(f"Multi-color dispensing completed successfully for cmd_id={cmd_id}")
+        
+    except Exception as e:
+        logger.error(f"Multi-color dispensing failed for cmd_id={cmd_id}: {e}")
+        async with TASKS_LOCK:
+            if cmd_id in TASKS:
+                TASKS[cmd_id].status = "failed"
+                TASKS[cmd_id].error_message = str(e)
+                TASKS[cmd_id].current_operation = None
+
+# --------------------------------------------------------------------------- #
 @app.post("/robot/dispense")
 @REQ_LAT.time()
-async def dispense(req: DispenseRequest):
+async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
     REQS_TOTAL.inc()
     
     # Check if this is a multi-color request
     if req.color_ratios is not None and req.normalized_percentages is not None:
-        # Route to multi-color dispenser service
-        logger.info("Routing multi-color request to specialized service")
+        logger.info("Processing multi-color request")
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Forward request to multi-color dispenser service
-                multi_color_payload = {
-                    "mix_id": req.mix_id,
-                    "run_id": req.run_id,
-                    "colour": req.colour,
-                    "color_ratios": req.color_ratios,
-                    "normalized_percentages": req.normalized_percentages,
-                    "base_duration": 3.0  # Default base duration
-                }
-                
-                response = await client.post(
-                    "http://localhost:8001/dispense",
-                    json=multi_color_payload,
-                    headers={"Content-Type": "application/json"}
-                )
-                
-                if response.status_code != 200:
-                    logger.error(f"Multi-color service error: {response.status_code} - {response.text}")
-                    raise HTTPException(502, f"Multi-color service error: {response.status_code}")
-                
-                result = response.json()
-                return {"cmd_id": result["cmd_id"], "status": result["status"]}
-                
-        except httpx.ConnectError:
-            logger.error("Cannot connect to multi-color dispenser service")
-            raise HTTPException(503, "Multi-color dispenser service unavailable")
+            # Generate unique command ID
+            cmd_id = str(uuid.uuid4())
+            
+            # Validate that at least one color has a non-zero ratio
+            total_ratio = sum(req.color_ratios.values())
+            if total_ratio <= 0:
+                raise HTTPException(400, "At least one color ratio must be greater than 0")
+            
+            # Convert dict to ColorRatios model
+            color_ratios = ColorRatios(
+                red=req.color_ratios.get("red", 0),
+                yellow=req.color_ratios.get("yellow", 0),
+                blue=req.color_ratios.get("blue", 0)
+            )
+            
+            # Create task entry with extended fields for multi-color
+            task_status = DispenseStatus(
+                status="pending",
+                request_id=cmd_id,
+                operations=[],
+                completed_operations=[],
+                started_at=time.strftime("%Y-%m-%d %H:%M:%S")
+            )
+            
+            async with TASKS_LOCK:
+                TASKS[cmd_id] = task_status
+            
+            # Start background task with base_duration from request or default
+            base_duration = getattr(req, 'base_duration', 3.0)
+            background_tasks.add_task(
+                execute_multi_color_dispensing_task,
+                cmd_id,
+                color_ratios,
+                base_duration
+            )
+            
+            logger.info(f"Multi-color dispensing started with cmd_id={cmd_id}")
+            return {"cmd_id": cmd_id, "status": "pending"}
+            
         except Exception as e:
-            logger.error(f"Error forwarding to multi-color service: {e}")
-            raise HTTPException(500, f"Multi-color service error: {str(e)}")
+            logger.error(f"Error starting multi-color dispensing: {e}")
+            raise HTTPException(500, f"Multi-color dispensing error: {str(e)}")
     
     # Handle traditional single-color requests
     tid = str(uuid.uuid4())
@@ -214,23 +419,6 @@ async def status(cmd_id: str):
         st = TASKS.get(cmd_id)
         
         if not st:
-            # Check if this might be a multi-color task
-            try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    response = await client.get(f"http://localhost:8001/status/{cmd_id}")
-                    if response.status_code == 200:
-                        # Forward response from multi-color service
-                        return response.json()
-                    elif response.status_code == 404:
-                        raise HTTPException(404, f"Task {cmd_id} not found")
-                    else:
-                        logger.warning(f"Multi-color service returned {response.status_code} for {cmd_id}")
-            except httpx.ConnectError:
-                logger.debug("Multi-color service not available for status check")
-            except Exception as e:
-                logger.debug(f"Error checking multi-color service: {e}")
-            
-            # Task not found in either service
             raise HTTPException(404, f"Task {cmd_id} not found")
         
         return st.model_dump()

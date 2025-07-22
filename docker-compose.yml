@@ -55,27 +55,12 @@ services:
     depends_on:
       api-gateway:
         condition: service_started
-      multi-color-dispenser:
-        condition: service_started
       # phosphobot:
       #   condition: service_healthy
       minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  multi-color-dispenser:
-    build: ./robot_service
-    command: ["python3", "multi_color_dispenser.py"]
-    environment:
-      - PYTHONPATH=/app
-    ports:
-      - "8001:8001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
