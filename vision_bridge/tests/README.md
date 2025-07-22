@@ -7,19 +7,22 @@ This directory contains test scripts for the vision bridge service functionality
 ### 1. `test_color_checker.py`
 - **Purpose**: Unit test using FastAPI TestClient 
 - **Usage**: Run with `python -m pytest test_color_checker.py`
-- **Description**: Tests the color checker endpoint with a sample image using the FastAPI test client
+- **Description**: Tests the circle-colour endpoint with a sample image using the FastAPI test client
+- **Updated**: Now tests the new `/circle-colour` endpoint instead of `/color-checker`
 
 ### 2. `test_color_checker_api.py` 
-- **Purpose**: API integration test using HTTP requests
+- **Purpose**: Circle colour API integration test using HTTP requests
 - **Usage**: Run with `python test_color_checker_api.py`
-- **Description**: Tests the color checker endpoint via HTTP requests to the running service
+- **Description**: Tests the circle-colour endpoint via HTTP requests to the running service
 - **Requirements**: Service must be running (via Docker Compose)
+- **Updated**: Now tests the new `/circle-colour` endpoint for circle detection and color analysis
 
 ### 3. `test_direct_color_checker.py`
-- **Purpose**: Direct library testing within container
+- **Purpose**: Direct circle detection testing within container
 - **Usage**: Run inside Docker container
-- **Description**: Tests the color checker detection directly using the colour-checker-detection library
+- **Description**: Tests the circle detection directly using OpenCV HoughCircles algorithm
 - **Requirements**: Must be run inside the vision-bridge container with proper dependencies
+- **Updated**: Now uses OpenCV circle detection instead of colour-checker-detection library
 
 ### 4. `test_multi_color.py`
 - **Purpose**: Multi-color dispensing API test
@@ -49,13 +52,13 @@ docker-compose up -d
    python -m pytest test_color_checker.py -v
    ```
 
-2. **API integration tests**:
+2. **Circle colour API integration tests**:
    ```bash
    cd vision_bridge/tests
    python test_color_checker_api.py
    ```
 
-3. **Direct library testing** (inside container):
+3. **Direct circle detection testing** (inside container):
    ```bash
    docker cp test_direct_color_checker.py aloha-lite-vision-bridge-1:/tmp/
    docker exec -it aloha-lite-vision-bridge-1 python /tmp/test_direct_color_checker.py
@@ -85,6 +88,8 @@ python -m pytest -v
 - Test images are located in `../../temporary_images/`
 
 ## Notes
-- The import errors in `test_direct_color_checker.py` for cv2 and colour_checker_detection are expected since these dependencies are only available inside the Docker container
+- The import errors in `test_direct_color_checker.py` for cv2 are expected since these dependencies are only available inside the Docker container
+- The new `/circle-colour` endpoint detects circles in the left half of images and returns color information
 - API tests require the services to be running and accessible
 - Path adjustments have been made to account for the new test location within the vision_bridge directory structure
+- Tests now focus on circle detection and color analysis rather than color checker patterns
