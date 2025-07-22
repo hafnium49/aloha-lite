@@ -15,7 +15,7 @@
   },
   "cameras": {
     "default_camera": {
-      "camera_id": 2,
+      "camera_id": 1,
       "name": "Primary Camera",
       "description": "Default camera for image capture"
     },
