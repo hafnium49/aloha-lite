@@ -550,7 +550,7 @@ def main():
 # Load predefined sequences from JSON file
 def load_predefined_sequences():
     """Load predefined sequences from JSON file with execution options support."""
-    sequences_file = Path("temp_rules/sequential_sequences.json")
+    sequences_file = Path("../temp_rules/sequential_sequences.json")
     
     if not sequences_file.exists():
         print(f"⚠️  Sequences file not found: {sequences_file}")

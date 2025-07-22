@@ -68,7 +68,7 @@ def squeeze_washing_bottle(duration: float, squeeze_angle: float = 0.3, base_con
         }
         
         # Save temporary configuration
-        temp_config_path = Path("temp_rules/dynamic_squeeze_temp.json")
+        temp_config_path = Path("../temp_rules/dynamic_squeeze_temp.json")
         with open(temp_config_path, 'w') as f:
             json.dump(squeeze_config, f, indent=2)
         
