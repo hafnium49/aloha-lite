@@ -13,9 +13,33 @@
       "description": "Right arm robot configuration"
     }
   },
+  "cameras": {
+    "default_camera": {
+      "camera_id": 2,
+      "name": "Primary Camera",
+      "description": "Default camera for image capture"
+    },
+    "available_cameras": [
+      {
+        "camera_id": 0,
+        "name": "Camera 0",
+        "description": "First available camera"
+      },
+      {
+        "camera_id": 1,
+        "name": "Camera 1", 
+        "description": "Second available camera"
+      },
+      {
+        "camera_id": 2,
+        "name": "Camera 2",
+        "description": "Third available camera"
+      }
+    ]
+  },
   "metadata": {
-    "version": "1.0",
-    "description": "Robot arm identification and configuration mapping",
+    "version": "1.1",
+    "description": "Robot arm identification and camera configuration mapping",
     "created": "2025-07-22",
     "updated": "2025-07-22"
   }

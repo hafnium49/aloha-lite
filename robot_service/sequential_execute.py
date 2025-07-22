@@ -18,7 +18,7 @@ import base64
 from datetime import datetime
 
 def load_robot_arm_config():
-    """Load robot arm configuration from JSON file."""
+    """Load robot arm and camera configuration from JSON file."""
     config_path = os.path.join(os.path.dirname(__file__), "../temp_rules/robot_arm_config.json")
     try:
         with open(config_path, 'r') as f:
@@ -30,6 +30,14 @@ def load_robot_arm_config():
             "robot_arms": {
                 "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
                 "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            },
+            "cameras": {
+                "default_camera": {"camera_id": 2, "name": "Primary Camera"},
+                "available_cameras": [
+                    {"camera_id": 0, "name": "Camera 0"},
+                    {"camera_id": 1, "name": "Camera 1"},
+                    {"camera_id": 2, "name": "Camera 2"}
+                ]
             }
         }
     except json.JSONDecodeError as e:
@@ -38,15 +46,25 @@ def load_robot_arm_config():
             "robot_arms": {
                 "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
                 "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            },
+            "cameras": {
+                "default_camera": {"camera_id": 2, "name": "Primary Camera"},
+                "available_cameras": [
+                    {"camera_id": 0, "name": "Camera 0"},
+                    {"camera_id": 1, "name": "Camera 1"},
+                    {"camera_id": 2, "name": "Camera 2"}
+                ]
             }
         }
 
-# Load robot arm configuration at module level
+# Load robot arm and camera configuration at module level
 ROBOT_ARM_CONFIG = load_robot_arm_config()
 LEFT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["robot_id"]
 RIGHT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["robot_id"]
 LEFT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["device_id"]
 RIGHT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["device_id"]
+DEFAULT_CAMERA_ID = ROBOT_ARM_CONFIG["cameras"]["default_camera"]["camera_id"]
+AVAILABLE_CAMERA_IDS = [cam["camera_id"] for cam in ROBOT_ARM_CONFIG["cameras"]["available_cameras"]]
 
 # Import the existing functionality from execute_rules.py
 sys.path.append(str(Path(__file__).parent))
@@ -172,16 +190,16 @@ class SequentialRobotExecutor:
         for pattern in camera_patterns:
             match = re.search(pattern, step_lower)
             if match:
-                # Extract camera ID if specified, otherwise default to camera 2
-                camera_id = 2  # Default camera
+                # Extract camera ID if specified, otherwise use default from config
+                camera_id = DEFAULT_CAMERA_ID  # Default camera from config
                 if match.groups():
                     try:
                         camera_id = int(match.group(1))
                     except (ValueError, IndexError):
-                        camera_id = 2
+                        camera_id = DEFAULT_CAMERA_ID
                 
                 print(f"\n📷 Executing special function: Camera Capture")
-                print(f"📹 Camera ID: {camera_id}")
+                print(f"📹 Camera ID: {camera_id} (from config)")
                 print("=" * 50)
                 
                 try:
@@ -402,9 +420,19 @@ class SequentialRobotExecutor:
             print(f"❌ Error during squeeze operation: {e}")
             return False
     
-    def _execute_camera_capture(self, camera_id: int = 2) -> bool:
+    def _execute_camera_capture(self, camera_id: int = None) -> bool:
         """Execute camera capture using Phospho API and save to temporary images directory."""
         try:
+            # Use configured default camera if not specified
+            if camera_id is None:
+                camera_id = DEFAULT_CAMERA_ID
+            
+            # Validate camera ID is in available cameras
+            if camera_id not in AVAILABLE_CAMERA_IDS:
+                print(f"⚠️  Warning: Camera {camera_id} not in configured available cameras: {AVAILABLE_CAMERA_IDS}")
+                print(f"💡 Using default camera {DEFAULT_CAMERA_ID} instead")
+                camera_id = DEFAULT_CAMERA_ID
+            
             # Create temporary images directory if it doesn't exist
             temp_images_dir = Path("../temporary_images")
             temp_images_dir.mkdir(exist_ok=True)

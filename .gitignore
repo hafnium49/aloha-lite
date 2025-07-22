@@ -142,3 +142,5 @@ logs/
 *.swp
 *.swo
 *~
+
+temporary_images/
