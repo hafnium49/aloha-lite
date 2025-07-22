@@ -39,8 +39,11 @@ app.add_middleware(
 class DispenseRequest(BaseModel):
     mix_id: int
     run_id: int
-    colour: str = Field(pattern="^(red|green|blue)$")
-    volume_ml: float = Field(gt=0.0, le=50.0)
+    colour: str = Field(pattern="^(red|yellow|blue)$")  # Updated to support yellow instead of green
+    volume_ml: float = Field(default=None, gt=0.0, le=150.0)  # Made optional and increased max
+    # New fields for multi-color support
+    color_ratios: dict = Field(default=None, description="Color ratios for red, yellow, blue")
+    normalized_percentages: dict = Field(default=None, description="Normalized percentages")
 
 class ErrorResponse(BaseModel):
     error: str
@@ -131,8 +134,48 @@ start_http_server(9001)     # Prometheus
 @REQ_LAT.time()
 async def dispense(req: DispenseRequest):
     REQS_TOTAL.inc()
+    
+    # Check if this is a multi-color request
+    if req.color_ratios is not None and req.normalized_percentages is not None:
+        # Route to multi-color dispenser service
+        logger.info("Routing multi-color request to specialized service")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Forward request to multi-color dispenser service
+                multi_color_payload = {
+                    "mix_id": req.mix_id,
+                    "run_id": req.run_id,
+                    "colour": req.colour,
+                    "color_ratios": req.color_ratios,
+                    "normalized_percentages": req.normalized_percentages,
+                    "base_duration": 3.0  # Default base duration
+                }
+                
+                response = await client.post(
+                    "http://localhost:8001/dispense",
+                    json=multi_color_payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Multi-color service error: {response.status_code} - {response.text}")
+                    raise HTTPException(502, f"Multi-color service error: {response.status_code}")
+                
+                result = response.json()
+                return {"cmd_id": result["cmd_id"], "status": result["status"]}
+                
+        except httpx.ConnectError:
+            logger.error("Cannot connect to multi-color dispenser service")
+            raise HTTPException(503, "Multi-color dispenser service unavailable")
+        except Exception as e:
+            logger.error(f"Error forwarding to multi-color service: {e}")
+            raise HTTPException(500, f"Multi-color service error: {str(e)}")
+    
+    # Handle traditional single-color requests
     tid = str(uuid.uuid4())
-    prompt = f"Dispense {req.volume_ml} ml from the {req.colour} bottle"
+    volume = req.volume_ml if req.volume_ml is not None else 25.0  # Default volume
+    prompt = f"Dispense {volume} ml from the {req.colour} bottle"
     
     try:
         async with TASKS_LOCK:
@@ -169,8 +212,27 @@ async def dispense(req: DispenseRequest):
 async def status(cmd_id: str):
     async with TASKS_LOCK:
         st = TASKS.get(cmd_id)
+        
         if not st:
+            # Check if this might be a multi-color task
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get(f"http://localhost:8001/status/{cmd_id}")
+                    if response.status_code == 200:
+                        # Forward response from multi-color service
+                        return response.json()
+                    elif response.status_code == 404:
+                        raise HTTPException(404, f"Task {cmd_id} not found")
+                    else:
+                        logger.warning(f"Multi-color service returned {response.status_code} for {cmd_id}")
+            except httpx.ConnectError:
+                logger.debug("Multi-color service not available for status check")
+            except Exception as e:
+                logger.debug(f"Error checking multi-color service: {e}")
+            
+            # Task not found in either service
             raise HTTPException(404, f"Task {cmd_id} not found")
+        
         return st.model_dump()
 
 
