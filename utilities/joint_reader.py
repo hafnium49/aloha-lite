@@ -19,21 +19,74 @@ import requests
 sys.path.append(str(Path(__file__).parent.parent / "robot_service"))
 from execute_rules import PhosphobotJointController
 
+def load_robot_arm_config() -> dict:
+    """Load robot arm configuration from JSON file.
+    
+    Returns:
+        Dictionary containing robot arm configuration
+    """
+    config_path = Path(__file__).parent.parent / "temp_rules" / "robot_arm_config.json"
+    
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Extract robot IDs
+        left_arm_id = config["robot_arms"]["left_arm"]["robot_id"]
+        right_arm_id = config["robot_arms"]["right_arm"]["robot_id"]
+        left_device_id = config["robot_arms"]["left_arm"]["device_id"]
+        right_device_id = config["robot_arms"]["right_arm"]["device_id"]
+        
+        print(f"🔧 Loaded robot configuration from: {config_path}")
+        print(f"   📊 Left arm: ID {left_arm_id} (device {left_device_id})")
+        print(f"   📊 Right arm: ID {right_arm_id} (device {right_device_id})")
+        
+        return {
+            "left_arm_id": left_arm_id,
+            "right_arm_id": right_arm_id,
+            "left_device_id": left_device_id,
+            "right_device_id": right_device_id
+        }
+        
+    except Exception as e:
+        print(f"❌ Error loading robot configuration: {e}")
+        print(f"   📂 Using default values: Left arm ID 0, Right arm ID 2")
+        return {
+            "left_arm_id": 0,
+            "right_arm_id": 2,
+            "left_device_id": "5A68011258",
+            "right_device_id": "5A68009540"
+        }
+
 class RobotJointReader:
     """Read joint values from robot arms."""
     
     def __init__(self, server_url: str = "http://localhost:80", 
-                 left_arm_id: int = 0, right_arm_id: int = 2):
+                 left_arm_id: int = None, right_arm_id: int = None):
         """Initialize the joint reader.
         
         Args:
             server_url: URL of the phosphobot server
-            left_arm_id: ID of the left arm (default: 0)
-            right_arm_id: ID of the right arm (default: 2)
+            left_arm_id: ID of the left arm (None to load from config)
+            right_arm_id: ID of the right arm (None to load from config)
         """
         self.server_url = server_url
-        self.left_arm_id = left_arm_id
-        self.right_arm_id = right_arm_id
+        
+        # Load robot configuration if IDs not provided
+        if left_arm_id is None or right_arm_id is None:
+            config = load_robot_arm_config()
+            self.left_arm_id = config["left_arm_id"]
+            self.right_arm_id = config["right_arm_id"]
+            self.left_device_id = config["left_device_id"]
+            self.right_device_id = config["right_device_id"]
+        else:
+            # Even when IDs are provided, still load config for device IDs
+            config = load_robot_arm_config()
+            self.left_arm_id = left_arm_id
+            self.right_arm_id = right_arm_id
+            self.left_device_id = config.get("left_device_id", "5A68011529")
+            self.right_device_id = config.get("right_device_id", "5A68009540")
+            
         self.controller = None
         
     def initialize(self):
@@ -41,8 +94,8 @@ class RobotJointReader:
         self.controller = PhosphobotJointController(self.server_url)
         time.sleep(1)
         
-        print(f"🔧 Left arm ID: {self.left_arm_id} (5A68011258)")
-        print(f"🔧 Right arm ID: {self.right_arm_id} (5A68009540)")
+        print(f"🔧 Left arm ID: {self.left_arm_id} ({self.left_device_id})")
+        print(f"🔧 Right arm ID: {self.right_arm_id} ({self.right_device_id})")
         print(f"🌐 Server URL: {self.server_url}")
     
     def read_joint_values(self, arm_name: str = "left") -> dict:
@@ -163,6 +216,9 @@ class RobotJointReader:
 
 def main():
     """Main function to run the joint reader."""
+    # Load robot configuration for default values
+    config = load_robot_arm_config()
+    
     parser = argparse.ArgumentParser(description="Read joint values from robot arms")
     parser.add_argument("--arm", "-a", choices=["left", "right", "both"], 
                        default="left", help="Specify which arm to read (default: left)")
@@ -170,10 +226,10 @@ def main():
                        help="Phosphobot server URL (default: http://localhost:80)")
     parser.add_argument("--save", "-o", type=str, 
                        help="Save joint values to specified JSON file")
-    parser.add_argument("--left-id", type=int, default=0,
-                       help="Left arm robot ID (default: 0)")
-    parser.add_argument("--right-id", type=int, default=2,
-                       help="Right arm robot ID (default: 2)")
+    parser.add_argument("--left-id", type=int, default=config["left_arm_id"],
+                       help=f"Left arm robot ID (default: {config['left_arm_id']} from config)")
+    parser.add_argument("--right-id", type=int, default=config["right_arm_id"],
+                       help=f"Right arm robot ID (default: {config['right_arm_id']} from config)")
     
     args = parser.parse_args()
     
@@ -185,6 +241,8 @@ def main():
     )
     
     # Initialize
+    print("✅ Initialized phosphobot joint controller")
+    print(f"🔗 Server: {args.server}")
     reader.initialize()
     
     # Read joint values
