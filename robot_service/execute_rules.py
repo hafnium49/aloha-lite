@@ -17,6 +17,37 @@ import requests
 import numpy as np
 from typing import List, Tuple, Optional
 
+def load_robot_arm_config():
+    """Load robot arm configuration from JSON file."""
+    config_path = os.path.join(os.path.dirname(__file__), "../temp_rules/robot_arm_config.json")
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            return config
+    except FileNotFoundError:
+        print(f"⚠️  Robot arm config not found at {config_path}, using defaults")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in robot arm config: {e}")
+        return {
+            "robot_arms": {
+                "left_arm": {"robot_id": 0, "device_id": "5A68011258"},
+                "right_arm": {"robot_id": 2, "device_id": "5A68009540"}
+            }
+        }
+
+# Load robot arm configuration at module level
+ROBOT_ARM_CONFIG = load_robot_arm_config()
+LEFT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["robot_id"]
+RIGHT_ARM_ID = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["robot_id"]
+LEFT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["left_arm"]["device_id"]
+RIGHT_ARM_DEVICE = ROBOT_ARM_CONFIG["robot_arms"]["right_arm"]["device_id"]
+
 # Import trajectory planning functionality
 try:
     import modern_robotics as mr
@@ -417,8 +448,8 @@ def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
 
 def execute_configuration_smooth(config_name: str, 
                                 skip_init: bool = True, 
-                                left_arm_id: int = 0, 
-                                right_arm_id: int = 2,
+                                left_arm_id: int = LEFT_ARM_ID, 
+                                right_arm_id: int = RIGHT_ARM_ID,
                                 use_trajectory: bool = True,
                                 trajectory_duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
@@ -438,8 +469,8 @@ def execute_configuration_smooth(config_name: str,
     print(f"🤖 Loading and executing configuration: {config_name}")
     print(f"🎯 Execution mode: {trajectory_status}")
     print("=" * 70)
-    print(f"🔧 Left arm ID: {left_arm_id} (5A68011258)")
-    print(f"🔧 Right arm ID: {right_arm_id} (5A68009540)")
+    print(f"🔧 Left arm ID: {left_arm_id} ({LEFT_ARM_DEVICE})")
+    print(f"🔧 Right arm ID: {right_arm_id} ({RIGHT_ARM_DEVICE})")
     
     if use_trajectory and TRAJECTORY_AVAILABLE:
         print(f"📊 Trajectory settings:")
@@ -588,7 +619,7 @@ def execute_configuration_smooth(config_name: str,
         print(f"❌ Error loading configuration: {e}")
         return False
 
-def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = 0, right_arm_id: int = 2):
+def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID):
     """Execute a specific configuration by loading it from JSON.
     
     Enhanced to support:
@@ -599,8 +630,8 @@ def execute_configuration(config_name: str, skip_init: bool = True, left_arm_id:
     
     print(f"🤖 Loading and executing configuration: {config_name}")
     print("=" * 60)
-    print(f"🔧 Left arm ID: {left_arm_id} (5A68011258)")
-    print(f"🔧 Right arm ID: {right_arm_id} (5A68009540)")
+    print(f"🔧 Left arm ID: {left_arm_id} ({LEFT_ARM_DEVICE})")
+    print(f"🔧 Right arm ID: {right_arm_id} ({RIGHT_ARM_DEVICE})")
     
     try:
         # Load configuration
@@ -747,12 +778,12 @@ def execute_learned_sequence():
         print("Left arm joints: [0.172, -1.864, 1.459, -1.757, -1.382, 0.787]")
         print("Right arm joints: [0.379, -1.804, 1.439, -1.755, -1.614, 1.580]")
         
-        # Move left arm (robot_id=0) to stage 0 position
-        controller.write_joint_positions(0, left_arm_stage_0)
+        # Move left arm to stage 0 position
+        controller.write_joint_positions(LEFT_ARM_ID, left_arm_stage_0)
         time.sleep(1)
         
-        # Move right arm (robot_id=1) to stage 0 position
-        controller.write_joint_positions(1, right_arm_stage_0)
+        # Move right arm to stage 0 position
+        controller.write_joint_positions(RIGHT_ARM_ID, right_arm_stage_0)
         time.sleep(3)
         
         print("\n🎯 Stage 1: Fine adjustment...")
@@ -760,25 +791,25 @@ def execute_learned_sequence():
         print("Right arm: joint 3 changes from 1.439 → 1.413 (fine manipulation)")
         
         # Move left arm (maintains same position)
-        controller.write_joint_positions(0, left_arm_stage_1)
+        controller.write_joint_positions(LEFT_ARM_ID, left_arm_stage_1)
         time.sleep(1)
         
         # Move right arm (slight adjustment in joint 3)
-        controller.write_joint_positions(1, right_arm_stage_1)
+        controller.write_joint_positions(RIGHT_ARM_ID, right_arm_stage_1)
         time.sleep(3)
         
         print("\n🎯 Stage 2: Final position...")
         print("Both arms maintain their stage 1 positions")
         
         # Final positions (same as stage 1)
-        controller.write_joint_positions(0, left_arm_stage_1)
+        controller.write_joint_positions(LEFT_ARM_ID, left_arm_stage_1)
         time.sleep(1)
-        controller.write_joint_positions(1, right_arm_stage_1)
+        controller.write_joint_positions(RIGHT_ARM_ID, right_arm_stage_1)
         time.sleep(3)
         
         print("\n📖 Reading final joint positions...")
-        controller.read_joint_positions(0)
-        controller.read_joint_positions(1)
+        controller.read_joint_positions(LEFT_ARM_ID)
+        controller.read_joint_positions(RIGHT_ARM_ID)
         
         print("\n🎉 Demo finished successfully!")
         
@@ -800,10 +831,10 @@ if __name__ == "__main__":
                        help="Enable robot initialization (WARNING: may cause collisions)")
     parser.add_argument("--no-init", action="store_true", 
                        help="Explicitly disable robot initialization (default)")
-    parser.add_argument("--left-arm-id", type=int, default=0,
-                       help="Left arm robot ID (default: 0 for 5A68011258)")
-    parser.add_argument("--right-arm-id", type=int, default=2,
-                       help="Right arm robot ID (default: 2 for 5A68009540)")
+    parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
+                       help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
+    parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,
+                       help=f"Right arm robot ID (default: {RIGHT_ARM_ID} for {RIGHT_ARM_DEVICE})")
     
     # Trajectory planning arguments
     parser.add_argument("--smooth", action="store_true",
@@ -930,7 +961,7 @@ if __name__ == "__main__":
             print("  # Arm-specific controls:")
             print(f"  python3 execute_rules.py --config left_arm_only_demo  # Single arm movement")
             print(f"  python3 execute_rules.py --config right_arm_only_demo  # Single arm movement")
-            print(f"  python3 execute_rules.py --config dual_arm_config --left-arm-id 3 --right-arm-id 2")
+            print(f"  python3 execute_rules.py --config dual_arm_config --left-arm-id {LEFT_ARM_ID + 1} --right-arm-id {RIGHT_ARM_ID}")
             print()
             print("  # Safety options:")
             print(f"  python3 execute_rules.py --config standoff_configuration_stage1 --init  # Enable init (risky)")
