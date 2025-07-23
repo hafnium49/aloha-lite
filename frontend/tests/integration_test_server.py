@@ -132,7 +132,7 @@ def run_integration_server(port=3000):
     print("   Press Ctrl+C to stop")
     print()
     print("💡 To start the mock robot service:")
-    print("   python3 /home/hafnium/aloha-lite/frontend/mock_robot_service.py")
+    print("   python3 /home/hafnium/aloha-lite/frontend/tests/mock_robot_service.py")
     
     try:
         httpd.serve_forever()

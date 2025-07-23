@@ -80,6 +80,12 @@ def validate_test_infrastructure():
         "/home/hafnium/aloha-lite/robot_service/tests/test_beaker_integration.html",
         "/home/hafnium/aloha-lite/robot_service/tests/serve_tests.py",
         "/home/hafnium/aloha-lite/robot_service/tests/README.md",
+        "/home/hafnium/aloha-lite/frontend/tests/mock_robot_service.py",
+        "/home/hafnium/aloha-lite/frontend/tests/integration_test_server.py",
+        "/home/hafnium/aloha-lite/frontend/tests/simple_test.py",
+        "/home/hafnium/aloha-lite/frontend/tests/test_integration_simulation.py",
+        "/home/hafnium/aloha-lite/frontend/tests/validate_integration.py",
+        "/home/hafnium/aloha-lite/frontend/tests/INTEGRATION_TEST_RESULTS.md",
     ]
     
     all_exist = True
