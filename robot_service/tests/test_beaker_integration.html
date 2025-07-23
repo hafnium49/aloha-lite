@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robot Service - Beaker Analysis Integration Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 2rem; 
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #007bff; 
+            border-bottom: 2px solid #007bff; 
+            padding-bottom: 0.5rem;
+        }
+        .test-controls { 
+            display: flex; 
+            gap: 1rem; 
+            margin: 1rem 0; 
+            flex-wrap: wrap;
+        }
+        button { 
+            padding: 0.75rem 1.5rem; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        .btn-primary { 
+            background: #007bff; 
+            color: white; 
+        }
+        .btn-primary:hover { 
+            background: #0056b3; 
+        }
+        .btn-secondary { 
+            background: #6c757d; 
+            color: white; 
+        }
+        .btn-secondary:hover { 
+            background: #545b62; 
+        }
+        .btn-success { 
+            background: #28a745; 
+            color: white; 
+        }
+        .btn-success:hover { 
+            background: #1e7e34; 
+        }
+        .beaker-analysis { 
+            margin-top: 2rem; 
+            padding: 1rem; 
+            border: 2px solid #007bff; 
+            border-radius: 8px; 
+            background: #f8f9fa; 
+        }
+        .analysis-result { 
+            margin-top: 1rem; 
+            padding: 1rem; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            background: white; 
+        }
+        .color-swatch { 
+            display: inline-block; 
+            width: 30px; 
+            height: 30px; 
+            border: 2px solid #333; 
+            border-radius: 4px; 
+            margin-right: 10px; 
+            vertical-align: middle; 
+        }
+        .cluster-info { 
+            margin: 0.5rem 0; 
+            padding: 0.5rem; 
+            background: #f1f1f1; 
+            border-radius: 4px; 
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1rem; 
+            margin-top: 1rem; 
+        }
+        .stat-item { 
+            padding: 0.75rem; 
+            background: white; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-item strong {
+            display: block;
+            color: #007bff;
+            margin-bottom: 0.5rem;
+        }
+        #log { 
+            background: #2d3748; 
+            color: #e2e8f0; 
+            border: 1px solid #4a5568; 
+            padding: 1rem; 
+            height: 300px; 
+            overflow-y: auto; 
+            font-family: 'Courier New', monospace; 
+            white-space: pre-wrap; 
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .log-container {
+            margin: 1rem 0;
+        }
+        .log-container h3 {
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        .interpretation {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+        }
+        .interpretation h4 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .test-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        .test-info h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .api-test {
+            margin-top: 2rem;
+            padding: 1rem;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            background: #f8fff9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Robot Service - Beaker Analysis Integration Test</h1>
+        
+        <div class="test-info">
+            <h3>📋 Test Information</h3>
+            <p><strong>Purpose:</strong> Test the integration between robot service beaker analysis and frontend GUI display</p>
+            <p><strong>Location:</strong> robot_service/tests/test_beaker_integration.html</p>
+            <p><strong>Components:</strong> Frontend display functions, API integration, real data structure handling</p>
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn-primary" onclick="testAnalysisDisplay()">🎨 Test Sample Data</button>
+            <button class="btn-secondary" onclick="testWithRealData()">🔬 Test Real Data Structure</button>
+            <button class="btn-success" onclick="testApiIntegration()">🌐 Test API Integration</button>
+            <button class="btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            <button class="btn-secondary" onclick="clearLog()">📝 Clear Log</button>
+        </div>
+        
+        <div class="log-container">
+            <h3>🖥️ Test Execution Log</h3>
+            <div id="log"></div>
+        </div>
+        
+        <div id="analysis-results" class="beaker-analysis" style="display:none">
+            <h3>🧪 Beaker Analysis Results</h3>
+            <div class="analysis-result"></div>
+        </div>
+        
+        <div id="api-test-results" class="api-test" style="display:none">
+            <h3>🌐 API Integration Test Results</h3>
+            <div id="api-results"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(txt) {
+            const logEl = document.querySelector('#log')
+            const timestamp = new Date().toLocaleTimeString()
+            logEl.textContent += `[${timestamp}] ${txt}\n`
+            logEl.scrollTop = logEl.scrollHeight
+        }
+
+        function clearLog() {
+            document.querySelector('#log').textContent = ''
+            log('Log cleared')
+        }
+
+        function clearResults() {
+            document.getElementById('analysis-results').style.display = 'none'
+            document.getElementById('api-test-results').style.display = 'none'
+            log('Results cleared')
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => {
+                const hex = x.toString(16)
+                return hex.length === 1 ? "0" + hex : hex
+            }).join("")
+        }
+
+        function displayAnalysisResults(results) {
+            try {
+                log('🎨 Displaying analysis results...')
+                
+                // Show results container
+                document.getElementById('analysis-results').style.display = 'block'
+                
+                // Extract analysis data with fallbacks
+                const dominantColor = results.dominant_color || {}
+                const beakerCircle = results.beaker_circle || {}
+                const clusters = results.clusters || []
+                const stats = results.analysis_stats || {}
+                
+                // Display dominant color
+                const hex = dominantColor.hex || '#000000'
+                const rgb = dominantColor.rgb || [0, 0, 0]
+                
+                // Display beaker info
+                const x = beakerCircle.x || 0
+                const y = beakerCircle.y || 0
+                const radius = beakerCircle.radius || 0
+                
+                // Display analysis stats
+                const numClusters = stats.num_clusters || clusters.length
+                const totalPixels = stats.total_pixels_analyzed || 0
+                
+                log(`📊 Analysis data: ${clusters.length} clusters, ${totalPixels.toLocaleString()} pixels`)
+                log(`🎯 Beaker: position (${x}, ${y}), radius ${radius}px`)
+                log(`🎨 Dominant color: ${hex} RGB(${rgb.join(', ')})`)
+                
+                // Generate clusters list HTML
+                let clustersHtml = ''
+                clusters.slice(0, 5).forEach((cluster, index) => {
+                    const clusterRgb = cluster.rgb || [0, 0, 0]
+                    const clusterHex = cluster.hex || rgbToHex(clusterRgb[0], clusterRgb[1], clusterRgb[2])
+                    const pixelCount = cluster.pixel_count || 0
+                    const saturation = cluster.saturation || 0
+                    
+                    clustersHtml += `
+                        <div class="cluster-info">
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span class="color-swatch" style="background-color:${clusterHex}"></span>
+                                <div>
+                                    <strong>Cluster ${index + 1}</strong> ${clusterHex}<br>
+                                    <small>RGB(${clusterRgb.join(', ')}) - Saturation: ${saturation.toFixed(1)}, Pixels: ${pixelCount.toLocaleString()}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                })
+                
+                // Update the analysis results display
+                const analysisResult = document.querySelector('#analysis-results .analysis-result')
+                analysisResult.innerHTML = `
+                    <h3>✅ Beaker Analysis Results</h3>
+                    <div id="dominant-color-info">
+                        <h4>Dominant Solution Color</h4>
+                        <div id="color-display">
+                            <span class="color-swatch" style="background-color:${hex}"></span>
+                            <span>${hex} RGB(${rgb.join(', ')})</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>Beaker Position</strong>
+                            <span>(${x}, ${y})</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Beaker Radius</strong>
+                            <span>${radius}px</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Clusters Found</strong>
+                            <span>${numClusters}</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Pixels Analyzed</strong>
+                            <span>${totalPixels.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    
+                    <div id="cluster-details">
+                        <h4>Color Clusters (by saturation)</h4>
+                        <div id="clusters-list">${clustersHtml}</div>
+                    </div>
+                `
+                
+                // Color interpretation
+                let interpretation = ''
+                if (hex.toLowerCase().includes('ff0000') || hex.toLowerCase().includes('dc143c') || (rgb[0] > 150 && rgb[1] < 100 && rgb[2] < 100)) {
+                    interpretation = '🔴 Red solution detected - likely contains red dye or indicator'
+                } else if (hex.toLowerCase().includes('ffff00') || hex.toLowerCase().includes('ffd700') || (rgb[0] > 200 && rgb[1] > 200 && rgb[2] < 100)) {
+                    interpretation = '🟡 Yellow solution detected - likely contains yellow dye or indicator'
+                } else if (hex.toLowerCase().includes('0000ff') || hex.toLowerCase().includes('1e90ff') || (rgb[0] < 100 && rgb[1] < 100 && rgb[2] > 150)) {
+                    interpretation = '🔵 Blue solution detected - likely contains blue dye or indicator'
+                } else if (rgb[0] < 50 && rgb[1] < 50 && rgb[2] < 50) {
+                    interpretation = '⚫ Dark/black solution detected'
+                } else if (rgb[0] > 200 && rgb[1] > 200 && rgb[2] > 200) {
+                    interpretation = '⚪ Clear/transparent solution detected'
+                } else {
+                    interpretation = `🎨 Custom color solution detected: ${hex}`
+                }
+                
+                // Add interpretation
+                const interpretationDiv = document.createElement('div')
+                interpretationDiv.className = 'interpretation'
+                interpretationDiv.innerHTML = `<h4>🧪 Color Interpretation</h4><p>${interpretation}</p>`
+                analysisResult.appendChild(interpretationDiv)
+                
+                log('✅ Beaker analysis results displayed successfully')
+                log(`🔬 Interpretation: ${interpretation}`)
+                
+            } catch (error) {
+                log('❌ Error displaying analysis results: ' + error.message)
+                document.getElementById('analysis-results').style.display = 'block'
+                document.querySelector('#analysis-results .analysis-result').innerHTML = 
+                    `<p style="color:red">❌ Error displaying analysis results: ${error.message}</p>`
+            }
+        }
+
+        function testAnalysisDisplay() {
+            log('🧪 Testing analysis display with sample red solution data...')
+            
+            const testData = {
+                dominant_color: {
+                    rgb: [255, 100, 50],
+                    hex: "#ff6432"
+                },
+                beaker_circle: {
+                    x: 320,
+                    y: 240,
+                    radius: 150
+                },
+                clusters: [
+                    {
+                        rgb: [255, 100, 50],
+                        hex: "#ff6432",
+                        saturation: 85.2,
+                        pixel_count: 12345
+                    },
+                    {
+                        rgb: [100, 150, 200],
+                        hex: "#6496c8",
+                        saturation: 62.5,
+                        pixel_count: 8765
+                    },
+                    {
+                        rgb: [200, 200, 200],
+                        hex: "#c8c8c8",
+                        saturation: 0.0,
+                        pixel_count: 4321
+                    }
+                ],
+                analysis_stats: {
+                    num_clusters: 5,
+                    total_pixels_analyzed: 25431
+                }
+            }
+            
+            displayAnalysisResults(testData)
+        }
+
+        function testWithRealData() {
+            log('🔬 Testing with real beaker analysis data structure from robot service...')
+            
+            // Simulate the actual data structure from sequential_execute.py beaker analysis
+            const realData = {
+                dominant_color: {
+                    rgb: [87, 67, 59],
+                    hex: "#57433b"
+                },
+                beaker_circle: {
+                    x: 381,
+                    y: 158,
+                    radius: 197
+                },
+                clusters: [
+                    {
+                        rgb: [87, 67, 59],
+                        hex: "#57433b",
+                        saturation: 74.03650672759584,
+                        pixel_count: 19695,
+                        index: 4
+                    },
+                    {
+                        rgb: [206, 209, 197],
+                        hex: "#ced1c5",
+                        saturation: 15.56114050558495,
+                        pixel_count: 3402,
+                        index: 0
+                    },
+                    {
+                        rgb: [149, 152, 144],
+                        hex: "#959890",
+                        saturation: 16.95375480040017,
+                        pixel_count: 30987,
+                        index: 3
+                    }
+                ],
+                analysis_stats: {
+                    num_clusters: 3,
+                    total_pixels_analyzed: 54084
+                },
+                _metadata: {
+                    filename: "beaker_analysis_0_20250723_152657.json",
+                    timestamp: "2025-07-23 15:26:57",
+                    file_size: 98211
+                }
+            }
+            
+            displayAnalysisResults(realData)
+        }
+
+        async function testApiIntegration() {
+            log('🌐 Testing API integration endpoints...')
+            
+            const apiResults = document.getElementById('api-test-results')
+            const resultsDiv = document.getElementById('api-results')
+            
+            apiResults.style.display = 'block'
+            resultsDiv.innerHTML = '<p>Testing API endpoints...</p>'
+            
+            const tests = [
+                {
+                    name: 'Robot Service Health Check',
+                    url: '/robot/procedure/info',
+                    expected: 'procedure_name'
+                },
+                {
+                    name: 'Beaker Analysis Endpoint (Sample)',
+                    url: '/robot/test-cmd-id/beaker-analysis',
+                    expected: 'analysis_results'
+                }
+            ]
+            
+            let resultsHtml = '<h4>API Endpoint Tests</h4>'
+            
+            for (const test of tests) {
+                try {
+                    log(`🔍 Testing ${test.name}: ${test.url}`)
+                    
+                    const response = await fetch(test.url)
+                    const status = response.status
+                    
+                    if (response.ok) {
+                        const data = await response.json()
+                        const hasExpected = test.expected in data
+                        
+                        resultsHtml += `
+                            <div style="margin:1rem 0;padding:1rem;border:1px solid #28a745;background:#d4edda;border-radius:4px">
+                                <strong>✅ ${test.name}</strong><br>
+                                Status: ${status} OK<br>
+                                Expected field '${test.expected}': ${hasExpected ? '✅ Found' : '❌ Missing'}
+                            </div>
+                        `
+                        log(`✅ ${test.name}: OK (${status})`)
+                    } else {
+                        resultsHtml += `
+                            <div style="margin:1rem 0;padding:1rem;border:1px solid #dc3545;background:#f8d7da;border-radius:4px">
+                                <strong>❌ ${test.name}</strong><br>
+                                Status: ${status} ${response.statusText}
+                            </div>
+                        `
+                        log(`❌ ${test.name}: Failed (${status})`)
+                    }
+                } catch (error) {
+                    resultsHtml += `
+                        <div style="margin:1rem 0;padding:1rem;border:1px solid #ffc107;background:#fff3cd;border-radius:4px">
+                            <strong>⚠️ ${test.name}</strong><br>
+                            Error: ${error.message}<br>
+                            <small>This is expected if robot service is not running</small>
+                        </div>
+                    `
+                    log(`⚠️ ${test.name}: ${error.message}`)
+                }
+            }
+            
+            resultsDiv.innerHTML = resultsHtml
+            log('🌐 API integration tests completed')
+        }
+
+        // Initialize
+        window.onload = function() {
+            log('🧪 Robot Service - Beaker Analysis Integration Test initialized')
+            log('📍 Location: robot_service/tests/test_beaker_integration.html')
+            log('🎯 Ready to test frontend integration with robot service API')
+            log('───────────────────────────────────────────────────────────')
+            log('Click test buttons above to validate different components')
+        }
+    </script>
+</body>
+</html>

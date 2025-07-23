@@ -6,11 +6,13 @@ This directory contains test files for the `robot_service` module.
 
 ```
 robot_service/tests/
-├── __init__.py              # Python package init
-├── README.md               # This file
-├── run_tests.py            # Test runner script
-├── test_api.py             # Tests for vision bridge API integration
-└── test_beaker_analysis.py # Tests for beaker analysis functionality
+├── __init__.py                      # Python package init
+├── README.md                       # This file
+├── run_tests.py                    # Test runner script
+├── serve_tests.py                  # Test server for HTML tests
+├── test_api.py                     # Tests for vision bridge API integration
+├── test_beaker_analysis.py         # Tests for beaker analysis functionality
+└── test_beaker_integration.html    # Frontend integration test for beaker analysis
 ```
 
 ## Running Tests
@@ -48,6 +50,35 @@ python3 test_beaker_analysis.py
 - Tests the beaker analysis special function recognition
 - Tests the `SequentialRobotExecutor` beaker analysis execution
 - Tests pattern matching for beaker analysis commands
+
+### test_beaker_integration.html
+- **Frontend Integration Test** for beaker analysis GUI display
+- Tests the `displayAnalysisResults()` JavaScript function
+- Validates data structure compatibility with robot service API
+- Tests API endpoint integration (`/robot/{cmd_id}/beaker-analysis`)
+- Interactive browser-based testing with sample and real data
+
+#### Running the Frontend Integration Test
+```bash
+# Method 1: Use the included test server (recommended)
+cd robot_service
+python3 tests/serve_tests.py [port]
+# Then visit: http://localhost:8080/tests/test_beaker_integration.html
+
+# Method 2: Use Python's built-in server
+cd robot_service
+python3 -m http.server 8080
+# Then visit: http://localhost:8080/tests/test_beaker_integration.html
+
+# Method 3: Open directly in browser (limited functionality)
+file:///path/to/robot_service/tests/test_beaker_integration.html
+```
+
+**Test Features:**
+- 🎨 **Sample Data Test**: Test with synthetic beaker analysis data
+- 🔬 **Real Data Test**: Test with actual robot service data structure
+- 🌐 **API Integration Test**: Test API endpoints (requires robot service running)
+- Interactive log display and result visualization
 - Mock test (uses dummy server URL for safety)
 
 ## Dependencies
