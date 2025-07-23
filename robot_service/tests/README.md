@@ -12,7 +12,9 @@ robot_service/tests/
 ├── serve_tests.py                  # Test server for HTML tests
 ├── test_api.py                     # Tests for vision bridge API integration
 ├── test_beaker_analysis.py         # Tests for beaker analysis functionality
-└── test_beaker_integration.html    # Frontend integration test for beaker analysis
+├── test_beaker_integration.html    # Frontend integration test for beaker analysis
+├── test_color_normalization.py     # Tests for color ratio normalization logic
+└── test_robot_service_integration.py # Integration tests for robot service execution
 ```
 
 ## Running Tests
@@ -101,4 +103,41 @@ image_path = Path(os.path.dirname(__file__)) / "../../temporary_images/test_imag
 This ensures tests work when run from:
 - `robot_service/tests/` directory  
 - `robot_service/` directory
+
+## Color Ratio Normalization Tests
+
+### `test_color_normalization.py`
+Tests the color ratio normalization logic that converts user input ratios into 10-second total duration squeeze operations.
+
+**Features tested:**
+- Color ratio to duration calculation
+- 10-second total duration normalization
+- Proportional allocation based on input ratios
+- Minimum duration constraint (0.5s per color)
+- Sequence step to color mapping
+
+**Key validation points:**
+- ✅ Equal ratios (1:1:1) → Equal 3.33s durations each
+- ✅ Mixed ratios (2:1:3) → Proportional 3.33s:1.67s:5.00s
+- ✅ Dominant colors (5:2:1) → 6.25s:2.50s:1.25s
+- ✅ Decimal ratios handled properly
+- ✅ Large numbers scaled correctly
+
+### `test_robot_service_integration.py`
+Integration tests that simulate the actual robot service execution with mock robot controllers.
+
+**Features tested:**
+- Color ratio application in laboratory sequence
+- Step-by-step execution simulation
+- Duration calculation and application
+- Color-specific squeeze operations
+- Integration with laboratory automation
+
+**Sequence mapping validation:**
+- ✅ Step 4: Red squeeze operation
+- ✅ Step 10: Yellow squeeze operation  
+- ✅ Step 16: Blue squeeze operation
+- ✅ Colors correctly identified and durations applied
+
+The tests validate the complete workflow: User ratios → Calculation → Application → Execution
 - Any parent directory

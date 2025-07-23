@@ -3,6 +3,12 @@
 Test script to validate color ratio normalization to 10 seconds total duration.
 """
 
+import sys
+import os
+
+# Add the parent directory to the path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 def test_color_ratio_normalization():
     """Test the color ratio normalization logic"""
     

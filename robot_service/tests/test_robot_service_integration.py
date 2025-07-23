@@ -5,7 +5,9 @@ Test the actual robot_service implementation with sample color ratios.
 
 import sys
 import os
-sys.path.append('/home/hafnium/aloha-lite/robot_service')
+
+# Add the parent directory to the path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # Mock the robot control functions to avoid hardware dependencies
 class MockRobotController:
