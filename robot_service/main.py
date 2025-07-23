@@ -528,9 +528,13 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
 
 # --------------------------------------------------------------------------- #
 @app.post("/robot/dispense")
-@REQ_LAT.time()
 async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
+    """Handle dispense requests and start the background procedure."""
     REQS_TOTAL.inc()
+    with REQ_LAT.time():
+        return await _dispense_impl(req, background_tasks)
+
+async def _dispense_impl(req: DispenseRequest, background_tasks: BackgroundTasks):
     logger.info(f"Received dispense request: {req}")
     logger.info(f"color_ratios: {req.color_ratios}")
     logger.info(f"normalized_percentages: {req.normalized_percentages}")
