@@ -113,11 +113,23 @@ export BUCKET="snapshots"
 python -m uvicorn main:app --host 0.0.0.0 --port 5000
 ```
 
+**Frontend Service (Port 3000):**
+```bash
+cd /home/hafnium/aloha-lite/frontend
+python -m uvicorn main:app --host 0.0.0.0 --port 3000
+```
+
+**Access the System:**
+- **Web Interface**: http://localhost:3000 (Main color mixing and beaker analysis interface)
+- **Robot Service API**: http://localhost:8000/docs (Direct robot control API)
+- **Vision Service API**: http://localhost:5000/docs (Direct vision processing API)
+
 **Notes:**
-- Both services need to be running for full functionality
-- Robot service handles color mixing and dispensing operations
-- Vision bridge service provides beaker analysis and image processing
-- Services communicate via HTTP (robot service calls vision bridge)
+- **Frontend Service**: Provides the main web interface and acts as a proxy to backend services
+- **Robot Service**: Handles color mixing and dispensing operations
+- **Vision Bridge Service**: Provides beaker analysis and image processing
+- All three services need to be running for full functionality
+- Services communicate via HTTP (robot service calls vision bridge, frontend proxies to both)
 - **S3 Configuration**: Set `REQUIRE_S3=false` for local development to bypass S3 requirements
 - **ML Model Configuration**: Set `REQUIRE_MODEL=false` for local development to bypass ML inference requirements
 - For production deployment, use `docker-compose up` instead
@@ -161,8 +173,8 @@ aloha-lite/
 │   ├── trajectory_example.py    # Basic trajectory examples
 │   ├── trajectory_executor.py  # Advanced trajectory execution
 │   └── joint_reader_examples.py # Joint reading examples
-├── frontend/              # Web interface
-├── vision_bridge/         # Image processing service
+├── frontend/              # Web interface and service proxy (FastAPI port 3000)
+├── vision_bridge/         # Image processing service (FastAPI port 5000)
 ├── phosphobot/           # Robot control system (git subtree)
 ├── aloha-lite-demo2rule/ # Dataset processing tools
 ├── temp_rules/           # Configuration files
@@ -658,10 +670,17 @@ aloha-lite/
 - `POST /color-checker` - Analyze color checker in images
 - `GET /health` - Vision bridge service health check
 
-### Web Interface
-- `GET /` - Main robot control dashboard (served via proxy)
-- `GET /docs` - API documentation (Swagger UI)
-- **Frontend**: Color mixing interface with beaker analysis at `/frontend/index.html`
+### Frontend Interface (Port 3000)
+- `GET /` - Main color mixing and beaker analysis web interface
+- `GET /health` - Frontend service health check
+- `GET /status` - Check status of all backend services
+- `POST /robot/*` - Proxy to robot service (eliminates CORS issues)
+- `POST /vision/*` - Proxy to vision service (eliminates CORS issues)
+
+### Web Interface Access
+- **Main Interface**: http://localhost:3000 (Primary user interface)
+- **Robot API Docs**: http://localhost:8000/docs (Direct robot service API)
+- **Vision API Docs**: http://localhost:5000/docs (Direct vision service API)
 
 ## Testing and Validation
 
@@ -780,6 +799,28 @@ docker-compose -f docker-compose.prod.yml up -d
   ```bash
   export MODEL_ID="your-model-id"
   export PHOS_URL="http://phosphobot:8080"
+  ```
+
+### Frontend Service Issues
+- **Problem**: Cannot access web interface at http://localhost:3000
+- **Solution**: Ensure frontend service is running:
+  ```bash
+  cd /home/hafnium/aloha-lite/frontend
+  python -m uvicorn main:app --host 0.0.0.0 --port 3000
+  ```
+- **Problem**: CORS errors when using frontend
+- **Solution**: Always access through frontend service (port 3000), not directly to backend services
+
+### Backend Service Connectivity Issues
+- **Problem**: "Service Unavailable" errors in frontend
+- **Solution**: Check that all backend services are running and accessible:
+  ```bash
+  # Check all services at once
+  curl http://localhost:3000/status
+  
+  # Or check individually
+  curl http://localhost:8000/health  # Robot service
+  curl http://localhost:5000/health  # Vision service
   ```
 
 ## Contributing
