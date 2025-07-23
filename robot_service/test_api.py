@@ -14,7 +14,7 @@ except:
     exit(1)
 
 # Test with our sample image  
-image_path = Path("../temporary_images/camera_0_20250723_113227.jpg")
+image_path = Path(os.path.dirname(__file__)) / "../temporary_images/camera_0_20250723_113227.jpg"
 if image_path.exists():
     print(f"✅ Test image found: {image_path}")
     
