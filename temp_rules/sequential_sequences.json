@@ -202,6 +202,7 @@
       "name": "camera_demo_sequence",
       "description": "Demonstration sequence with camera capture functionality",
       "configurations": [
+        "left_arm_serving_standoff",
         "left_arm_standoff_with_beaker",
         "left_arm_standoff_yellow",
         "left_arm_stirer_standoff",
@@ -211,6 +212,7 @@
         "left_arm_stirer_standoff",
         "left_arm_standoff_yellow",
         "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
         "left_arm_serving_beaker"
       ],
       "execution_options": {

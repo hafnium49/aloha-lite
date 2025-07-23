@@ -1,0 +1,56 @@
+{
+  "name": "left_arm_serving_standoff",
+  "description": "Left arm serving standoff position - current position captured with preserved gripper position",
+  "source": {
+    "dataset": "current_robot_state",
+    "extraction_method": "real_time_capture",
+    "current_position_timestamp": "2025-07-23",
+    "gripper_preservation": "maintained_current_gripper_position",
+    "modification": "joints_j1_to_j5_from_current_position_j6_preserved"
+  },
+  "timestamp": "2025-07-23",
+  "configuration": {
+    "left_arm": {
+      "name": "SO-101 Left Arm",
+      "joints": {
+        "j1": -0.167245,
+        "j2": 0.362108,
+        "j3": 1.399332,
+        "j4": -1.706203,
+        "j5": -1.506737,
+        "j6": 0.906804033343867
+      },
+      "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+      "units": "radians"
+    }
+  },
+  "usage": {
+    "description": "This configuration specifies all 6 joints for the left arm - current position joints j1-j5 with preserved gripper position j6. Right arm stays in current position.",
+    "phosphobot_api": {
+      "left_arm": "POST /joints/write with body: [-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.906804033343867]"
+    },
+    "python_example": {
+      "description": "Example usage with enhanced execute_rules.py",
+      "code": "python3 execute_rules.py --config left_arm_serving_standoff"
+    }
+  },
+  "reference_values": {
+    "actual_current_position_used": {
+      "j1": -0.167245,
+      "j2": 0.362108,
+      "j3": 1.399332,
+      "j4": -1.706203,
+      "j5": -1.506737,
+      "j6": 0.906804033343867
+    },
+    "original_current_position_reading": {
+      "j1": -0.167245,
+      "j2": 0.362108,
+      "j3": 1.399332,
+      "j4": -1.706203,
+      "j5": -1.506737,
+      "j6": 0.438826
+    },
+    "note": "j6 preserved from existing gripper position, j1-j5 from current robot readings"
+  }
+}
