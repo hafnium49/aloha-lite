@@ -98,6 +98,10 @@ MAX_TASK_AGE = 3600  # 1 hour
 
 # Multi-color dispensing state
 CURRENT_DISPENSE_STATUS = DispenseStatus(status="idle")
+# Global squeeze duration adjustments (normalized to 10 seconds total)
+SQUEEZE_ADJUSTMENTS: dict[str, float] = {}
+# Track current sequence step for color detection
+CURRENT_SEQUENCE_STEP: int = 0
 CONFIG_MAP = {
     "red": "dispensing_red_to_beaker.json",
     "yellow": "dispensing_yellow_to_beaker.json", 
@@ -300,24 +304,47 @@ async def execute_special_function(function_description: str, cmd_id: str = None
         
         # Parse different types of special functions
         if "squeeze washing bottle" in function_description.lower():
-            # Extract duration from description like "squeeze washing bottle for 1.5 seconds"
+            # Determine the current color being dispensed based on sequence position
+            global SQUEEZE_ADJUSTMENTS, CURRENT_SEQUENCE_STEP
+            
+            # Extract the default duration first
             import re
             match = re.search(r"(\d+\.?\d*)\s*seconds?", function_description)
-            if match:
-                duration = float(match.group(1))
-                # Use squeeze_bottle.py directly for washing bottle
-                squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
-                cmd = [
-                    sys.executable,
-                    squeeze_bottle_path,
-                    "--duration", str(duration)
-                ]
-                
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 10, cwd=os.path.dirname(__file__))
-                if result.returncode != 0:
-                    logger.error(f"Squeeze operation failed: {result.stderr}")
-                    return False
-                return True
+            default_duration = float(match.group(1)) if match else 1.5
+            
+            # Map squeeze operations to colors based on timed_laboratory_procedure sequence
+            # Red squeeze: step 4 (after dispensing_red_to_beaker at step 3)
+            # Yellow squeeze: step 10 (after dispensing_yellow_to_beaker at step 9) 
+            # Blue squeeze: step 16 (after dispensing_blue_to_beaker at step 15)
+            current_color = None
+            if CURRENT_SEQUENCE_STEP == 4:  # After red dispensing
+                current_color = 'red'
+            elif CURRENT_SEQUENCE_STEP == 10:  # After yellow dispensing
+                current_color = 'yellow'
+            elif CURRENT_SEQUENCE_STEP == 16:  # After blue dispensing
+                current_color = 'blue'
+            
+            # Use adjusted duration if available, otherwise use default
+            if current_color and current_color in SQUEEZE_ADJUSTMENTS:
+                duration = SQUEEZE_ADJUSTMENTS[current_color]
+                logger.info(f"Using adjusted squeeze duration for {current_color}: {duration:.2f}s (normalized from 10s total)")
+            else:
+                duration = default_duration
+                logger.info(f"Using default squeeze duration: {duration:.2f}s (step {CURRENT_SEQUENCE_STEP})")
+            
+            # Use squeeze_bottle.py directly for washing bottle
+            squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
+            cmd = [
+                sys.executable,
+                squeeze_bottle_path,
+                "--duration", str(duration)
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 10, cwd=os.path.dirname(__file__))
+            if result.returncode != 0:
+                logger.error(f"Squeeze operation failed: {result.stderr}")
+                return False
+            return True
             
         elif "await" in function_description.lower() or "wait" in function_description.lower():
             # Extract duration from description like "await 10 seconds"
@@ -415,23 +442,42 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
         ]
         
         # Calculate adjusted squeeze durations based on color ratios if provided
-        squeeze_adjustments = {}
+        # Normalize total duration to 10 seconds and apply proportionally
+        global SQUEEZE_ADJUSTMENTS
+        SQUEEZE_ADJUSTMENTS = {}
+        
         if color_ratios:
             total_ratio = color_ratios.red + color_ratios.yellow + color_ratios.blue
             if total_ratio > 0:
-                # Adjust squeeze durations proportionally
-                squeeze_adjustments = {
-                    "red": max(0.5, (color_ratios.red / total_ratio) * base_duration),
-                    "yellow": max(0.5, (color_ratios.yellow / total_ratio) * base_duration), 
-                    "blue": max(0.5, (color_ratios.blue / total_ratio) * base_duration)
+                # Normalize to 10 seconds total duration
+                total_duration = 10.0
+                # Adjust squeeze durations proportionally with minimum 0.5 seconds
+                SQUEEZE_ADJUSTMENTS = {
+                    "red": max(0.5, (color_ratios.red / total_ratio) * total_duration),
+                    "yellow": max(0.5, (color_ratios.yellow / total_ratio) * total_duration), 
+                    "blue": max(0.5, (color_ratios.blue / total_ratio) * total_duration)
                 }
-                logger.info(f"Adjusted squeeze durations: {squeeze_adjustments}")
+                logger.info(f"Normalized squeeze durations (10s total): {SQUEEZE_ADJUSTMENTS}")
+            else:
+                # Use default durations if no valid ratios
+                SQUEEZE_ADJUSTMENTS = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+        else:
+            # Use default durations from sequential_sequences.json
+            SQUEEZE_ADJUSTMENTS = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
         
         logger.info(f"Starting timed laboratory procedure for cmd_id={cmd_id}")
         logger.info(f"Total sequence steps: {len(laboratory_sequence)}")
         
+        # Initialize sequence step tracking
+        global CURRENT_SEQUENCE_STEP
+        CURRENT_SEQUENCE_STEP = 0
+        
         # Execute each step in the laboratory sequence
+        global CURRENT_SEQUENCE_STEP
         for i, step in enumerate(laboratory_sequence, 1):
+            # Update current sequence step for color detection
+            CURRENT_SEQUENCE_STEP = i
+            
             # Update current operation status
             async with TASKS_LOCK:
                 if hasattr(TASKS[cmd_id], 'current_operation'):
