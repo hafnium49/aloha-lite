@@ -366,12 +366,13 @@ def prepare_arm_configuration(arm_config: dict, current_joints: list, arm_name: 
 def load_configuration(config_name: str, search_dirs: list[str] = None) -> dict:
     """Load configuration from JSON file by name."""
     if search_dirs is None:
+        script_dir = Path(os.path.dirname(__file__))
         search_dirs = [
-            "../temp_rules",
-            "./temp_rules", 
-            "./",
-            "./aloha-lite-demo2rule",
-            "./configs"
+            str(script_dir / "../temp_rules"),
+            str(script_dir / "./temp_rules"), 
+            str(script_dir / "./"),
+            str(script_dir / "./aloha-lite-demo2rule"),
+            str(script_dir / "./configs")
         ]
     
     # Try different filename patterns
@@ -908,7 +909,14 @@ if __name__ == "__main__":
         print("\nAvailable configurations:")
         
         # Look for JSON config files
-        search_dirs = ["../temp_rules", "./temp_rules", "./", "./aloha-lite-demo2rule", "./configs"]
+        script_dir = Path(os.path.dirname(__file__))
+        search_dirs = [
+            str(script_dir / "../temp_rules"), 
+            str(script_dir / "./temp_rules"), 
+            str(script_dir / "./"), 
+            str(script_dir / "./aloha-lite-demo2rule"), 
+            str(script_dir / "./configs")
+        ]
         found_configs = []
         
         for search_dir in search_dirs:
