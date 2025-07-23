@@ -167,6 +167,7 @@
       "name": "timed_laboratory_procedure",
       "description": "Laboratory procedure with timed delays for settling, observation, and external processes",
       "configurations": [
+        "left_arm_serving_standoff",
         "left_arm_standoff_with_beaker",
         "dispensing_red_to_beaker",
         "squeeze washing bottle for 1.5 seconds",
@@ -187,14 +188,18 @@
         "left_arm_stirer_standoff",
         "left_arm_stirring",
         "await 10 seconds",
-        "take picture",
+        "analyze beaker color",
+        "await 3 seconds",
         "left_arm_stirer_standoff",
         "left_arm_standoff_yellow",
         "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
         "left_arm_serving_beaker"
       ],
       "execution_options": {
         "smooth": true,
+        "pause_between": 0.1,
+        "pause_after": 0.1,
         "description": "Execute with smooth transitions, squeeze actions, and timed delays for process control"
       }
     },

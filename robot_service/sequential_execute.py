@@ -1058,6 +1058,14 @@ if __name__ == "__main__":
         print(f"🔧 Left arm ID: {args.left_arm_id} (5A68011258)")
         print(f"🔧 Right arm ID: {args.right_arm_id} (5A68009540)")
         
+        # Get timing parameters from execution_options or command line (command line takes precedence)
+        pause_between = execution_options.get("pause_between", args.pause_between)
+        pause_after = execution_options.get("pause_after", args.pause_after)
+        
+        # Show timing configuration
+        if execution_options.get("pause_between") is not None or execution_options.get("pause_after") is not None:
+            print(f"⏱️  Timing from sequence config: pause_between={pause_between}s, pause_after={pause_after}s")
+        
         executor = SequentialRobotExecutor(
             server_url=args.server,
             skip_init=True, 
@@ -1066,8 +1074,8 @@ if __name__ == "__main__":
         )
         success = executor.execute_sequence(
             configs,
-            pause_between=args.pause_between,
-            pause_after_each=args.pause_after,
+            pause_between=pause_between,
+            pause_after_each=pause_after,
             use_trajectory=use_trajectory,
             trajectory_duration=args.duration,
             max_velocity=args.max_velocity,
