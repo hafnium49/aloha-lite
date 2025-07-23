@@ -473,7 +473,6 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
         CURRENT_SEQUENCE_STEP = 0
         
         # Execute each step in the laboratory sequence
-        global CURRENT_SEQUENCE_STEP
         for i, step in enumerate(laboratory_sequence, 1):
             # Update current sequence step for color detection
             CURRENT_SEQUENCE_STEP = i
