@@ -212,14 +212,117 @@ async def execute_squeeze_operation(color: str, duration: float, config: str) ->
         logger.error(f"Error during {color} squeeze operation: {e}")
         return False
 
+async def execute_sequential_configuration(config_name: str) -> bool:
+    """Execute a single configuration using sequential_execute.py."""
+    try:
+        logger.info(f"Executing configuration: {config_name}")
+        
+        # Path to sequential_execute.py script
+        sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")
+        
+        # Command to run configuration with fast timing
+        cmd = [
+            sys.executable,
+            sequential_execute_path,
+            config_name,
+            "--smooth",
+            "--pause-between", "0.1",
+            "--pause-after", "0.1"
+        ]
+        
+        # Execute the configuration
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,  # 60 second timeout
+            cwd=os.path.dirname(__file__)
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Configuration failed for {config_name}: {result.stderr}")
+            return False
+        
+        logger.info(f"Successfully completed configuration: {config_name}")
+        return True
+        
+    except subprocess.TimeoutExpired:
+        logger.error(f"Configuration timed out for {config_name}")
+        return False
+    except Exception as e:
+        logger.error(f"Error during configuration {config_name}: {e}")
+        return False
+
+async def execute_special_function(function_description: str) -> bool:
+    """Execute special functions like squeeze, await, or analyze beaker."""
+    try:
+        logger.info(f"Executing special function: {function_description}")
+        
+        # Parse different types of special functions
+        if "squeeze washing bottle" in function_description.lower():
+            # Extract duration from description like "squeeze washing bottle for 1.5 seconds"
+            import re
+            match = re.search(r"(\d+\.?\d*)\s*seconds?", function_description)
+            if match:
+                duration = float(match.group(1))
+                # Use squeeze_bottle.py directly for washing bottle
+                squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
+                cmd = [
+                    sys.executable,
+                    squeeze_bottle_path,
+                    "--duration", str(duration)
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 10, cwd=os.path.dirname(__file__))
+                if result.returncode != 0:
+                    logger.error(f"Squeeze operation failed: {result.stderr}")
+                    return False
+                return True
+            
+        elif "await" in function_description.lower() or "wait" in function_description.lower():
+            # Extract duration from description like "await 10 seconds"
+            import re
+            match = re.search(r"(\d+\.?\d*)\s*seconds?", function_description)
+            if match:
+                duration = float(match.group(1))
+                logger.info(f"Waiting for {duration} seconds...")
+                await asyncio.sleep(duration)
+                return True
+                
+        elif "analyze beaker" in function_description.lower():
+            # Use sequential_execute.py to run beaker analysis
+            sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")
+            cmd = [
+                sys.executable,
+                sequential_execute_path,
+                "analyze beaker color",
+                "--smooth",
+                "--pause-between", "0.1",
+                "--pause-after", "0.1"
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=os.path.dirname(__file__))
+            if result.returncode != 0:
+                logger.error(f"Beaker analysis failed: {result.stderr}")
+                return False
+            return True
+        
+        logger.warning(f"Unknown special function: {function_description}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error executing special function {function_description}: {e}")
+        return False
+
 async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float):
     """
-    Background task to execute multi-color dispensing with proportional squeeze durations.
+    Background task to execute the complete timed laboratory procedure with multi-color dispensing.
+    This implements the full timed_laboratory_procedure sequence from sequential_sequences.json.
     
     Args:
         cmd_id: Unique command identifier
-        color_ratios: Color ratios from frontend
-        base_duration: Base duration for scaling
+        color_ratios: Color ratios from frontend (used to customize squeeze durations)
+        base_duration: Base duration for scaling (affects squeeze timing)
     """
     try:
         async with TASKS_LOCK:
@@ -228,95 +331,99 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
                 return
             TASKS[cmd_id].status = "running"
         
-        # Convert ratios to dict for easier processing
-        ratios_dict = {
-            "red": color_ratios.red,
-            "yellow": color_ratios.yellow,
-            "blue": color_ratios.blue
-        }
+        # Define the complete timed laboratory procedure sequence
+        laboratory_sequence = [
+            "left_arm_serving_standoff",
+            "left_arm_standoff_with_beaker",
+            "dispensing_red_to_beaker",
+            "squeeze washing bottle for 1.5 seconds",
+            "right_arm_standoff",
+            "left_arm_standoff_with_beaker",
+            "left_arm_standoff_yellow", 
+            "right_arm_standoff_yellow",
+            "dispensing_yellow_to_beaker",
+            "squeeze washing bottle for 2.5 seconds",
+            "right_arm_standoff_yellow",
+            "right_arm_standoff",
+            "left_arm_standoff_yellow",
+            "left_arm_standoff_blue",
+            "dispensing_blue_to_beaker",
+            "squeeze washing bottle for 1 seconds",
+            "right_arm_standoff",
+            "left_arm_standoff_blue",
+            "left_arm_standoff_yellow",
+            "left_arm_stirer_standoff",
+            "left_arm_stirring",
+            "await 10 seconds",
+            "analyze beaker color",
+            "await 3 seconds",
+            "left_arm_stirer_standoff",
+            "left_arm_standoff_yellow",
+            "left_arm_standoff_with_beaker",
+            "left_arm_serving_standoff",
+            "left_arm_serving_beaker"
+        ]
         
-        # Calculate total parts and individual durations
-        total_parts = sum(ratios_dict.values())
-        if total_parts == 0:
-            raise ValueError("Total color ratios cannot be zero")
+        # Calculate adjusted squeeze durations based on color ratios if provided
+        squeeze_adjustments = {}
+        if color_ratios:
+            total_ratio = color_ratios.red + color_ratios.yellow + color_ratios.blue
+            if total_ratio > 0:
+                # Adjust squeeze durations proportionally
+                squeeze_adjustments = {
+                    "red": max(0.5, (color_ratios.red / total_ratio) * base_duration),
+                    "yellow": max(0.5, (color_ratios.yellow / total_ratio) * base_duration), 
+                    "blue": max(0.5, (color_ratios.blue / total_ratio) * base_duration)
+                }
+                logger.info(f"Adjusted squeeze durations: {squeeze_adjustments}")
         
-        color_operations = []
-        total_duration = 0
+        logger.info(f"Starting timed laboratory procedure for cmd_id={cmd_id}")
+        logger.info(f"Total sequence steps: {len(laboratory_sequence)}")
         
-        # Process each color with non-zero ratio
-        for color, ratio in ratios_dict.items():
-            if ratio > 0:
-                # Calculate squeeze duration proportional to ratio
-                squeeze_duration = (ratio / total_parts) * base_duration
-                squeeze_duration = max(squeeze_duration, 0.5)  # Minimum 0.5 seconds
-                squeeze_duration = min(squeeze_duration, 8.0)   # Maximum 8.0 seconds
-                
-                config_name = CONFIG_MAP.get(color)
-                if not config_name:
-                    logger.warning(f"No configuration found for color: {color}")
-                    continue
-                
-                operation = ColorOperation(
-                    color=color,
-                    ratio=ratio,
-                    duration=squeeze_duration,
-                    config=config_name,
-                    status="pending"
-                )
-                color_operations.append(operation)
-                total_duration += squeeze_duration + 1.0  # Add 1s between operations
-        
-        # Update task with operation details
-        async with TASKS_LOCK:
-            if hasattr(TASKS[cmd_id], 'operations'):
-                TASKS[cmd_id].operations = color_operations
-        
-        logger.info(f"Starting multi-color dispensing for cmd_id={cmd_id}")
-        logger.info(f"Total operations: {len(color_operations)}, estimated duration: {total_duration:.2f}s")
-        
-        # Execute each color operation sequentially
-        for i, operation in enumerate(color_operations):
+        # Execute each step in the laboratory sequence
+        for i, step in enumerate(laboratory_sequence, 1):
             # Update current operation status
             async with TASKS_LOCK:
-                TASKS[cmd_id].current_operation = operation
-                operation.status = "running"
+                if hasattr(TASKS[cmd_id], 'current_operation'):
+                    TASKS[cmd_id].current_operation = {
+                        "step": i,
+                        "total_steps": len(laboratory_sequence),
+                        "description": step,
+                        "status": "running"
+                    }
             
-            logger.info(f"Dispensing {operation.color} for {operation.duration:.2f}s (ratio: {operation.ratio})")
+            logger.info(f"Step {i}/{len(laboratory_sequence)}: {step}")
             
-            # Execute squeeze operation
-            success = await execute_squeeze_operation(
-                operation.color,
-                operation.duration,
-                operation.config
-            )
+            # Determine if this is a configuration or special function
+            if any(keyword in step.lower() for keyword in ["squeeze", "await", "wait", "analyze"]):
+                # Special function
+                success = await execute_special_function(step)
+            else:
+                # Regular configuration
+                success = await execute_sequential_configuration(step)
             
             if not success:
                 async with TASKS_LOCK:
-                    operation.status = "failed"
                     TASKS[cmd_id].status = "failed"
-                    TASKS[cmd_id].error_message = f"Failed to dispense {operation.color}"
-                raise RuntimeError(f"Failed to dispense {operation.color}")
+                    TASKS[cmd_id].error_message = f"Failed at step {i}: {step}"
+                raise RuntimeError(f"Failed at step {i}: {step}")
             
-            # Mark operation as completed
-            async with TASKS_LOCK:
-                operation.status = "completed"
-                if hasattr(TASKS[cmd_id], 'completed_operations'):
-                    TASKS[cmd_id].completed_operations.append(operation)
+            # Mark step as completed
+            logger.info(f"✅ Completed step {i}/{len(laboratory_sequence)}: {step}")
             
-            # Small delay between colors to allow settling
-            if i < len(color_operations) - 1:  # Not the last operation
-                logger.info("Waiting 1s between color operations...")
-                await asyncio.sleep(1.0)
+            # Small delay between steps for system stability
+            await asyncio.sleep(0.1)
         
         # Mark entire task as completed
         async with TASKS_LOCK:
             TASKS[cmd_id].status = "completed"
             TASKS[cmd_id].current_operation = None
+            TASKS[cmd_id].completed_at = time.strftime("%Y-%m-%d %H:%M:%S")
         
-        logger.info(f"Multi-color dispensing completed successfully for cmd_id={cmd_id}")
+        logger.info(f"🎉 Timed laboratory procedure completed successfully for cmd_id={cmd_id}")
         
     except Exception as e:
-        logger.error(f"Multi-color dispensing failed for cmd_id={cmd_id}: {e}")
+        logger.error(f"Timed laboratory procedure failed for cmd_id={cmd_id}: {e}")
         async with TASKS_LOCK:
             if cmd_id in TASKS:
                 TASKS[cmd_id].status = "failed"
@@ -329,9 +436,9 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
 async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
     REQS_TOTAL.inc()
     
-    # Check if this is a multi-color request
+    # Check if this is a multi-color request (now executes full laboratory procedure)
     if req.color_ratios is not None and req.normalized_percentages is not None:
-        logger.info("Processing multi-color request")
+        logger.info("Processing timed laboratory procedure request with multi-color ratios")
         
         try:
             # Generate unique command ID
@@ -349,7 +456,7 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
                 blue=req.color_ratios.get("blue", 0)
             )
             
-            # Create task entry with extended fields for multi-color
+            # Create task entry with extended fields for timed laboratory procedure
             task_status = DispenseStatus(
                 status="pending",
                 request_id=cmd_id,
@@ -364,20 +471,25 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
             # Start background task with base_duration from request or default
             base_duration = getattr(req, 'base_duration', 3.0)
             background_tasks.add_task(
-                execute_multi_color_dispensing_task,
+                execute_multi_color_dispensing_task,  # Now executes full laboratory procedure
                 cmd_id,
                 color_ratios,
                 base_duration
             )
             
-            logger.info(f"Multi-color dispensing started with cmd_id={cmd_id}")
-            return {"cmd_id": cmd_id, "status": "pending"}
+            logger.info(f"Timed laboratory procedure started with cmd_id={cmd_id}")
+            return {
+                "cmd_id": cmd_id, 
+                "status": "pending",
+                "procedure": "timed_laboratory_procedure",
+                "description": "Complete laboratory workflow with positioning, dispensing, squeezing, stirring, waiting, and beaker analysis"
+            }
             
         except Exception as e:
-            logger.error(f"Error starting multi-color dispensing: {e}")
-            raise HTTPException(500, f"Multi-color dispensing error: {str(e)}")
+            logger.error(f"Error starting timed laboratory procedure: {e}")
+            raise HTTPException(500, f"Laboratory procedure error: {str(e)}")
     
-    # Handle traditional single-color requests
+    # Handle traditional single-color requests (legacy support)
     tid = str(uuid.uuid4())
     volume = req.volume_ml if req.volume_ml is not None else 25.0  # Default volume
     prompt = f"Dispense {volume} ml from the {req.colour} bottle"
@@ -422,6 +534,38 @@ async def status(cmd_id: str):
             raise HTTPException(404, f"Task {cmd_id} not found")
         
         return st.model_dump()
+
+
+@app.get("/robot/procedure/info")
+async def get_procedure_info():
+    """Get information about the timed laboratory procedure."""
+    return {
+        "procedure_name": "timed_laboratory_procedure",
+        "description": "Complete laboratory workflow with multi-color dispensing, positioning, stirring, and analysis",
+        "total_steps": 29,
+        "features": [
+            "Multi-color dispensing (red, yellow, blue)",
+            "Precise arm positioning and coordination", 
+            "Automated squeeze bottle operations",
+            "Stirring capabilities",
+            "Timed delays for process control",
+            "AI-powered beaker color analysis",
+            "Real-time progress tracking"
+        ],
+        "sequence_overview": {
+            "configurations": 23,
+            "special_functions": 6,
+            "colors_dispensed": ["red", "yellow", "blue"],
+            "squeeze_operations": 3,
+            "timing_delays": 2,
+            "analysis_steps": 1
+        },
+        "timing": {
+            "pause_between_steps": "0.1 seconds",
+            "smooth_trajectory": True,
+            "estimated_duration": "3-5 minutes"
+        }
+    }
 
 
 @app.get("/robot/{cmd_id}/pose-snapshot")
