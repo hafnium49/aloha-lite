@@ -219,13 +219,36 @@
         "smooth": true,
         "description": "Execute with smooth transitions and camera capture demonstrations"
       }
+    },
+    "beaker_analysis_demo_sequence": {
+      "name": "beaker_analysis_demo_sequence",
+      "description": "Advanced demonstration sequence with beaker color analysis - captures image and analyzes solution color using AI vision",
+      "configurations": [
+        "left_arm_serving_standoff",
+        "left_arm_standoff_with_beaker",
+        "left_arm_standoff_yellow",
+        "left_arm_stirer_standoff",
+        "left_arm_stirring",
+        "await 10 seconds",
+        "analyze beaker color",
+        "await 3 seconds",
+        "left_arm_stirer_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute complete laboratory procedure with multi-color solution preparation and AI-powered beaker color analysis"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 16,
+    "total_sequences": 17,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
@@ -234,7 +257,8 @@
       "squeeze_bottle_example": "python3 sequential_execute.py squeeze_bottle_demo",
       "advanced_squeeze_example": "python3 sequential_execute.py multi_color_dispensing_with_squeeze",
       "timed_procedure_example": "python3 sequential_execute.py timed_laboratory_procedure --smooth",
-      "camera_demo_example": "python3 sequential_execute.py camera_demo_sequence --smooth"
+      "camera_demo_example": "python3 sequential_execute.py camera_demo_sequence --smooth",
+      "beaker_analysis_example": "python3 sequential_execute.py beaker_analysis_demo_sequence --smooth"
     }
   }
 }

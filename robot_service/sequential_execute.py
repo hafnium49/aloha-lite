@@ -149,7 +149,11 @@ class SequentialRobotExecutor:
             r"capture.*image",
             r"snap.*photo",
             r"take.*photo.*camera.*(\d+)",
-            r"capture.*camera.*(\d+)"
+            r"capture.*camera.*(\d+)",
+            r"analyze.*beaker.*color",
+            r"beaker.*analysis",
+            r"analyze.*solution.*color",
+            r"color.*analysis"
         ]
         
         step_lower = step.lower()
@@ -186,7 +190,42 @@ class SequentialRobotExecutor:
             r"capture.*camera.*(\d+)"
         ]
         
-        # Check for camera capture patterns first
+        # Pattern for beaker analysis functions
+        beaker_analysis_patterns = [
+            r"analyze.*beaker.*color",
+            r"beaker.*analysis",
+            r"analyze.*solution.*color",
+            r"color.*analysis"
+        ]
+        
+        # Check for beaker analysis patterns first
+        for pattern in beaker_analysis_patterns:
+            match = re.search(pattern, step_lower)
+            if match:
+                print(f"\n🧪 Executing special function: Beaker Color Analysis")
+                print("🔬 Capturing image and analyzing beaker solution color...")
+                print("=" * 50)
+                
+                try:
+                    success = self._execute_beaker_analysis()
+                    
+                    if success:
+                        print(f"✅ Successfully completed beaker color analysis")
+                    else:
+                        print(f"❌ Failed to complete beaker color analysis")
+                    
+                    # Apply additional pause if specified
+                    if pause_after > 0:
+                        print(f"\n⏱️  Pausing {pause_after}s after beaker analysis...")
+                        time.sleep(pause_after)
+                    
+                    return success
+                    
+                except Exception as e:
+                    print(f"❌ Error executing beaker analysis function: {e}")
+                    return False
+        
+        # Check for camera capture patterns
         for pattern in camera_patterns:
             match = re.search(pattern, step_lower)
             if match:
@@ -507,6 +546,139 @@ class SequentialRobotExecutor:
             print(f"❌ Unexpected error during camera capture: {e}")
             return False
     
+    def _execute_beaker_analysis(self, camera_id: int = None) -> bool:
+        """Execute beaker color analysis by capturing an image and analyzing it using the vision bridge API."""
+        try:
+            # Use configured default camera if not specified
+            if camera_id is None:
+                camera_id = DEFAULT_CAMERA_ID
+            
+            print(f"📸 Step 1: Capturing image from camera {camera_id}...")
+            
+            # First capture an image using the existing camera capture function
+            capture_success = self._execute_camera_capture(camera_id)
+            if not capture_success:
+                print("❌ Failed to capture image for beaker analysis")
+                return False
+            
+            # Find the most recent image file
+            temp_images_dir = Path("../temporary_images")
+            if not temp_images_dir.exists():
+                print("❌ Temporary images directory not found")
+                return False
+            
+            # Get the most recent image file for the specified camera
+            image_files = list(temp_images_dir.glob(f"camera_{camera_id}_*.jpg"))
+            if not image_files:
+                print(f"❌ No image files found for camera {camera_id}")
+                return False
+            
+            # Sort by modification time and get the most recent
+            latest_image = max(image_files, key=lambda p: p.stat().st_mtime)
+            print(f"🖼️  Using image: {latest_image.name}")
+            
+            print(f"\n🔬 Step 2: Analyzing beaker color using vision bridge API...")
+            
+            # Make API request to vision bridge for beaker analysis
+            vision_bridge_url = "http://localhost:8000/analyze-beaker"
+            print(f"🌐 Making API request: POST {vision_bridge_url}")
+            
+            # Prepare the image file for upload
+            with open(latest_image, 'rb') as image_file:
+                files = {'file': (latest_image.name, image_file, 'image/jpeg')}
+                
+                response = requests.post(vision_bridge_url, files=files, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"❌ Vision bridge API request failed with status {response.status_code}: {response.text}")
+                return False
+            
+            # Parse the analysis results
+            analysis_data = response.json()
+            
+            print(f"\n📊 Step 3: Beaker Analysis Results")
+            print("=" * 50)
+            
+            # Extract and display key results
+            dominant_color = analysis_data.get('dominant_color', {})
+            beaker_circle = analysis_data.get('beaker_circle', {})
+            clusters = analysis_data.get('clusters', [])
+            stats = analysis_data.get('analysis_stats', {})
+            
+            # Display dominant color
+            rgb = dominant_color.get('rgb', [0, 0, 0])
+            hex_color = dominant_color.get('hex', '#000000')
+            print(f"🎨 Dominant Solution Color: {hex_color}")
+            print(f"   RGB: ({rgb[0]}, {rgb[1]}, {rgb[2]})")
+            
+            # Display beaker detection info
+            x = beaker_circle.get('x', 0)
+            y = beaker_circle.get('y', 0)
+            radius = beaker_circle.get('radius', 0)
+            print(f"\n🥤 Beaker Detection:")
+            print(f"   Position: ({x}, {y})")
+            print(f"   Radius: {radius} pixels")
+            
+            # Display analysis statistics
+            total_pixels = stats.get('total_pixels_analyzed', 0)
+            num_clusters = stats.get('num_clusters', 0)
+            print(f"\n📈 Analysis Statistics:")
+            print(f"   Pixels analyzed: {total_pixels:,}")
+            print(f"   Color clusters found: {num_clusters}")
+            
+            # Display top 3 color clusters
+            print(f"\n🌈 Top Color Clusters:")
+            for i, cluster in enumerate(clusters[:3]):
+                cluster_rgb = cluster.get('rgb', [0, 0, 0])
+                cluster_hex = cluster.get('hex', '#000000')
+                pixel_count = cluster.get('pixel_count', 0)
+                saturation = cluster.get('saturation', 0)
+                print(f"   {i+1}. {cluster_hex} - RGB({cluster_rgb[0]}, {cluster_rgb[1]}, {cluster_rgb[2]}) - {pixel_count:,} pixels (sat: {saturation:.1f})")
+            
+            # Save analysis results to a JSON file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            results_filename = f"beaker_analysis_{camera_id}_{timestamp}.json"
+            results_filepath = temp_images_dir / results_filename
+            
+            with open(results_filepath, 'w') as f:
+                json.dump(analysis_data, f, indent=2)
+            
+            print(f"\n💾 Analysis results saved to: {results_filename}")
+            
+            # Provide color interpretation
+            print(f"\n🧪 Color Interpretation:")
+            if hex_color.lower() in ['#ff0000', '#dc143c', '#b22222'] or (rgb[0] > 150 and rgb[1] < 100 and rgb[2] < 100):
+                print("   🔴 Red solution detected - likely contains red dye or indicator")
+            elif hex_color.lower() in ['#ffff00', '#ffd700', '#daa520'] or (rgb[0] > 200 and rgb[1] > 200 and rgb[2] < 100):
+                print("   🟡 Yellow solution detected - likely contains yellow dye or indicator")
+            elif hex_color.lower() in ['#0000ff', '#1e90ff', '#4169e1'] or (rgb[0] < 100 and rgb[1] < 100 and rgb[2] > 150):
+                print("   🔵 Blue solution detected - likely contains blue dye or indicator")
+            elif rgb[0] < 50 and rgb[1] < 50 and rgb[2] < 50:
+                print("   ⚫ Dark/black solution detected")
+            elif rgb[0] > 200 and rgb[1] > 200 and rgb[2] > 200:
+                print("   ⚪ Clear/transparent solution detected")
+            else:
+                print(f"   🎨 Custom color solution detected: {hex_color}")
+            
+            print("=" * 50)
+            return True
+            
+        except requests.exceptions.Timeout:
+            print(f"❌ Request timeout - beaker analysis took too long")
+            return False
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error during beaker analysis: {e}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON response from vision bridge API: {e}")
+            return False
+        except FileNotFoundError as e:
+            print(f"❌ Image file not found: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error during beaker analysis: {e}")
+            return False
+    
     def execute_configuration(self, config_name: str, pause_after: float = 3.0,
                              use_trajectory: bool = True, trajectory_duration: float = None,
                              max_velocity: float = 0.3, num_waypoints: int = None,
@@ -793,7 +965,7 @@ def main():
 # Load predefined sequences from JSON file
 def load_predefined_sequences():
     """Load predefined sequences from JSON file with execution options support."""
-    sequences_file = Path("../temp_rules/sequential_sequences.json")
+    sequences_file = Path("temp_rules/sequential_sequences.json")
     
     if not sequences_file.exists():
         print(f"⚠️  Sequences file not found: {sequences_file}")
