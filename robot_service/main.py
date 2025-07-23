@@ -532,6 +532,8 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
 async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
     REQS_TOTAL.inc()
     logger.info(f"Received dispense request: {req}")
+    logger.info(f"color_ratios: {req.color_ratios}")
+    logger.info(f"normalized_percentages: {req.normalized_percentages}")
     
     # Check if this is a multi-color request (now executes full laboratory procedure)
     if req.color_ratios is not None and req.normalized_percentages is not None:
@@ -547,23 +549,40 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
                 raise HTTPException(400, "At least one color ratio must be greater than 0")
             
             # Convert dict to ColorRatios model
-            color_ratios = ColorRatios(
-                red=req.color_ratios.get("red", 0),
-                yellow=req.color_ratios.get("yellow", 0),
-                blue=req.color_ratios.get("blue", 0)
-            )
+            try:
+                logger.info(f"Creating ColorRatios from: {req.color_ratios}")
+                color_ratios = ColorRatios(
+                    red=req.color_ratios.get("red", 0),
+                    yellow=req.color_ratios.get("yellow", 0),
+                    blue=req.color_ratios.get("blue", 0)
+                )
+                logger.info(f"ColorRatios created successfully: {color_ratios}")
+            except Exception as e:
+                logger.error(f"Failed to create ColorRatios: {e}")
+                raise HTTPException(400, f"Invalid color ratios: {str(e)}")
             
             # Create task entry with extended fields for timed laboratory procedure
-            task_status = DispenseStatus(
-                status="pending",
-                request_id=cmd_id,
-                operations=[],
-                completed_operations=[],
-                started_at=time.strftime("%Y-%m-%d %H:%M:%S")
-            )
+            try:
+                logger.info(f"Creating DispenseStatus with cmd_id: {cmd_id}")
+                task_status = DispenseStatus(
+                    status="pending",
+                    request_id=cmd_id,
+                    operations=[],
+                    completed_operations=[],
+                    started_at=time.strftime("%Y-%m-%d %H:%M:%S")
+                )
+                logger.info(f"DispenseStatus created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create DispenseStatus: {e}")
+                raise HTTPException(500, f"Task creation error: {str(e)}")
             
-            async with TASKS_LOCK:
-                TASKS[cmd_id] = task_status
+            try:
+                async with TASKS_LOCK:
+                    TASKS[cmd_id] = task_status
+                logger.info(f"Task {cmd_id} added to TASKS dictionary")
+            except Exception as e:
+                logger.error(f"Failed to add task to TASKS: {e}")
+                raise HTTPException(500, f"Task storage error: {str(e)}")
             
             # Start background task with base_duration from request or default
             base_duration = getattr(req, 'base_duration', 3.0)
@@ -587,6 +606,8 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
         except Exception as e:
             logger.error(f"Error starting timed laboratory procedure: {e}")
             raise HTTPException(500, f"Laboratory procedure error: {str(e)}")
+    else:
+        logger.info("Processing legacy single-color request")
     
     # Handle traditional single-color requests (legacy support)
     tid = str(uuid.uuid4())

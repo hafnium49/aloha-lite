@@ -90,7 +90,7 @@ async def proxy_robot_service(request: Request, path: str):
                 logger.info(f"Robot service response JSON: {response_json}")
                 return response_json
             else:
-                response_text = await response.text()
+                response_text = response.text
                 logger.info(f"Robot service response text: {response_text}")
                 return response_text
             
@@ -148,7 +148,7 @@ async def proxy_vision_service(request: Request, path: str):
             if response.headers.get("content-type", "").startswith("application/json"):
                 return await response.json()
             else:
-                return await response.text()
+                return response.text
             
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Vision service timeout")
