@@ -58,9 +58,9 @@ class DispenseStatus(BaseModel):
     created_at: float = Field(default_factory=time.time)
     # Extended fields for multi-color support
     request_id: Optional[str] = None
-    current_operation: Optional[object] = None  # Will be ColorOperation
-    operations: List[object] = []  # Will be List[ColorOperation]
-    completed_operations: List[object] = []  # Will be List[ColorOperation]
+    current_operation: Optional[Dict] = None  # Changed from object to Dict
+    operations: List[Dict] = []  # Changed from List[object] to List[Dict]
+    completed_operations: List[Dict] = []  # Changed from List[object] to List[Dict]
     error_message: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
@@ -606,10 +606,9 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
         except Exception as e:
             logger.error(f"Error starting timed laboratory procedure: {e}")
             raise HTTPException(500, f"Laboratory procedure error: {str(e)}")
-    else:
-        logger.info("Processing legacy single-color request")
     
     # Handle traditional single-color requests (legacy support)
+    logger.info("Processing legacy single-color request")
     tid = str(uuid.uuid4())
     volume = req.volume_ml if req.volume_ml is not None else 25.0  # Default volume
     prompt = f"Dispense {volume} ml from the {req.colour} bottle"
