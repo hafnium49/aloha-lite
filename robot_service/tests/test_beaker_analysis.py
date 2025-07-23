@@ -6,18 +6,19 @@ import sys
 import os
 from pathlib import Path
 
-# Add the parent directory to path to import modules
+# Add the parent directory to path to import modules from robot_service
 sys.path.append(str(Path(__file__).parent.parent))
 
-from robot_service.sequential_execute import RobotConfigurationSequencer
+# Import from the parent robot_service directory
+from sequential_execute import SequentialRobotExecutor
 
 def test_beaker_analysis():
     """Test the beaker analysis special function."""
     print("🧪 Testing Beaker Analysis Function")
     print("=" * 50)
     
-    # Create a test sequencer (without actual robot hardware)
-    sequencer = RobotConfigurationSequencer(
+    # Create a test executor (without actual robot hardware)
+    executor = SequentialRobotExecutor(
         server_url="http://localhost:5000",  # Dummy URL for testing
         left_arm_id=0,
         right_arm_id=2
@@ -33,19 +34,20 @@ def test_beaker_analysis():
     
     print("\n📋 Testing special function recognition:")
     for cmd in test_commands:
-        is_special = sequencer._is_special_function(cmd)
+        is_special = executor._is_special_function(cmd)
         print(f"   '{cmd}' -> {'✅ Recognized' if is_special else '❌ Not recognized'}")
     
     print("\n🔬 Testing beaker analysis execution:")
     try:
         # Test the beaker analysis function
-        success = sequencer._execute_beaker_analysis()
+        success = executor._execute_beaker_analysis()
         if success:
             print("✅ Beaker analysis test completed successfully!")
         else:
             print("❌ Beaker analysis test failed")
     except Exception as e:
         print(f"❌ Error during beaker analysis test: {e}")
+        print("💡 Note: This test requires the vision bridge server to be running")
 
 if __name__ == "__main__":
     test_beaker_analysis()

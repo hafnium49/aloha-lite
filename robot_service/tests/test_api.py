@@ -2,6 +2,7 @@
 import requests
 import json
 from pathlib import Path
+import os
 
 print("🧪 Testing beaker analysis API directly...")
 
@@ -13,8 +14,8 @@ except:
     print("❌ Vision bridge server not responding")
     exit(1)
 
-# Test with our sample image  
-image_path = Path(os.path.dirname(__file__)) / "../temporary_images/camera_0_20250723_113227.jpg"
+# Test with our sample image - updated path for tests directory
+image_path = Path(os.path.dirname(__file__)) / "../../temporary_images/camera_0_20250723_113227.jpg"
 if image_path.exists():
     print(f"✅ Test image found: {image_path}")
     
@@ -32,4 +33,5 @@ if image_path.exists():
     else:
         print(f"❌ API error: {response.status_code}")
 else:
-    print("❌ Test image not found")
+    print(f"❌ Test image not found at: {image_path}")
+    print(f"💡 Expected path: {image_path.absolute()}")
