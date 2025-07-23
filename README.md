@@ -86,8 +86,20 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 **Vision Bridge Service (Port 5000):**
+
+*Development Mode (Local Development - No S3 Required):*
 ```bash
 cd /home/hafnium/aloha-lite/vision_bridge
+REQUIRE_S3=false python -m uvicorn main:app --host 0.0.0.0 --port 5000
+```
+
+*Production Mode (S3 Storage Required):*
+```bash
+cd /home/hafnium/aloha-lite/vision_bridge
+export S3_ENDPOINT="your-s3-endpoint"
+export AWS_ACCESS_KEY_ID="your-access-key"  
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export BUCKET="snapshots"
 python -m uvicorn main:app --host 0.0.0.0 --port 5000
 ```
 
@@ -96,6 +108,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 - Robot service handles color mixing and dispensing operations
 - Vision bridge service provides beaker analysis and image processing
 - Services communicate via HTTP (robot service calls vision bridge)
+- **S3 Configuration**: Set `REQUIRE_S3=false` for local development to bypass S3 requirements
 - For production deployment, use `docker-compose up` instead
 
 **For Development and Diagnostics:**  
@@ -603,7 +616,13 @@ aloha-lite/
 ├── push_subtree.py               # Automated subtree push (python)
 ├── frontend/                     # Web interface
 ├── robot_service/                # FastAPI robot control
-├── vision_bridge/                # Image processing
+├── vision_bridge/                # Image processing and computer vision service
+│                                  # - FastAPI service (port 5000) 
+│                                  # - Beaker analysis with AI-powered color detection
+│                                  # - Camera snapshot capture and S3 storage
+│                                  # - K-means clustering for color analysis
+│                                  # - Optional S3 integration (set REQUIRE_S3=false for local dev)
+│                                  # - Prometheus metrics on port 9003
 ├── phosphobot/                   # Robot control system (subtree)
 ├── aloha-lite-demo2rule/         # Dataset processing (subtree)
 └── temp_rules/                   # Generated configurations
@@ -613,18 +632,25 @@ aloha-lite/
 
 ## API Endpoints
 
-### Robot Control
+### Robot Control (Port 8000)
+- `POST /robot/dispense` - Color mixing and dispensing operations
+- `GET /robot/{cmd_id}/status` - Check operation status
+- `GET /robot/{cmd_id}/pose-snapshot` - Capture robot pose snapshot
+- `GET /robot/{cmd_id}/beaker-analysis` - Get beaker analysis results
 - `POST /joints/write?robot_id={0|1}` - Set joint positions
 - `POST /joints/read?robot_id={0|1}` - Read current joint positions  
 - `POST /move/init` - Initialize robot system
 
-### Vision Processing
+### Vision Processing (Port 5000)
+- `POST /analyze-beaker` - AI-powered beaker color analysis (accepts image upload)
+- `POST /snap` - Capture camera snapshot (with optional S3 storage)
 - `POST /color-checker` - Analyze color checker in images
-- `GET /health` - Service health check
+- `GET /health` - Vision bridge service health check
 
 ### Web Interface
-- `GET /` - Main robot control dashboard
+- `GET /` - Main robot control dashboard (served via proxy)
 - `GET /docs` - API documentation (Swagger UI)
+- **Frontend**: Color mixing interface with beaker analysis at `/frontend/index.html`
 
 ## Testing and Validation
 
@@ -717,6 +743,20 @@ docker-compose -f docker-compose.prod.yml up -d
 ### Git Subtree Issues
 - **Problem**: Subtree push/pull conflicts
 - **Solution**: Use automated scripts (`./push_subtree.sh`) which handle .gitignore conflicts automatically
+
+### Vision Bridge S3 Configuration Error
+- **Problem**: `ERROR:main:S3_ENDPOINT environment variable is required`
+- **Solution**: For local development, start vision bridge with `REQUIRE_S3=false`:
+  ```bash
+  cd /home/hafnium/aloha-lite/vision_bridge
+  REQUIRE_S3=false python -m uvicorn main:app --host 0.0.0.0 --port 5000
+  ```
+- **For Production**: Configure S3 environment variables:
+  ```bash
+  export S3_ENDPOINT="your-s3-endpoint"
+  export AWS_ACCESS_KEY_ID="your-access-key"
+  export AWS_SECRET_ACCESS_KEY="your-secret-key"
+  ```
 
 ## Contributing
 
