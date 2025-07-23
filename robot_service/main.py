@@ -17,6 +17,7 @@ MODEL_ID   = os.getenv("MODEL_ID")
 TARGET_POSE = json.loads(os.getenv("TARGET_POSE", "[0,0,0,0,0,0]"))
 TOL        = float(os.getenv("TOL", "0.03"))
 REQUIRE_MODEL = os.getenv("REQUIRE_MODEL", "true").lower() == "true"
+REQUIRE_ROBOT = os.getenv("REQUIRE_ROBOT", "true").lower() == "true"
 
 # Validate required environment variables (only if REQUIRE_MODEL is true)
 if REQUIRE_MODEL and not MODEL_ID:
@@ -186,6 +187,13 @@ async def execute_squeeze_operation(color: str, duration: float, config: str) ->
     try:
         logger.info(f"Starting squeeze operation: {color} for {duration:.2f}s with config {config}")
         
+        # If robot hardware is not required, simulate successful execution
+        if not REQUIRE_ROBOT:
+            logger.info(f"REQUIRE_ROBOT=false: Simulating squeeze operation for {color} ({duration:.2f}s)")
+            await asyncio.sleep(min(duration, 2.0))  # Simulate squeeze time (max 2s for testing)
+            logger.info(f"Successfully simulated squeeze operation for {color}")
+            return True
+        
         # Path to squeeze_bottle.py script
         squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
         
@@ -224,6 +232,13 @@ async def execute_sequential_configuration(config_name: str) -> bool:
     """Execute a single configuration using sequential_execute.py."""
     try:
         logger.info(f"Executing configuration: {config_name}")
+        
+        # If robot hardware is not required, simulate successful execution
+        if not REQUIRE_ROBOT:
+            logger.info(f"REQUIRE_ROBOT=false: Simulating successful execution of {config_name}")
+            await asyncio.sleep(0.5)  # Simulate some execution time
+            logger.info(f"Successfully simulated configuration: {config_name}")
+            return True
         
         # Path to sequential_execute.py script
         sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")

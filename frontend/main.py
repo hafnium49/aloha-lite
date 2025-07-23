@@ -85,14 +85,19 @@ async def proxy_robot_service(request: Request, path: str):
             logger.info(f"Robot service response headers: {dict(response.headers)}")
             
             # Return the response properly
-            if response.headers.get("content-type", "").startswith("application/json"):
-                response_json = await response.json()
-                logger.info(f"Robot service response JSON: {response_json}")
-                return response_json
-            else:
-                response_text = response.text
-                logger.info(f"Robot service response text: {response_text}")
-                return response_text
+            try:
+                if response.headers.get("content-type", "").startswith("application/json"):
+                    response_json = await response.json()
+                    logger.info(f"Robot service response JSON: {response_json}")
+                    return response_json
+                else:
+                    response_text = response.text
+                    logger.info(f"Robot service response text: {response_text}")
+                    return response_text
+            except Exception as parse_error:
+                logger.error(f"Error parsing response: {parse_error}")
+                # Return raw response as fallback
+                return {"error": "Response parsing failed", "raw_status": response.status_code}
             
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Robot service timeout")

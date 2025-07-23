@@ -89,10 +89,10 @@ For development and testing, start the required services manually:
 
 **Robot Service (Port 8000):**
 
-*Development Mode (Local Development - No ML Inference Required):*
+*Development Mode (Local Development - No Robot Hardware & No ML Inference Required):*
 ```bash
 cd /home/hafnium/aloha-lite/robot_service
-REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+REQUIRE_MODEL=false REQUIRE_ROBOT=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 *Production Mode (ML Inference Required):*
@@ -140,6 +140,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 - Services communicate via HTTP (robot service calls vision bridge, frontend proxies to both)
 - **S3 Configuration**: Set `REQUIRE_S3=false` for local development to bypass S3 requirements
 - **ML Model Configuration**: Set `REQUIRE_MODEL=false` for local development to bypass ML inference requirements
+- **Robot Hardware Configuration**: Set `REQUIRE_ROBOT=false` for local development to bypass robot hardware requirements and enable simulation mode
 - For production deployment, use `docker-compose up` instead
 
 **For Development and Diagnostics:**  
@@ -801,13 +802,22 @@ docker-compose -f docker-compose.prod.yml up -d
 - **Solution**: For local development, start robot service with `REQUIRE_MODEL=false`:
   ```bash
   cd /home/hafnium/aloha-lite/robot_service
-  REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+  REQUIRE_MODEL=false REQUIRE_ROBOT=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
   ```
 - **For Production**: Configure ML model environment variable:
   ```bash
   export MODEL_ID="your-model-id"
   export PHOS_URL="http://phosphobot:8080"
   ```
+
+### Robot Hardware Configuration Error
+- **Problem**: `Configuration failed for left_arm_serving_standoff` or similar robot configuration errors
+- **Solution**: For local development without robot hardware, start robot service with `REQUIRE_ROBOT=false`:
+  ```bash
+  cd /home/hafnium/aloha-lite/robot_service
+  REQUIRE_MODEL=false REQUIRE_ROBOT=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+  ```
+- **For Production**: Ensure robot hardware is connected and phosphobot service is running
 
 ### Frontend Service Issues
 - **Problem**: Cannot access web interface at http://localhost:3000
