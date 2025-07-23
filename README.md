@@ -75,6 +75,29 @@ python3 examples/joint_reader_examples.py
 - All robot execution scripts are now in this directory
 - The FastAPI service (`main.py`) provides web API access to robot functions
 
+### Starting Web Services
+
+For development and testing, start the required services manually:
+
+**Robot Service (Port 8000):**
+```bash
+cd /home/hafnium/aloha-lite/robot_service
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+**Vision Bridge Service (Port 5000):**
+```bash
+cd /home/hafnium/aloha-lite/vision_bridge
+python -m uvicorn main:app --host 0.0.0.0 --port 5000
+```
+
+**Notes:**
+- Both services need to be running for full functionality
+- Robot service handles color mixing and dispensing operations
+- Vision bridge service provides beaker analysis and image processing
+- Services communicate via HTTP (robot service calls vision bridge)
+- For production deployment, use `docker-compose up` instead
+
 **For Development and Diagnostics:**  
 - Use tools in `utilities/` for development, testing, and troubleshooting
 - Joint diagnostics, trajectory analysis, and system verification tools
