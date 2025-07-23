@@ -18,6 +18,7 @@ mypy>=0.800             # Type checking
 matplotlib>=3.3.0       # Plotting and visualization
 pandas>=1.2.0           # Data manipulation
 scipy>=1.6.0            # Scientific computing
+scikit-learn>=1.0.0     # Machine learning library
 jupyter>=1.0.0          # Jupyter notebooks for analysis
 
 # Documentation

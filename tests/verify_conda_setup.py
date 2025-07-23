@@ -57,6 +57,7 @@ def main():
         ("matplotlib", "Plotting"),
         ("pandas", "Data manipulation"),
         ("scipy", "Scientific computing"),
+        ("sklearn", "Machine learning library"),
         ("jupyter", "Notebooks"),
         ("black", "Code formatting"),
         ("flake8", "Linting"),

@@ -5,3 +5,4 @@ boto3
 python-multipart
 prometheus-client
 colour-checker-detection
+scikit-learn>=1.0.0

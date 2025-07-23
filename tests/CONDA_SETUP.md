@@ -34,7 +34,7 @@ pip install -r ../robot_service/requirements.txt
 ### Step 1: Create and activate environment
 ```bash
 # Create new environment with Python 3.11
-conda create -n aloha-lite python=3.11 numpy matplotlib opencv -y
+conda create -n aloha-lite python=3.11 numpy matplotlib opencv scikit-learn -y
 
 # Activate the environment
 conda activate aloha-lite
@@ -72,7 +72,7 @@ pip install -r ../robot_service/requirements.txt
 python -c "import numpy, requests, modern_robotics; print('Core dependencies OK')"
 
 # Test development tools
-python -c "import pytest, matplotlib, pandas; print('Dev dependencies OK')"
+python -c "import pytest, matplotlib, pandas, sklearn; print('Dev dependencies OK')"
 
 # Test vision dependencies (if installed)
 python -c "import cv2, fastapi; print('Vision dependencies OK')"
@@ -93,6 +93,7 @@ dependencies:
   - matplotlib>=3.3.0
   - pandas>=1.2.0
   - scipy>=1.6.0
+  - scikit-learn>=1.0.0
   - opencv
   - jupyter
   - pytest>=6.0.0
