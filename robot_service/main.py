@@ -1,5 +1,6 @@
 import os, json, asyncio, uuid, time, logging, subprocess, sys
 from typing import List, Dict, Optional
+from pathlib import Path
 
 import httpx, zmq, zmq.asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -62,6 +63,8 @@ class DispenseStatus(BaseModel):
     error_message: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+    # Beaker analysis results
+    beaker_analysis_results: Optional[Dict] = None
 
 class ColorRatios(BaseModel):
     red: float = Field(ge=0.0, le=100.0)
@@ -253,7 +256,44 @@ async def execute_sequential_configuration(config_name: str) -> bool:
         logger.error(f"Error during configuration {config_name}: {e}")
         return False
 
-async def execute_special_function(function_description: str) -> bool:
+async def parse_beaker_analysis_results() -> Optional[Dict]:
+    """Parse the most recent beaker analysis results from temporary images directory."""
+    try:
+        # Look for the most recent beaker analysis results in temporary_images directory
+        temp_images_dir = Path(os.path.dirname(__file__)) / "../temporary_images"
+        if not temp_images_dir.exists():
+            logger.warning("Temporary images directory not found")
+            return None
+        
+        # Find the most recent beaker analysis JSON file
+        analysis_files = list(temp_images_dir.glob("beaker_analysis_*.json"))
+        if not analysis_files:
+            logger.warning("No beaker analysis results found")
+            return None
+        
+        # Get the most recent analysis file
+        latest_analysis = max(analysis_files, key=lambda p: p.stat().st_mtime)
+        logger.info(f"Reading beaker analysis results from: {latest_analysis.name}")
+        
+        # Load and return the analysis results
+        with open(latest_analysis, 'r') as f:
+            analysis_data = json.load(f)
+        
+        # Add metadata about the analysis
+        analysis_data['_metadata'] = {
+            'filename': latest_analysis.name,
+            'timestamp': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest_analysis.stat().st_mtime)),
+            'file_size': latest_analysis.stat().st_size
+        }
+        
+        logger.info(f"Successfully loaded beaker analysis results: {analysis_data.get('dominant_color', {}).get('hex', 'unknown color')}")
+        return analysis_data
+        
+    except Exception as e:
+        logger.error(f"Error parsing beaker analysis results: {e}")
+        return None
+
+async def execute_special_function(function_description: str, cmd_id: str = None) -> bool:
     """Execute special functions like squeeze, await, or analyze beaker."""
     try:
         logger.info(f"Executing special function: {function_description}")
@@ -305,6 +345,16 @@ async def execute_special_function(function_description: str) -> bool:
             if result.returncode != 0:
                 logger.error(f"Beaker analysis failed: {result.stderr}")
                 return False
+            
+            # Parse beaker analysis results from sequential_execute.py output
+            analysis_results = await parse_beaker_analysis_results()
+            if analysis_results and cmd_id:
+                # Store analysis results in task status
+                async with TASKS_LOCK:
+                    if cmd_id in TASKS:
+                        TASKS[cmd_id].beaker_analysis_results = analysis_results
+                        logger.info(f"Stored beaker analysis results for cmd_id={cmd_id}")
+            
             return True
         
         logger.warning(f"Unknown special function: {function_description}")
@@ -397,7 +447,7 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
             # Determine if this is a configuration or special function
             if any(keyword in step.lower() for keyword in ["squeeze", "await", "wait", "analyze"]):
                 # Special function
-                success = await execute_special_function(step)
+                success = await execute_special_function(step, cmd_id)
             else:
                 # Regular configuration
                 success = await execute_sequential_configuration(step)
@@ -534,6 +584,25 @@ async def status(cmd_id: str):
             raise HTTPException(404, f"Task {cmd_id} not found")
         
         return st.model_dump()
+
+
+@app.get("/robot/{cmd_id}/beaker-analysis")
+async def get_beaker_analysis(cmd_id: str):
+    """Get beaker analysis results for a specific command."""
+    async with TASKS_LOCK:
+        st = TASKS.get(cmd_id)
+        
+        if not st:
+            raise HTTPException(404, f"Task {cmd_id} not found")
+        
+        if st.beaker_analysis_results is None:
+            raise HTTPException(404, f"No beaker analysis results found for task {cmd_id}")
+        
+        return {
+            "cmd_id": cmd_id,
+            "task_status": st.status,
+            "analysis_results": st.beaker_analysis_results
+        }
 
 
 @app.get("/robot/procedure/info")

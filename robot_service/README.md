@@ -23,6 +23,14 @@ A FastAPI-based laboratory automation service for controlling robotic arms in mu
 - **Comprehensive logging** with structured error handling
 - **Real-time status updates** via WebSocket-style monitoring
 - **Background task management** with automatic cleanup
+- **Beaker analysis integration** with GUI visualization
+
+### 🔬 Beaker Analysis Integration
+- **AI-powered color analysis** using computer vision
+- **Real-time results display** in frontend GUI
+- **Comprehensive visualization** with color swatches and cluster analysis
+- **Automatic result capture** during laboratory procedures
+- **Color interpretation** with solution type detection
 
 ## Architecture
 
@@ -99,7 +107,62 @@ Get real-time status of a laboratory procedure.
   },
   "started_at": "2025-07-23 10:30:00",
   "completed_at": null,
-  "error_message": null
+  "error_message": null,
+  "beaker_analysis_results": {
+    "dominant_color": {
+      "rgb": [87, 67, 59],
+      "hex": "#57433b"
+    },
+    "beaker_circle": {
+      "x": 381,
+      "y": 158,
+      "radius": 197
+    },
+    "clusters": [...],
+    "analysis_stats": {
+      "num_clusters": 5,
+      "total_pixels_analyzed": 25000
+    }
+  }
+}
+```
+
+#### `GET /robot/{cmd_id}/beaker-analysis`
+Get dedicated beaker analysis results for a laboratory procedure.
+
+**Response:**
+```json
+{
+  "cmd_id": "uuid-string",
+  "task_status": "completed",
+  "analysis_results": {
+    "dominant_color": {
+      "rgb": [87, 67, 59],
+      "hex": "#57433b"
+    },
+    "beaker_circle": {
+      "x": 381,
+      "y": 158,
+      "radius": 197
+    },
+    "clusters": [
+      {
+        "rgb": [87, 67, 59],
+        "hex": "#57433b",
+        "saturation": 74.04,
+        "pixel_count": 19695
+      }
+    ],
+    "analysis_stats": {
+      "num_clusters": 5,
+      "total_pixels_analyzed": 25000
+    },
+    "_metadata": {
+      "filename": "beaker_analysis_0_20250723_152657.json",
+      "timestamp": "2025-07-23 15:26:57",
+      "file_size": 98211
+    }
+  }
 }
 ```
 
@@ -146,6 +209,26 @@ Capture a snapshot when the robot reaches the target pose.
 
 **Query Parameters:**
 - `cam`: Camera ID (default: "top_cam")
+
+## Frontend Integration
+
+### Beaker Analysis Display
+The frontend automatically displays beaker analysis results when the "analyze beaker color" step is executed during laboratory procedures.
+
+**Features:**
+- **Real-time updates**: Analysis results appear automatically during procedure execution
+- **Visual color display**: Color swatches show dominant and cluster colors
+- **Detailed statistics**: Pixel counts, cluster information, and beaker detection data
+- **Color interpretation**: Automatic detection of red, yellow, blue, or custom solutions
+- **Comprehensive visualization**: Analysis images and color breakdowns
+
+**Implementation:**
+- Status polling checks for `beaker_analysis_results` in task status
+- Fallback API call to `/robot/{cmd_id}/beaker-analysis` endpoint
+- Dynamic HTML generation with color swatches and statistics
+- Responsive design with grid layout for analysis data
+
+## Configuration
 
 ## Laboratory Procedure Sequence
 
