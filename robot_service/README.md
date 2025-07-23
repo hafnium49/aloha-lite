@@ -276,9 +276,12 @@ The timed laboratory procedure implements a comprehensive 29-step workflow:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PHOS_URL` | Phosphobot inference service URL | `http://phosphobot` |
-| `MODEL_ID` | ML model identifier for inference | Required |
+| `MODEL_ID` | ML model identifier for inference | Required* |
+| `REQUIRE_MODEL` | Enable/disable ML model requirement | `true` |
 | `TARGET_POSE` | Target joint positions as JSON array | `[0,0,0,0,0,0]` |
 | `TOL` | Position tolerance for pose detection | `0.03` |
+
+*Required only when `REQUIRE_MODEL=true` (production mode)
 
 ## Dependencies
 
@@ -307,6 +310,15 @@ pip install -r requirements.txt
 ```
 
 ### 2. Environment Configuration
+
+**Development Mode (No ML Inference Required):**
+```bash
+export REQUIRE_MODEL=false
+export PHOS_URL="http://phosphobot:8080"
+export TARGET_POSE="[0,0,0,0,0,0]"
+```
+
+**Production Mode (ML Inference Required):**
 ```bash
 export MODEL_ID="your-model-id"
 export PHOS_URL="http://phosphobot:8080"
@@ -314,8 +326,15 @@ export TARGET_POSE="[0,0,0,0,0,0]"
 ```
 
 ### 3. Start the Service
+
+**Development Mode:**
 ```bash
-python main.py
+REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+**Production Mode:**
+```bash
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 4. Docker Deployment
@@ -411,6 +430,18 @@ Base duration affects squeeze timing calculations:
 ## Troubleshooting
 
 ### Common Issues
+
+#### MODEL_ID Environment Variable Error
+**Problem**: `ERROR:main:MODEL_ID environment variable is required`
+**Solution**: For local development, disable ML model requirement:
+```bash
+cd /home/hafnium/aloha-lite/robot_service
+REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+**For Production**: Configure ML model environment variable:
+```bash
+export MODEL_ID="your-model-id"
+```
 
 #### Robot Not Responding
 ```bash

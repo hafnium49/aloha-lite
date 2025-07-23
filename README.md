@@ -80,8 +80,18 @@ python3 examples/joint_reader_examples.py
 For development and testing, start the required services manually:
 
 **Robot Service (Port 8000):**
+
+*Development Mode (Local Development - No ML Inference Required):*
 ```bash
 cd /home/hafnium/aloha-lite/robot_service
+REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+*Production Mode (ML Inference Required):*
+```bash
+cd /home/hafnium/aloha-lite/robot_service
+export MODEL_ID="your-model-id"
+export PHOS_URL="http://phosphobot:8080"
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -109,6 +119,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 - Vision bridge service provides beaker analysis and image processing
 - Services communicate via HTTP (robot service calls vision bridge)
 - **S3 Configuration**: Set `REQUIRE_S3=false` for local development to bypass S3 requirements
+- **ML Model Configuration**: Set `REQUIRE_MODEL=false` for local development to bypass ML inference requirements
 - For production deployment, use `docker-compose up` instead
 
 **For Development and Diagnostics:**  
@@ -756,6 +767,19 @@ docker-compose -f docker-compose.prod.yml up -d
   export S3_ENDPOINT="your-s3-endpoint"
   export AWS_ACCESS_KEY_ID="your-access-key"
   export AWS_SECRET_ACCESS_KEY="your-secret-key"
+  ```
+
+### Robot Service MODEL_ID Configuration Error
+- **Problem**: `ERROR:main:MODEL_ID environment variable is required`
+- **Solution**: For local development, start robot service with `REQUIRE_MODEL=false`:
+  ```bash
+  cd /home/hafnium/aloha-lite/robot_service
+  REQUIRE_MODEL=false python -m uvicorn main:app --host 0.0.0.0 --port 8000
+  ```
+- **For Production**: Configure ML model environment variable:
+  ```bash
+  export MODEL_ID="your-model-id"
+  export PHOS_URL="http://phosphobot:8080"
   ```
 
 ## Contributing
