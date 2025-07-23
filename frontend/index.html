@@ -9,10 +9,6 @@ img{max-width:100%}
 .color-ratio span{min-width:60px;font-weight:bold}
 #total-volume{margin-top:1rem}
 #color-preview{width:100%;height:40px;margin-top:1rem;border:2px solid #ccc;border-radius:4px}
-#video-feed{width:100%;max-width:400px;height:300px;border:2px solid #333;border-radius:8px;background:#000}
-.video-controls{display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;flex-wrap:wrap}
-.video-controls input{flex:1;min-width:60px}
-.video-controls button{margin:0;padding:0.3rem 0.6rem;font-size:0.8rem}
 
 /* Beaker Analysis Styles */
 .beaker-analysis{margin-top:2rem;padding:1rem;border:2px solid #007bff;border-radius:8px;background:#f8f9fa}
@@ -25,22 +21,7 @@ img{max-width:100%}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
 .stat-item{padding:0.5rem;background:white;border:1px solid #ddd;border-radius:4px;text-align:center}
 </style>
-<h1>Color Mix + Live Video Demo + Beaker Analysis</h1>
-
-<section>
-<h2>Live Video Feed</h2>
-<img id="video-feed" alt="Live video feed will appear here">
-<div class="video-controls">
-  <label for="camera-id">Camera ID:</label>
-  <input id="camera-id" type="number" min="0" max="10" value="0">
-  <label for="video-width">Width:</label>
-  <input id="video-width" type="number" min="160" max="1920" value="640" step="80">
-  <label for="video-height">Height:</label>
-  <input id="video-height" type="number" min="120" max="1080" value="480" step="60">
-  <button onclick="startVideo()">Start Video</button>
-  <button onclick="stopVideo()">Stop</button>
-</div>
-</section>
+<h1>Color Mix + Beaker Analysis</h1>
 
 <section>
 <h2>Color Mixing</h2>
@@ -67,13 +48,12 @@ img{max-width:100%}
 
 <section class="beaker-analysis">
 <h2>🧪 Advanced Beaker Analysis</h2>
-<p>Upload an image or capture from camera to analyze beaker solution color using AI-powered detection.</p>
+<p>Upload an image to analyze beaker solution color using AI-powered detection.</p>
 
-<div class="upload-area" ondrop="dropHandler(event)" ondragover="dragOverHandler(event)" ondragleave="dragLeaveHandler(event)">
-  <p>Drag & drop an image here or click to select</p>
+<div class="upload-area" id="upload-area">
+  <p>Drag and drop an image here, or click to select</p>
   <input type="file" id="image-upload" accept="image/*" onchange="handleFileSelect(event)" style="display:none">
   <button onclick="document.getElementById('image-upload').click()">Choose Image</button>
-  <button onclick="captureAndAnalyze()">Capture from Camera & Analyze</button>
 </div>
 
 <div id="analysis-results" style="display:none">
@@ -118,54 +98,6 @@ img{max-width:100%}
 
 <script>
 async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
-
-// Video feed management
-let videoInterval = null
-
-function startVideo() {
-  const cameraId = document.querySelector('#camera-id').value || 0
-  const width = document.querySelector('#video-width').value || 640
-  const height = document.querySelector('#video-height').value || 480
-  const quality = 80 // Default quality
-  
-  // Stop any existing video feed
-  stopVideo()
-  
-  const videoFeed = document.querySelector('#video-feed')
-  const videoUrl = `/video/${cameraId}?width=${width}&height=${height}&quality=${quality}`
-  
-  log(`Starting video feed from camera ${cameraId} (${width}x${height})`)
-  
-  // For MJPEG streams, we can directly set the src
-  videoFeed.src = videoUrl
-  videoFeed.onerror = function() {
-    log('Error: Failed to load video feed. Check camera connection.')
-    stopVideo()
-  }
-  
-  videoFeed.onload = function() {
-    log('Video feed started successfully')
-  }
-  
-  // Alternative approach: Refresh the image periodically for better compatibility
-  videoInterval = setInterval(() => {
-    const timestamp = new Date().getTime()
-    videoFeed.src = `${videoUrl}&t=${timestamp}`
-  }, 100) // Refresh every 100ms for ~10fps
-}
-
-function stopVideo() {
-  if (videoInterval) {
-    clearInterval(videoInterval)
-    videoInterval = null
-  }
-  
-  const videoFeed = document.querySelector('#video-feed')
-  videoFeed.src = ''
-  videoFeed.alt = 'Video feed stopped'
-  
-  log('Video feed stopped')
-}
 
 function updatePreview(){
   const red = parseFloat(document.querySelector('#red-ratio').value) || 0
@@ -337,8 +269,7 @@ function log(txt){
 // Initialize preview on page load
 window.onload = function() {
   updatePreview()
-  log('Color Mix + Live Video Demo + Beaker Analysis initialized')
-  log('Configure camera settings and click "Start Video" to begin live feed')
+  log('Color Mix + Beaker Analysis initialized')
 }
 
 // Beaker Analysis Functions
@@ -368,25 +299,7 @@ function handleFileSelect(event) {
   }
 }
 
-async function captureAndAnalyze() {
-  try {
-    log('Capturing image from camera for analysis...')
-    
-    const cameraId = document.querySelector('#camera-id').value || 0
-    const captureUrl = `/camera/snapshot/${cameraId}?format=jpeg`
-    
-    const response = await fetch(captureUrl)
-    if (!response.ok) {
-      throw new Error(`Camera capture failed: ${response.status}`)
-    }
-    
-    const blob = await response.blob()
-    await analyzeImage(blob)
-    
-  } catch (error) {
-    log('Error capturing image: ' + error.message)
-  }
-}
+// Beaker Analysis Functions
 
 async function analyzeImage(imageFile) {
   try {
