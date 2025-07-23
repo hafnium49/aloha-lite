@@ -473,7 +473,7 @@ class SequentialRobotExecutor:
                 camera_id = DEFAULT_CAMERA_ID
             
             # Create temporary images directory if it doesn't exist
-            temp_images_dir = Path("../temporary_images")
+            temp_images_dir = Path(os.path.dirname(__file__)) / "../temporary_images"
             temp_images_dir.mkdir(exist_ok=True)
             
             print(f"📁 Images will be saved to: {temp_images_dir.absolute()}")
@@ -562,7 +562,7 @@ class SequentialRobotExecutor:
                 return False
             
             # Find the most recent image file
-            temp_images_dir = Path("../temporary_images")
+            temp_images_dir = Path(os.path.dirname(__file__)) / "../temporary_images"
             if not temp_images_dir.exists():
                 print("❌ Temporary images directory not found")
                 return False
@@ -965,7 +965,7 @@ def main():
 # Load predefined sequences from JSON file
 def load_predefined_sequences():
     """Load predefined sequences from JSON file with execution options support."""
-    sequences_file = Path("../temp_rules/sequential_sequences.json")
+    sequences_file = Path(os.path.dirname(__file__)) / "../temp_rules/sequential_sequences.json"
     
     if not sequences_file.exists():
         print(f"⚠️  Sequences file not found: {sequences_file}")
