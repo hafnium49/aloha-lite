@@ -16,9 +16,10 @@ PHOS_URL   = os.getenv("PHOS_URL", "http://phosphobot")
 MODEL_ID   = os.getenv("MODEL_ID")
 TARGET_POSE = json.loads(os.getenv("TARGET_POSE", "[0,0,0,0,0,0]"))
 TOL        = float(os.getenv("TOL", "0.03"))
+REQUIRE_MODEL = os.getenv("REQUIRE_MODEL", "true").lower() == "true"
 
-# Validate required environment variables
-if not MODEL_ID:
+# Validate required environment variables (only if REQUIRE_MODEL is true)
+if REQUIRE_MODEL and not MODEL_ID:
     logger.error("MODEL_ID environment variable is required")
     raise ValueError("MODEL_ID environment variable is required")
 
@@ -593,18 +594,27 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
         async with TASKS_LOCK:
             TASKS[tid] = DispenseStatus(status="running")
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            phos_resp = await client.post(f"{PHOS_URL}/inference",
-                                          json={"model": MODEL_ID, "prompt": prompt})
-            if phos_resp.status_code != 200:
-                async with TASKS_LOCK:
-                    TASKS[tid].status = "failed"
-                logger.error(f"Phosphobot error: {phos_resp.status_code}")
-                raise HTTPException(502, f"Phosphobot error: {phos_resp.status_code}")
+        # Check if ML inference is available
+        if MODEL_ID and REQUIRE_MODEL:
+            # Use ML inference to predict squeeze duration
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                phos_resp = await client.post(f"{PHOS_URL}/inference",
+                                              json={"model": MODEL_ID, "prompt": prompt})
+                if phos_resp.status_code != 200:
+                    async with TASKS_LOCK:
+                        TASKS[tid].status = "failed"
+                    logger.error(f"Phosphobot error: {phos_resp.status_code}")
+                    raise HTTPException(502, f"Phosphobot error: {phos_resp.status_code}")
 
-            squeeze = phos_resp.json().get("predicted_squeeze_sec")
+                squeeze = phos_resp.json().get("predicted_squeeze_sec")
+                async with TASKS_LOCK:
+                    TASKS[tid].predicted_squeeze_sec = squeeze
+        else:
+            # Fallback: use default squeeze duration based on volume
+            default_squeeze = max(2.0, volume / 10.0)  # 2 seconds minimum, or volume/10
+            logger.info(f"Using default squeeze duration: {default_squeeze}s (MODEL_ID not configured)")
             async with TASKS_LOCK:
-                TASKS[tid].predicted_squeeze_sec = squeeze
+                TASKS[tid].predicted_squeeze_sec = default_squeeze
 
         async with TASKS_LOCK:
             return {"cmd_id": tid, **TASKS[tid].model_dump()}
