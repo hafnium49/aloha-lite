@@ -531,6 +531,7 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
 @REQ_LAT.time()
 async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
     REQS_TOTAL.inc()
+    logger.info(f"Received dispense request: {req}")
     
     # Check if this is a multi-color request (now executes full laboratory procedure)
     if req.color_ratios is not None and req.normalized_percentages is not None:
@@ -574,12 +575,14 @@ async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
             )
             
             logger.info(f"Timed laboratory procedure started with cmd_id={cmd_id}")
-            return {
+            response_data = {
                 "cmd_id": cmd_id, 
                 "status": "pending",
                 "procedure": "timed_laboratory_procedure",
                 "description": "Complete laboratory workflow with positioning, dispensing, squeezing, stirring, waiting, and beaker analysis"
             }
+            logger.info(f"Returning response: {response_data}")
+            return response_data
             
         except Exception as e:
             logger.error(f"Error starting timed laboratory procedure: {e}")

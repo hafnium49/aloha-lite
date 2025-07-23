@@ -56,11 +56,11 @@ async def health_check():
         "vision_service": VISION_SERVICE_URL
     }
 
-# Proxy endpoints for robot service
 @app.api_route("/robot/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_robot_service(request: Request, path: str):
     """Proxy requests to the robot service."""
     url = f"{ROBOT_SERVICE_URL}/robot/{path}"
+    logger.info(f"Proxying {request.method} request to: {url}")
     
     # Forward query parameters
     if request.query_params:
@@ -70,6 +70,8 @@ async def proxy_robot_service(request: Request, path: str):
         try:
             # Get request body if present
             body = await request.body() if request.method in ["POST", "PUT"] else None
+            if body:
+                logger.info(f"Request body: {body.decode()}")
             
             # Forward the request
             response = await client.request(
@@ -79,8 +81,18 @@ async def proxy_robot_service(request: Request, path: str):
                 content=body
             )
             
-            # Return the response
-            return response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
+            logger.info(f"Robot service response status: {response.status_code}")
+            logger.info(f"Robot service response headers: {dict(response.headers)}")
+            
+            # Return the response properly
+            if response.headers.get("content-type", "").startswith("application/json"):
+                response_json = response.json()
+                logger.info(f"Robot service response JSON: {response_json}")
+                return response_json
+            else:
+                response_text = response.text
+                logger.info(f"Robot service response text: {response_text}")
+                return response_text
             
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Robot service timeout")
@@ -132,8 +144,11 @@ async def proxy_vision_service(request: Request, path: str):
                     content=body
                 )
             
-            # Return the response
-            return response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
+            # Return the response properly
+            if response.headers.get("content-type", "").startswith("application/json"):
+                return response.json()
+            else:
+                return response.text
             
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Vision service timeout")

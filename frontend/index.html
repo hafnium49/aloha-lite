@@ -193,8 +193,16 @@ async function send(){
       throw new Error(`HTTP ${r.status}: ${error}`)
     }
     
-    let {cmd_id}=await r.json()
-    log('cmd_id='+cmd_id)
+    const response = await r.json()
+    log('Response received: ' + JSON.stringify(response))
+    
+    // Extract cmd_id from response
+    const cmd_id = response.cmd_id
+    if (!cmd_id) {
+      throw new Error('No cmd_id received from server. Response: ' + JSON.stringify(response))
+    }
+    
+    log('cmd_id=' + cmd_id)
 
     // poll status every second with timeout
     const maxPolls = 60 // 1 minute max
