@@ -10,15 +10,23 @@ This repository provides a comprehensive robotics stack for controlling SO-101 a
 git clone <repository-url>
 cd aloha-lite
 
-# Install dependencies (includes modern_robotics from PyPI)
+# Option 1: Using conda (recommended)
+conda env create -f environment.yml
+conda activate aloha-lite
+
+# Option 2: Using pip directly
 pip install -r requirements.txt
 
-# Or use the automated setup script
+# Option 3: Use the automated setup script
 ./setup.sh
 
 # Verify installation
 python3 verify_installation.py
+# Or verify conda setup
+python3 verify_conda_setup.py
 ```
+
+**For detailed conda environment setup, see [CONDA_SETUP.md](CONDA_SETUP.md)**
 
 ### Basic Usage
 

@@ -1,0 +1,32 @@
+name: aloha-lite
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy>=1.20.0
+  - matplotlib>=3.3.0
+  - pandas>=1.2.0
+  - scipy>=1.6.0
+  - opencv
+  - jupyter
+  - pytest>=6.0.0
+  - black>=21.0.0
+  - pip
+  - pip:
+    - requests>=2.25.0
+    - modern_robotics>=1.0.0
+    - typeguard
+    - fastapi
+    - uvicorn[standard]
+    - httpx
+    - boto3
+    - python-multipart
+    - prometheus-client
+    - pyzmq
+    - pydantic
+    - pytest-cov>=2.10.0
+    - flake8>=3.8.0
+    - mypy>=0.800
+    - sphinx>=3.5.0
+    - sphinx-rtd-theme>=0.5.0
