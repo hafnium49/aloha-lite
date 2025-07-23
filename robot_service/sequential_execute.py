@@ -963,9 +963,12 @@ def main():
         sys.exit(1)
 
 # Load predefined sequences from JSON file
-def load_predefined_sequences():
+def load_predefined_sequences(sequences_file_path: str = None):
     """Load predefined sequences from JSON file with execution options support."""
-    sequences_file = Path(os.path.dirname(__file__)) / "../temp_rules/sequential_sequences.json"
+    if sequences_file_path is None:
+        sequences_file = Path(os.path.dirname(__file__)) / "../temp_rules/sequential_sequences.json"
+    else:
+        sequences_file = Path(sequences_file_path)
     
     if not sequences_file.exists():
         print(f"⚠️  Sequences file not found: {sequences_file}")
@@ -993,6 +996,25 @@ def load_predefined_sequences():
 PREDEFINED_SEQUENCES = load_predefined_sequences()
 
 if __name__ == "__main__":
+    # Check for --sequences-file parameter first
+    sequences_file_path = None
+    if "--sequences-file" in sys.argv:
+        try:
+            idx = sys.argv.index("--sequences-file")
+            if idx + 1 < len(sys.argv):
+                sequences_file_path = sys.argv[idx + 1]
+                # Remove the parameter from sys.argv to avoid conflicts
+                sys.argv.pop(idx)  # Remove --sequences-file
+                sys.argv.pop(idx)  # Remove the file path
+                print(f"📁 Using custom sequences file: {sequences_file_path}")
+        except (ValueError, IndexError):
+            print("❌ Error: --sequences-file requires a file path")
+            sys.exit(1)
+    
+    # Load sequences from custom file if specified
+    if sequences_file_path:
+        PREDEFINED_SEQUENCES = load_predefined_sequences(sequences_file_path)
+    
     # Check for predefined sequences
     if len(sys.argv) > 1 and sys.argv[1] in PREDEFINED_SEQUENCES:
         sequence_name = sys.argv[1]
@@ -1003,6 +1025,8 @@ if __name__ == "__main__":
         # Parse additional arguments for predefined sequences
         parser = argparse.ArgumentParser(description=f"Execute predefined sequence: {sequence_name}")
         parser.add_argument("sequence", help="Predefined sequence name")
+        parser.add_argument("--sequences-file", type=str,
+                           help="Custom sequences JSON file path (default: ../temp_rules/sequential_sequences.json)")
         parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
                            help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
         parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,

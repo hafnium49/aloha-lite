@@ -100,10 +100,6 @@ MAX_TASK_AGE = 3600  # 1 hour
 
 # Multi-color dispensing state
 CURRENT_DISPENSE_STATUS = DispenseStatus(status="idle")
-# Global squeeze duration adjustments (normalized to 10 seconds total)
-SQUEEZE_ADJUSTMENTS: dict[str, float] = {}
-# Track current sequence step for color detection
-CURRENT_SEQUENCE_STEP: int = 0
 CONFIG_MAP = {
     "red": "dispensing_red_to_beaker.json",
     "yellow": "dispensing_yellow_to_beaker.json", 
@@ -228,189 +224,10 @@ async def execute_squeeze_operation(color: str, duration: float, config: str) ->
         logger.error(f"Error during {color} squeeze operation: {e}")
         return False
 
-async def execute_sequential_configuration(config_name: str) -> bool:
-    """Execute a single configuration using sequential_execute.py."""
-    try:
-        logger.info(f"Executing configuration: {config_name}")
-        
-        # If robot hardware is not required, simulate successful execution
-        if not REQUIRE_ROBOT:
-            logger.info(f"REQUIRE_ROBOT=false: Simulating successful execution of {config_name}")
-            await asyncio.sleep(0.5)  # Simulate some execution time
-            logger.info(f"Successfully simulated configuration: {config_name}")
-            return True
-        
-        # Path to sequential_execute.py script
-        sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")
-        
-        # Command to run configuration with fast timing
-        cmd = [
-            sys.executable,
-            sequential_execute_path,
-            config_name,
-            "--smooth",
-            "--pause-between", "0.1",
-            "--pause-after", "0.1"
-        ]
-        
-        # Execute the configuration
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60,  # 60 second timeout
-            cwd=os.path.dirname(__file__)
-        )
-        
-        if result.returncode != 0:
-            logger.error(f"Configuration failed for {config_name}: {result.stderr}")
-            return False
-        
-        logger.info(f"Successfully completed configuration: {config_name}")
-        return True
-        
-    except subprocess.TimeoutExpired:
-        logger.error(f"Configuration timed out for {config_name}")
-        return False
-    except Exception as e:
-        logger.error(f"Error during configuration {config_name}: {e}")
-        return False
-
-async def parse_beaker_analysis_results() -> Optional[Dict]:
-    """Parse the most recent beaker analysis results from temporary images directory."""
-    try:
-        # Look for the most recent beaker analysis results in temporary_images directory
-        temp_images_dir = Path(os.path.dirname(__file__)) / "../temporary_images"
-        if not temp_images_dir.exists():
-            logger.warning("Temporary images directory not found")
-            return None
-        
-        # Find the most recent beaker analysis JSON file
-        analysis_files = list(temp_images_dir.glob("beaker_analysis_*.json"))
-        if not analysis_files:
-            logger.warning("No beaker analysis results found")
-            return None
-        
-        # Get the most recent analysis file
-        latest_analysis = max(analysis_files, key=lambda p: p.stat().st_mtime)
-        logger.info(f"Reading beaker analysis results from: {latest_analysis.name}")
-        
-        # Load and return the analysis results
-        with open(latest_analysis, 'r') as f:
-            analysis_data = json.load(f)
-        
-        # Add metadata about the analysis
-        analysis_data['_metadata'] = {
-            'filename': latest_analysis.name,
-            'timestamp': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest_analysis.stat().st_mtime)),
-            'file_size': latest_analysis.stat().st_size
-        }
-        
-        logger.info(f"Successfully loaded beaker analysis results: {analysis_data.get('dominant_color', {}).get('hex', 'unknown color')}")
-        return analysis_data
-        
-    except Exception as e:
-        logger.error(f"Error parsing beaker analysis results: {e}")
-        return None
-
-async def execute_special_function(function_description: str, cmd_id: str = None) -> bool:
-    """Execute special functions like squeeze, await, or analyze beaker."""
-    try:
-        logger.info(f"Executing special function: {function_description}")
-        
-        # Parse different types of special functions
-        if "squeeze washing bottle" in function_description.lower():
-            # Determine the current color being dispensed based on sequence position
-            global SQUEEZE_ADJUSTMENTS, CURRENT_SEQUENCE_STEP
-            
-            # Extract the default duration first
-            import re
-            match = re.search(r"(\d+\.?\d*)\s*seconds?", function_description)
-            default_duration = float(match.group(1)) if match else 1.5
-            
-            # Map squeeze operations to colors based on timed_laboratory_procedure sequence
-            # Red squeeze: step 4 (after dispensing_red_to_beaker at step 3)
-            # Yellow squeeze: step 10 (after dispensing_yellow_to_beaker at step 9) 
-            # Blue squeeze: step 16 (after dispensing_blue_to_beaker at step 15)
-            current_color = None
-            if CURRENT_SEQUENCE_STEP == 4:  # After red dispensing
-                current_color = 'red'
-            elif CURRENT_SEQUENCE_STEP == 10:  # After yellow dispensing
-                current_color = 'yellow'
-            elif CURRENT_SEQUENCE_STEP == 16:  # After blue dispensing
-                current_color = 'blue'
-            
-            # Use adjusted duration if available, otherwise use default
-            if current_color and current_color in SQUEEZE_ADJUSTMENTS:
-                duration = SQUEEZE_ADJUSTMENTS[current_color]
-                logger.info(f"Using adjusted squeeze duration for {current_color}: {duration:.2f}s (normalized from 10s total)")
-            else:
-                duration = default_duration
-                logger.info(f"Using default squeeze duration: {duration:.2f}s (step {CURRENT_SEQUENCE_STEP})")
-            
-            # Use squeeze_bottle.py directly for washing bottle
-            squeeze_bottle_path = os.path.join(os.path.dirname(__file__), "squeeze_bottle.py")
-            cmd = [
-                sys.executable,
-                squeeze_bottle_path,
-                "--duration", str(duration)
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 10, cwd=os.path.dirname(__file__))
-            if result.returncode != 0:
-                logger.error(f"Squeeze operation failed: {result.stderr}")
-                return False
-            return True
-            
-        elif "await" in function_description.lower() or "wait" in function_description.lower():
-            # Extract duration from description like "await 10 seconds"
-            import re
-            match = re.search(r"(\d+\.?\d*)\s*seconds?", function_description)
-            if match:
-                duration = float(match.group(1))
-                logger.info(f"Waiting for {duration} seconds...")
-                await asyncio.sleep(duration)
-                return True
-                
-        elif "analyze beaker" in function_description.lower():
-            # Use sequential_execute.py to run beaker analysis
-            sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")
-            cmd = [
-                sys.executable,
-                sequential_execute_path,
-                "analyze beaker color",
-                "--smooth",
-                "--pause-between", "0.1",
-                "--pause-after", "0.1"
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=os.path.dirname(__file__))
-            if result.returncode != 0:
-                logger.error(f"Beaker analysis failed: {result.stderr}")
-                return False
-            
-            # Parse beaker analysis results from sequential_execute.py output
-            analysis_results = await parse_beaker_analysis_results()
-            if analysis_results and cmd_id:
-                # Store analysis results in task status
-                async with TASKS_LOCK:
-                    if cmd_id in TASKS:
-                        TASKS[cmd_id].beaker_analysis_results = analysis_results
-                        logger.info(f"Stored beaker analysis results for cmd_id={cmd_id}")
-            
-            return True
-        
-        logger.warning(f"Unknown special function: {function_description}")
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error executing special function {function_description}: {e}")
-        return False
-
 async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float):
     """
     Background task to execute the complete timed laboratory procedure with multi-color dispensing.
-    This implements the full timed_laboratory_procedure sequence from sequential_sequences.json.
+    Creates a temporary modified sequence with dynamic squeeze durations and uses sequential_execute.py.
     
     Args:
         cmd_id: Unique command identifier
@@ -424,106 +241,148 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
                 return
             TASKS[cmd_id].status = "running"
         
-        # Define the complete timed laboratory procedure sequence
-        laboratory_sequence = [
-            "left_arm_serving_standoff",
-            "left_arm_standoff_with_beaker",
-            "dispensing_red_to_beaker",
-            "squeeze washing bottle for 1.5 seconds",
-            "right_arm_standoff",
-            "left_arm_standoff_with_beaker",
-            "left_arm_standoff_yellow", 
-            "right_arm_standoff_yellow",
-            "dispensing_yellow_to_beaker",
-            "squeeze washing bottle for 2.5 seconds",
-            "right_arm_standoff_yellow",
-            "right_arm_standoff",
-            "left_arm_standoff_yellow",
-            "left_arm_standoff_blue",
-            "dispensing_blue_to_beaker",
-            "squeeze washing bottle for 1 seconds",
-            "right_arm_standoff",
-            "left_arm_standoff_blue",
-            "left_arm_standoff_yellow",
-            "left_arm_stirer_standoff",
-            "left_arm_stirring",
-            "await 10 seconds",
-            "analyze beaker color",
-            "await 3 seconds",
-            "left_arm_stirer_standoff",
-            "left_arm_standoff_yellow",
-            "left_arm_standoff_with_beaker",
-            "left_arm_serving_standoff",
-            "left_arm_serving_beaker"
-        ]
+        # Load the original timed_laboratory_procedure from sequential_sequences.json
+        sequences_file = os.path.join(os.path.dirname(__file__), "..", "temp_rules", "sequential_sequences.json")
+        try:
+            with open(sequences_file, 'r') as f:
+                sequences_data = json.load(f)
+            
+            original_sequence = sequences_data["predefined_sequences"]["timed_laboratory_procedure"]["configurations"]
+            execution_options = sequences_data["predefined_sequences"]["timed_laboratory_procedure"].get("execution_options", {})
+            
+            logger.info(f"Loaded original timed_laboratory_procedure with {len(original_sequence)} steps")
+            
+        except Exception as e:
+            logger.error(f"Failed to load sequential_sequences.json: {e}")
+            raise RuntimeError(f"Could not load timed_laboratory_procedure: {e}")
         
-        # Calculate adjusted squeeze durations based on color ratios if provided
-        # Normalize total duration to 10 seconds and apply proportionally
-        global SQUEEZE_ADJUSTMENTS
-        SQUEEZE_ADJUSTMENTS = {}
-        
+        # Calculate adjusted squeeze durations based on color ratios
+        squeeze_adjustments = {}
         if color_ratios:
             total_ratio = color_ratios.red + color_ratios.yellow + color_ratios.blue
             if total_ratio > 0:
                 # Normalize to 10 seconds total duration
                 total_duration = 10.0
-                # Adjust squeeze durations proportionally with minimum 0.5 seconds
-                SQUEEZE_ADJUSTMENTS = {
+                squeeze_adjustments = {
                     "red": max(0.5, (color_ratios.red / total_ratio) * total_duration),
                     "yellow": max(0.5, (color_ratios.yellow / total_ratio) * total_duration), 
                     "blue": max(0.5, (color_ratios.blue / total_ratio) * total_duration)
                 }
-                logger.info(f"Normalized squeeze durations (10s total): {SQUEEZE_ADJUSTMENTS}")
+                logger.info(f"Normalized squeeze durations (10s total): {squeeze_adjustments}")
             else:
                 # Use default durations if no valid ratios
-                SQUEEZE_ADJUSTMENTS = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+                squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
         else:
             # Use default durations from sequential_sequences.json
-            SQUEEZE_ADJUSTMENTS = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+            squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+        
+        # Create modified sequence with dynamic squeeze durations
+        modified_sequence = []
+        color_sequence = ["red", "yellow", "blue"]  # Order of colors in the sequence
+        color_index = 0
+        
+        for step in original_sequence:
+            if "squeeze washing bottle" in step.lower():
+                # Replace with dynamic duration
+                current_color = color_sequence[color_index] if color_index < len(color_sequence) else "red"
+                dynamic_duration = squeeze_adjustments.get(current_color, 1.5)
+                modified_step = f"squeeze washing bottle for {dynamic_duration} seconds"
+                modified_sequence.append(modified_step)
+                color_index += 1
+                logger.info(f"Modified squeeze step: {step} → {modified_step}")
+            else:
+                modified_sequence.append(step)
+        
+        # Create temporary sequence file
+        temp_sequence_data = {
+            "predefined_sequences": {
+                f"temp_timed_laboratory_{cmd_id}": {
+                    "name": f"temp_timed_laboratory_{cmd_id}",
+                    "description": f"Temporary timed laboratory procedure with dynamic squeeze durations (cmd_id: {cmd_id})",
+                    "configurations": modified_sequence,
+                    "execution_options": execution_options
+                }
+            },
+            "metadata": {
+                "version": "1.0_temp",
+                "description": "Temporary sequence with dynamic squeeze durations",
+                "created_for_cmd_id": cmd_id,
+                "original_sequence": "timed_laboratory_procedure"
+            }
+        }
+        
+        # Save temporary sequence file
+        temp_sequence_file = os.path.join(os.path.dirname(__file__), f"temp_sequence_{cmd_id}.json")
+        try:
+            with open(temp_sequence_file, 'w') as f:
+                json.dump(temp_sequence_data, f, indent=2)
+            logger.info(f"Created temporary sequence file: {temp_sequence_file}")
+        except Exception as e:
+            logger.error(f"Failed to create temporary sequence file: {e}")
+            raise RuntimeError(f"Could not create temporary sequence: {e}")
         
         logger.info(f"Starting timed laboratory procedure for cmd_id={cmd_id}")
-        logger.info(f"Total sequence steps: {len(laboratory_sequence)}")
+        logger.info(f"Total sequence steps: {len(modified_sequence)}")
         
-        # Initialize sequence step tracking
-        global CURRENT_SEQUENCE_STEP
-        CURRENT_SEQUENCE_STEP = 0
-        
-        # Execute each step in the laboratory sequence
-        for i, step in enumerate(laboratory_sequence, 1):
-            # Update current sequence step for color detection
-            CURRENT_SEQUENCE_STEP = i
-            
-            # Update current operation status
-            async with TASKS_LOCK:
-                if hasattr(TASKS[cmd_id], 'current_operation'):
-                    TASKS[cmd_id].current_operation = {
-                        "step": i,
-                        "total_steps": len(laboratory_sequence),
-                        "description": step,
-                        "status": "running"
-                    }
-            
-            logger.info(f"Step {i}/{len(laboratory_sequence)}: {step}")
-            
-            # Determine if this is a configuration or special function
-            if any(keyword in step.lower() for keyword in ["squeeze", "await", "wait", "analyze"]):
-                # Special function
-                success = await execute_special_function(step, cmd_id)
+        # Execute the modified sequence using sequential_execute.py
+        try:
+            if not REQUIRE_ROBOT:
+                # Simulation mode
+                logger.info(f"REQUIRE_ROBOT=false: Simulating timed laboratory procedure")
+                await asyncio.sleep(5.0)  # Simulate full procedure (shortened for testing)
+                logger.info(f"Successfully simulated timed laboratory procedure")
+                success = True
             else:
-                # Regular configuration
-                success = await execute_sequential_configuration(step)
-            
-            if not success:
-                async with TASKS_LOCK:
-                    TASKS[cmd_id].status = "failed"
-                    TASKS[cmd_id].error_message = f"Failed at step {i}: {step}"
-                raise RuntimeError(f"Failed at step {i}: {step}")
-            
-            # Mark step as completed
-            logger.info(f"✅ Completed step {i}/{len(laboratory_sequence)}: {step}")
-            
-            # Small delay between steps for system stability
-            await asyncio.sleep(0.1)
+                # Real execution
+                sequential_execute_path = os.path.join(os.path.dirname(__file__), "sequential_execute.py")
+                cmd = [
+                    sys.executable,
+                    sequential_execute_path,
+                    f"temp_timed_laboratory_{cmd_id}",
+                    "--smooth",
+                    "--pause-between", str(execution_options.get("pause_between", 0.1)),
+                    "--pause-after", str(execution_options.get("pause_after", 0.1)),
+                    "--sequences-file", temp_sequence_file
+                ]
+                
+                logger.info(f"Executing command: {' '.join(cmd)}")
+                
+                # Execute the complete sequence
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minute timeout for full sequence
+                    cwd=os.path.dirname(__file__)
+                )
+                
+                if result.returncode != 0:
+                    logger.error(f"Sequential execution failed: {result.stderr}")
+                    raise RuntimeError(f"Sequential execution failed: {result.stderr}")
+                
+                logger.info("Sequential execution completed successfully")
+                success = True
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Timed laboratory procedure timed out")
+            success = False
+        except Exception as e:
+            logger.error(f"Error during sequential execution: {e}")
+            success = False
+        finally:
+            # Clean up temporary sequence file
+            try:
+                if os.path.exists(temp_sequence_file):
+                    os.remove(temp_sequence_file)
+                    logger.info(f"Cleaned up temporary sequence file: {temp_sequence_file}")
+            except Exception as e:
+                logger.warning(f"Could not clean up temporary file {temp_sequence_file}: {e}")
+        
+        if not success:
+            async with TASKS_LOCK:
+                TASKS[cmd_id].status = "failed"
+                TASKS[cmd_id].error_message = "Sequential execution failed"
+            raise RuntimeError("Sequential execution failed")
         
         # Mark entire task as completed
         async with TASKS_LOCK:
