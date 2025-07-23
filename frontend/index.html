@@ -1,5 +1,5 @@
-<!DOCTYPE html><html><meta charset="utf-8">
-<title>Colour-Mix Console</title>
+<!DOCTYPE html><html lang="ja"><meta charset="utf-8">
+<title>色混合コンソール</title>
 <style>
 body{font-family:Arial,Helvetica,sans-serif;margin:2rem;max-width:600px}
 label,button{display:block;margin-top:1rem}
@@ -21,46 +21,46 @@ img{max-width:100%}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
 .stat-item{padding:0.5rem;background:white;border:1px solid #ddd;border-radius:4px;text-align:center}
 </style>
-<h1>Color Mix + Beaker Analysis</h1>
+<h1>色混合 + ビーカー分析</h1>
 
 <section>
-<h2>Color Mixing</h2>
-<label>Color Ratios (parts)</label>
+<h2>色混合</h2>
+<label>色の比率（部分）</label>
 <div class="color-ratio">
-  <span style="color:#dc3545">Red:</span>
+  <span style="color:#dc3545">赤:</span>
   <input id="red-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 <div class="color-ratio">
-  <span style="color:#ffc107">Yellow:</span>
+  <span style="color:#ffc107">黄:</span>
   <input id="yellow-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 <div class="color-ratio">
-  <span style="color:#007bff">Blue:</span>
+  <span style="color:#007bff">青:</span>
   <input id="blue-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
 </div>
 
 <div id="color-preview"></div>
 
-<button onclick="send()">Dispense Mix & Snap</button>
+<button onclick="send()">混合を調剤してスナップ撮影</button>
 <pre id="log"></pre>
 <img id="snap">
 </section>
 
 <section class="beaker-analysis">
-<h2>🧪 Advanced Beaker Analysis</h2>
-<p>Upload an image to analyze beaker solution color using AI-powered detection.</p>
+<h2>🧪 高度ビーカー分析</h2>
+<p>AI対応検出を使用してビーカー溶液の色を分析するために画像をアップロードしてください。</p>
 
 <div class="upload-area" id="upload-area">
-  <p>Drag and drop an image here, or click to select</p>
+  <p>ここに画像をドラッグアンドドロップするか、クリックして選択してください</p>
   <input type="file" id="image-upload" accept="image/*" onchange="handleFileSelect(event)" style="display:none">
-  <button onclick="document.getElementById('image-upload').click()">Choose Image</button>
+  <button onclick="document.getElementById('image-upload').click()">画像を選択</button>
 </div>
 
 <div id="analysis-results" style="display:none">
   <div class="analysis-result">
-    <h3>Analysis Results</h3>
+    <h3>分析結果</h3>
     <div id="dominant-color-info">
-      <h4>Dominant Solution Color</h4>
+      <h4>主要溶液色</h4>
       <div id="color-display">
         <span id="color-swatch" class="color-swatch"></span>
         <span id="color-text"></span>
@@ -69,29 +69,29 @@ img{max-width:100%}
     
     <div class="stats-grid">
       <div class="stat-item">
-        <strong>Beaker Position</strong><br>
+        <strong>ビーカー位置</strong><br>
         <span id="beaker-position">-</span>
       </div>
       <div class="stat-item">
-        <strong>Beaker Radius</strong><br>
+        <strong>ビーカー半径</strong><br>
         <span id="beaker-radius">-</span>
       </div>
       <div class="stat-item">
-        <strong>Clusters Found</strong><br>
+        <strong>検出クラスター数</strong><br>
         <span id="cluster-count">-</span>
       </div>
       <div class="stat-item">
-        <strong>Pixels Analyzed</strong><br>
+        <strong>分析ピクセル数</strong><br>
         <span id="pixels-analyzed">-</span>
       </div>
     </div>
     
     <div id="cluster-details">
-      <h4>Color Clusters (by saturation)</h4>
+      <h4>色クラスター（彩度順）</h4>
       <div id="clusters-list"></div>
     </div>
     
-    <img id="analysis-visualization" alt="Analysis visualization will appear here" style="display:none">
+    <img id="analysis-visualization" alt="分析の可視化がここに表示されます" style="display:none">
   </div>
 </div>
 </section>
@@ -128,7 +128,7 @@ function updatePreview(){
   const redDisplay = red % 1 === 0 ? red.toString() : red.toFixed(1)
   const yellowDisplay = yellow % 1 === 0 ? yellow.toString() : yellow.toFixed(1)
   const blueDisplay = blue % 1 === 0 ? blue.toString() : blue.toFixed(1)
-  button.textContent = `Dispense Mix (${redDisplay}:${yellowDisplay}:${blueDisplay}) & Snap`
+  button.textContent = `混合を調剤 (${redDisplay}:${yellowDisplay}:${blueDisplay}) してスナップ撮影`
 }
 
 async function send(){
@@ -139,7 +139,7 @@ async function send(){
     
     const totalParts = redRatio + yellowRatio + blueRatio
     if(totalParts === 0) {
-      log('Error: At least one color ratio must be greater than 0')
+      log('エラー: 少なくとも1つの色の比率が0より大きい必要があります')
       return
     }
     
@@ -148,8 +148,8 @@ async function send(){
     const yellowPercent = (yellowRatio / totalParts * 100).toFixed(2)
     const bluePercent = (blueRatio / totalParts * 100).toFixed(2)
     
-    log(`Mix ratios - Red:${redRatio} Yellow:${yellowRatio} Blue:${blueRatio}`)
-    log(`Percentages - Red:${redPercent}% Yellow:${yellowPercent}% Blue:${bluePercent}%`)
+    log(`混合比率 - 赤:${redRatio} 黄:${yellowRatio} 青:${blueRatio}`)
+    log(`パーセンテージ - 赤:${redPercent}% 黄:${yellowPercent}% 青:${bluePercent}%`)
     
     // Determine dominant color for compatibility
     let dominantColor = 'red'
@@ -194,12 +194,12 @@ async function send(){
     }
     
     const response = await r.json()
-    log('Response received: ' + JSON.stringify(response))
+    log('レスポンス受信: ' + JSON.stringify(response))
     
     // Extract cmd_id from response
     const cmd_id = response.cmd_id
     if (!cmd_id) {
-      throw new Error('No cmd_id received from server. Response: ' + JSON.stringify(response))
+      throw new Error('サーバーからcmd_idを受信できませんでした。レスポンス: ' + JSON.stringify(response))
     }
     
     log('cmd_id=' + cmd_id)
@@ -214,7 +214,7 @@ async function send(){
       try {
         let statusResp = await fetch('/robot/'+cmd_id+'/status')
         if (!statusResp.ok) {
-          throw new Error(`Status check failed: ${statusResp.status}`)
+          throw new Error(`ステータス確認に失敗しました: ${statusResp.status}`)
         }
         
         let s = await statusResp.json()
@@ -222,19 +222,19 @@ async function send(){
         
         // Check for beaker analysis results
         if (s.beaker_analysis_results) {
-          log('🧪 Beaker analysis results detected!')
+          log('🧪 ビーカー分析結果が検出されました！')
           displayAnalysisResults(s.beaker_analysis_results)
         }
         
         if(s.status!=='running') break
       } catch (e) {
-        log('Error checking status: ' + e.message)
+        log('ステータス確認エラー: ' + e.message)
         break
       }
     }
     
     if (polls >= maxPolls) {
-      log('Timeout waiting for completion')
+      log('完了待機タイムアウト')
       return
     }
     
@@ -243,28 +243,28 @@ async function send(){
       let analysisResp = await fetch('/robot/'+cmd_id+'/beaker-analysis')
       if (analysisResp.ok) {
         let analysisData = await analysisResp.json()
-        log('🧪 Retrieved beaker analysis results from dedicated endpoint')
+        log('🧪 専用エンドポイントからビーカー分析結果を取得しました')
         displayAnalysisResults(analysisData.analysis_results)
       }
     } catch (e) {
       // Analysis results not available, that's okay
-      log('No beaker analysis results found (this is normal if no analysis was performed)')
+      log('ビーカー分析結果が見つかりませんでした（分析が実行されなかった場合は正常です）')
     }
     
     // fetch snapshot with timeout
     try {
       let snapResp = await fetch('/robot/'+cmd_id+'/pose-snapshot')
       if (!snapResp.ok) {
-        throw new Error(`Snapshot failed: ${snapResp.status}`)
+        throw new Error(`スナップショットに失敗しました: ${snapResp.status}`)
       }
       let snap = await snapResp.json()
       document.querySelector('#snap').src=snap.url
-      log('Snapshot captured successfully')
+      log('スナップショットの撮影に成功しました')
     } catch (e) {
-      log('Error capturing snapshot: ' + e.message)
+      log('スナップショット撮影エラー: ' + e.message)
     }
   } catch (e) {
-    log('Error: ' + e.message)
+    log('エラー: ' + e.message)
   }
 }
 
@@ -277,7 +277,7 @@ function log(txt){
 // Initialize preview on page load
 window.onload = function() {
   updatePreview()
-  log('Color Mix + Beaker Analysis initialized')
+  log('色混合 + ビーカー分析が初期化されました')
 }
 
 // Beaker Analysis Functions
@@ -311,11 +311,11 @@ function handleFileSelect(event) {
 
 async function analyzeImage(imageFile) {
   try {
-    log('Starting beaker analysis...')
+    log('ビーカー分析を開始しています...')
     
     // Show loading state
     document.getElementById('analysis-results').style.display = 'block'
-    document.querySelector('#analysis-results .analysis-result').innerHTML = '<p>Analyzing image... Please wait.</p>'
+    document.querySelector('#analysis-results .analysis-result').innerHTML = '<p>画像を分析中...お待ちください。</p>'
     
     // Prepare form data
     const formData = new FormData()
@@ -329,18 +329,18 @@ async function analyzeImage(imageFile) {
     
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Analysis failed: ${response.status} - ${errorText}`)
+      throw new Error(`分析に失敗しました: ${response.status} - ${errorText}`)
     }
     
     const results = await response.json()
     displayAnalysisResults(results)
-    log('Beaker analysis completed successfully')
+    log('ビーカー分析が正常に完了しました')
     
   } catch (error) {
-    log('Error analyzing image: ' + error.message)
+    log('画像分析エラー: ' + error.message)
     document.getElementById('analysis-results').style.display = 'block'
     document.querySelector('#analysis-results .analysis-result').innerHTML = 
-      `<p style="color:red">Analysis failed: ${error.message}</p>`
+      `<p style="color:red">分析に失敗しました: ${error.message}</p>`
   }
 }
 
@@ -381,8 +381,8 @@ function displayAnalysisResults(results) {
           <div style="display:flex;align-items:center;gap:10px">
             <span class="color-swatch" style="background-color:${clusterHex}"></span>
             <div>
-              <strong>Cluster ${index + 1}</strong> ${clusterHex}<br>
-              <small>RGB(${clusterRgb.join(', ')}) - Saturation: ${saturation.toFixed(1)}, Pixels: ${pixelCount.toLocaleString()}</small>
+              <strong>クラスター ${index + 1}</strong> ${clusterHex}<br>
+              <small>RGB(${clusterRgb.join(', ')}) - 彩度: ${saturation.toFixed(1)}, ピクセル: ${pixelCount.toLocaleString()}</small>
             </div>
           </div>
         </div>
@@ -392,9 +392,9 @@ function displayAnalysisResults(results) {
     // Update the analysis results display
     const analysisResult = document.querySelector('#analysis-results .analysis-result')
     analysisResult.innerHTML = `
-      <h3>✅ Beaker Analysis Results</h3>
+      <h3>✅ ビーカー分析結果</h3>
       <div id="dominant-color-info">
-        <h4>Dominant Solution Color</h4>
+        <h4>主要溶液色</h4>
         <div id="color-display">
           <span class="color-swatch" style="background-color:${hex}"></span>
           <span>${hex} RGB(${rgb.join(', ')})</span>
@@ -403,25 +403,25 @@ function displayAnalysisResults(results) {
       
       <div class="stats-grid">
         <div class="stat-item">
-          <strong>Beaker Position</strong><br>
+          <strong>ビーカー位置</strong><br>
           <span>(${x}, ${y})</span>
         </div>
         <div class="stat-item">
-          <strong>Beaker Radius</strong><br>
+          <strong>ビーカー半径</strong><br>
           <span>${radius}px</span>
         </div>
         <div class="stat-item">
-          <strong>Clusters Found</strong><br>
+          <strong>検出クラスター数</strong><br>
           <span>${numClusters}</span>
         </div>
         <div class="stat-item">
-          <strong>Pixels Analyzed</strong><br>
+          <strong>分析ピクセル数</strong><br>
           <span>${totalPixels.toLocaleString()}</span>
         </div>
       </div>
       
       <div id="cluster-details">
-        <h4>Color Clusters (by saturation)</h4>
+        <h4>色クラスター（彩度順）</h4>
         <div id="clusters-list">${clustersHtml}</div>
       </div>
     `
@@ -431,39 +431,39 @@ function displayAnalysisResults(results) {
       const vizImg = document.createElement('img')
       vizImg.src = 'data:image/jpeg;base64,' + results.visualization_image
       vizImg.style.cssText = 'max-width:100%;border:2px solid #007bff;border-radius:8px;margin-top:1rem'
-      vizImg.alt = 'Analysis visualization'
+      vizImg.alt = '分析の可視化'
       analysisResult.appendChild(vizImg)
     }
     
     // Color interpretation
     let interpretation = ''
     if (hex.toLowerCase().includes('ff0000') || hex.toLowerCase().includes('dc143c') || (rgb[0] > 150 && rgb[1] < 100 && rgb[2] < 100)) {
-      interpretation = '🔴 Red solution detected - likely contains red dye or indicator'
+      interpretation = '🔴 赤い溶液が検出されました - 赤色染料または指示薬が含まれている可能性があります'
     } else if (hex.toLowerCase().includes('ffff00') || hex.toLowerCase().includes('ffd700') || (rgb[0] > 200 && rgb[1] > 200 && rgb[2] < 100)) {
-      interpretation = '🟡 Yellow solution detected - likely contains yellow dye or indicator'
+      interpretation = '🟡 黄色い溶液が検出されました - 黄色染料または指示薬が含まれている可能性があります'
     } else if (hex.toLowerCase().includes('0000ff') || hex.toLowerCase().includes('1e90ff') || (rgb[0] < 100 && rgb[1] < 100 && rgb[2] > 150)) {
-      interpretation = '🔵 Blue solution detected - likely contains blue dye or indicator'
+      interpretation = '🔵 青い溶液が検出されました - 青色染料または指示薬が含まれている可能性があります'
     } else if (rgb[0] < 50 && rgb[1] < 50 && rgb[2] < 50) {
-      interpretation = '⚫ Dark/black solution detected'
+      interpretation = '⚫ 暗色/黒色溶液が検出されました'
     } else if (rgb[0] > 200 && rgb[1] > 200 && rgb[2] > 200) {
-      interpretation = '⚪ Clear/transparent solution detected'
+      interpretation = '⚪ 透明/無色溶液が検出されました'
     } else {
-      interpretation = `🎨 Custom color solution detected: ${hex}`
+      interpretation = `🎨 カスタム色溶液が検出されました: ${hex}`
     }
     
     // Add interpretation
     const interpretationDiv = document.createElement('div')
     interpretationDiv.style.cssText = 'margin-top:1rem;padding:1rem;background:#e7f3ff;border:1px solid #007bff;border-radius:4px'
-    interpretationDiv.innerHTML = `<h4>🧪 Color Interpretation</h4><p>${interpretation}</p>`
+    interpretationDiv.innerHTML = `<h4>🧪 色の解釈</h4><p>${interpretation}</p>`
     analysisResult.appendChild(interpretationDiv)
     
-    log('🎨 Beaker analysis results displayed in GUI')
+    log('🎨 ビーカー分析結果がGUIに表示されました')
     
   } catch (error) {
-    log('Error displaying analysis results: ' + error.message)
+    log('分析結果の表示エラー: ' + error.message)
     document.getElementById('analysis-results').style.display = 'block'
     document.querySelector('#analysis-results .analysis-result').innerHTML = 
-      `<p style="color:red">Error displaying analysis results: ${error.message}</p>`
+      `<p style="color:red">分析結果の表示エラー: ${error.message}</p>`
   }
 }
 
