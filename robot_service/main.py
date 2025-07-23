@@ -79,12 +79,17 @@ class NormalizedPercentages(BaseModel):
     blue: float = Field(ge=0.0, le=100.0)
 
 class MultiColorDispenseRequest(BaseModel):
-    mix_id: int
-    run_id: int
-    colour: str = Field(pattern="^(red|yellow|blue)$")  # dominant color for compatibility
+    mix_id: int = Field(default=1, description="Mix ID for tracking")
+    run_id: int = Field(default=1, description="Run ID for tracking")
+    colour: str = Field(default="red", pattern="^(red|yellow|blue)$", description="Dominant color for compatibility")
     color_ratios: ColorRatios
-    normalized_percentages: NormalizedPercentages
+    normalized_percentages: Optional[NormalizedPercentages] = None
     base_duration: float = Field(default=3.0, gt=0.0, le=10.0, description="Base duration in seconds")
+
+class SimpleMultiColorRequest(BaseModel):
+    """Simplified request model for direct multi-color dispensing endpoint."""
+    color_ratios: Dict[str, float] = Field(description="Color ratios as dict (red, yellow, blue)")
+    base_duration: float = Field(default=1.0, gt=0.0, le=10.0, description="Base duration in seconds")
 
 class ColorOperation(BaseModel):
     color: str
@@ -529,6 +534,90 @@ async def _dispense_impl(req: DispenseRequest, background_tasks: BackgroundTasks
             TASKS[tid].status = "failed"
         logger.error(f"Unexpected error in dispense {tid}: {e}")
         raise HTTPException(500, f"Internal error: {str(e)}")
+
+
+@app.post("/multi_color_dispensing")
+async def multi_color_dispensing(req: SimpleMultiColorRequest, background_tasks: BackgroundTasks):
+    """
+    Direct endpoint for multi-color dispensing with timed laboratory procedure.
+    This endpoint specifically handles the complete laboratory workflow with dynamic squeeze durations.
+    """
+    logger.info(f"Received multi-color dispensing request: {req}")
+    
+    try:
+        # Generate unique command ID
+        cmd_id = str(uuid.uuid4())
+        
+        # Convert dict to ColorRatios model
+        color_ratios = ColorRatios(
+            red=req.color_ratios.get("red", 0.0),
+            yellow=req.color_ratios.get("yellow", 0.0),
+            blue=req.color_ratios.get("blue", 0.0)
+        )
+        
+        # Validate that at least one color has a non-zero ratio
+        total_ratio = color_ratios.red + color_ratios.yellow + color_ratios.blue
+        if total_ratio <= 0:
+            raise HTTPException(400, "At least one color ratio must be greater than 0")
+        
+        # Create task entry with extended fields for timed laboratory procedure
+        task_status = DispenseStatus(
+            status="pending",
+            request_id=cmd_id,
+            operations=[],
+            completed_operations=[],
+            started_at=time.strftime("%Y-%m-%d %H:%M:%S")
+        )
+        
+        async with TASKS_LOCK:
+            TASKS[cmd_id] = task_status
+        
+        # Start background task for complete laboratory procedure
+        background_tasks.add_task(
+            execute_multi_color_dispensing_task,
+            cmd_id,
+            color_ratios,
+            req.base_duration
+        )
+        
+        logger.info(f"Multi-color dispensing task started with cmd_id={cmd_id}")
+        return {
+            "cmd_id": cmd_id, 
+            "status": "pending",
+            "procedure": "timed_laboratory_procedure",
+            "description": "Complete laboratory workflow with positioning, dispensing, squeezing, stirring, waiting, and beaker analysis",
+            "color_ratios": {
+                "red": color_ratios.red,
+                "yellow": color_ratios.yellow,
+                "blue": color_ratios.blue
+            },
+            "base_duration": req.base_duration
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting multi-color dispensing task: {e}")
+        raise HTTPException(500, f"Multi-color dispensing error: {str(e)}")
+
+
+@app.get("/task_status/{cmd_id}")
+async def get_task_status(cmd_id: str):
+    """Get the status of a multi-color dispensing task."""
+    async with TASKS_LOCK:
+        task = TASKS.get(cmd_id)
+        
+        if not task:
+            raise HTTPException(404, f"Task {cmd_id} not found")
+        
+        return {
+            "cmd_id": cmd_id,
+            "status": task.status,
+            "request_id": task.request_id,
+            "started_at": task.started_at,
+            "completed_at": task.completed_at,
+            "current_operation": task.current_operation,
+            "error_message": task.error_message,
+            "beaker_analysis_results": task.beaker_analysis_results
+        }
 
 
 @app.get("/robot/{cmd_id}/status")
