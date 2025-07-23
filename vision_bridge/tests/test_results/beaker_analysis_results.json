@@ -1,0 +1,62 @@
+{
+  "dominant_color": {
+    "rgb": [
+      105,
+      24,
+      8
+    ],
+    "hex": "#691808"
+  },
+  "beaker_circle": {
+    "x": 385,
+    "y": 200,
+    "radius": 195
+  },
+  "analysis_stats": {
+    "total_pixels_analyzed": 118399,
+    "num_clusters": 5,
+    "dominant_cluster_index": 3
+  },
+  "clusters": [
+    {
+      "index": 3,
+      "color_rgb": "[105  24   8]",
+      "avg_saturation": 232.76817465676345,
+      "avg_value": 105.74026558631556,
+      "pixel_count": 4443,
+      "score": 24612.968608248055
+    },
+    {
+      "index": 4,
+      "color_rgb": "[85 77 71]",
+      "avg_saturation": 45.513749052722744,
+      "avg_value": 87.79988091371658,
+      "pixel_count": 18474,
+      "score": 3996.1017467658376
+    },
+    {
+      "index": 2,
+      "color_rgb": "[151 157 151]",
+      "avg_saturation": 18.345579827004837,
+      "avg_value": 158.406626594341,
+      "pixel_count": 34105,
+      "score": 2906.06141331303
+    },
+    {
+      "index": 1,
+      "color_rgb": "[23 28 22]",
+      "avg_saturation": 69.92843913116687,
+      "avg_value": 29.07839703653814,
+      "pixel_count": 29695,
+      "score": 2033.4069172014604
+    },
+    {
+      "index": 0,
+      "color_rgb": "[119 121 118]",
+      "avg_saturation": 14.49428697683227,
+      "avg_value": 123.33921469604192,
+      "pixel_count": 31682,
+      "score": 1787.71397330156
+    }
+  ]
+}

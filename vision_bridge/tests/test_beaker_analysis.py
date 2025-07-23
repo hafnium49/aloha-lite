@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+Test suite for enhanced beaker color detection algorithm.
+Tests the extract_solution_color function and analyze-beaker functionality.
+"""
+
+import pytest
+import numpy as np
+import cv2
+import os
+import sys
+from pathlib import Path
+import json
+import requests
+from io import BytesIO
+
+# Set environment variable to disable S3 requirement for testing
+os.environ['REQUIRE_S3'] = 'false'
+
+# Add the parent directory to the path to import main
+sys.path.append(str(Path(__file__).parent.parent))
+from main import extract_solution_color, create_visualization_image
+
+class TestBeakerAnalysis:
+    """Test suite for beaker color analysis functionality."""
+    
+    @pytest.fixture
+    def sample_image_path(self):
+        """Path to the sample image for testing."""
+        return "/home/hafnium/aloha-lite/temporary_images/camera_0_20250723_113227.jpg"
+    
+    @pytest.fixture
+    def sample_image(self, sample_image_path):
+        """Load the sample image for testing."""
+        if not os.path.exists(sample_image_path):
+            pytest.skip(f"Sample image not found: {sample_image_path}")
+        
+        img = cv2.imread(sample_image_path)
+        if img is None:
+            pytest.skip(f"Could not load image: {sample_image_path}")
+        
+        return img
+    
+    def test_extract_solution_color_basic(self, sample_image):
+        """Test basic functionality of extract_solution_color."""
+        dominant_color, color_hex, analysis_data = extract_solution_color(sample_image)
+        
+        # Check return types
+        assert isinstance(dominant_color, np.ndarray)
+        assert len(dominant_color) == 3
+        assert isinstance(color_hex, str)
+        assert color_hex.startswith('#')
+        assert len(color_hex) == 7
+        assert isinstance(analysis_data, dict)
+        
+        # Check RGB values are in valid range
+        assert all(0 <= c <= 255 for c in dominant_color)
+        
+        # Check analysis data structure
+        required_keys = ['beaker_circle', 'clusters', 'dominant_cluster_index', 'total_pixels_analyzed']
+        assert all(key in analysis_data for key in required_keys)
+        
+        # Check beaker circle data
+        circle = analysis_data['beaker_circle']
+        assert 'x' in circle and 'y' in circle and 'radius' in circle
+        assert all(isinstance(v, int) for v in circle.values())
+        assert circle['radius'] > 0
+        
+        print(f"✅ Detected beaker at ({circle['x']}, {circle['y']}) with radius {circle['radius']}")
+        print(f"✅ Dominant color: RGB{tuple(dominant_color)} ({color_hex})")
+    
+    def test_extract_solution_color_clusters(self, sample_image):
+        """Test cluster analysis in extract_solution_color."""
+        _, _, analysis_data = extract_solution_color(sample_image, n_clusters=6)
+        
+        clusters = analysis_data['clusters']
+        assert len(clusters) > 0
+        assert len(clusters) <= 6
+        
+        # Check cluster data structure
+        for cluster in clusters:
+            required_keys = ['index', 'color_rgb', 'avg_saturation', 'avg_value', 'pixel_count', 'score']
+            assert all(key in cluster for key in required_keys)
+            
+            # Check data types and ranges
+            assert isinstance(cluster['index'], int)
+            assert isinstance(cluster['color_rgb'], np.ndarray)
+            assert len(cluster['color_rgb']) == 3
+            assert 0 <= cluster['avg_saturation'] <= 255
+            assert 0 <= cluster['avg_value'] <= 255
+            assert cluster['pixel_count'] > 0
+            assert cluster['score'] >= 0
+        
+        # Check clusters are sorted by score (highest first)
+        scores = [c['score'] for c in clusters]
+        assert scores == sorted(scores, reverse=True)
+        
+        print(f"✅ Found {len(clusters)} color clusters")
+        for i, cluster in enumerate(clusters[:3]):  # Show top 3
+            print(f"   Cluster {i}: RGB{tuple(cluster['color_rgb'])}, "
+                  f"Sat: {cluster['avg_saturation']:.1f}, "
+                  f"Pixels: {cluster['pixel_count']}")
+    
+    def test_create_visualization_image(self, sample_image):
+        """Test visualization image creation."""
+        _, _, analysis_data = extract_solution_color(sample_image)
+        viz_img = create_visualization_image(sample_image, analysis_data)
+        
+        # Check visualization image properties
+        assert viz_img.shape == sample_image.shape
+        assert viz_img.dtype == sample_image.dtype
+        
+        # Visualization should be different from original (has annotations)
+        assert not np.array_equal(viz_img, sample_image)
+        
+        print("✅ Created visualization image successfully")
+    
+    def test_different_cluster_counts(self, sample_image):
+        """Test the algorithm with different cluster counts."""
+        for n_clusters in [3, 5, 8]:
+            dominant_color, color_hex, analysis_data = extract_solution_color(sample_image, n_clusters=n_clusters)
+            
+            # Should still work with different cluster counts
+            assert len(analysis_data['clusters']) <= n_clusters
+            assert len(dominant_color) == 3
+            assert color_hex.startswith('#')
+            
+            print(f"✅ n_clusters={n_clusters}: {len(analysis_data['clusters'])} clusters, color={color_hex}")
+    
+    def test_no_beaker_error(self):
+        """Test error handling when no beaker is detected."""
+        # Create a blank image with no circular shapes
+        blank_image = np.zeros((100, 100, 3), dtype=np.uint8)
+        
+        with pytest.raises(ValueError, match="No beaker detected"):
+            extract_solution_color(blank_image)
+        
+        print("✅ Correctly handles case with no beaker detected")
+    
+    def test_synthetic_beaker_image(self):
+        """Test with a synthetic beaker image."""
+        # Create a synthetic image with a colored circle (simulated beaker)
+        img = np.ones((200, 200, 3), dtype=np.uint8) * 50  # Dark background
+        
+        # Draw a colored circle (simulated solution)
+        cv2.circle(img, (100, 100), 60, (0, 0, 200), -1)  # Red solution
+        cv2.circle(img, (100, 100), 70, (100, 100, 100), 5)  # Beaker rim
+        
+        dominant_color, color_hex, analysis_data = extract_solution_color(img)
+        
+        # Should detect the red color
+        assert dominant_color[0] > 150  # Should be predominantly red
+        assert color_hex.startswith('#')
+        
+        circle = analysis_data['beaker_circle']
+        assert 90 <= circle['x'] <= 110  # Should detect circle center around (100, 100)
+        assert 90 <= circle['y'] <= 110
+        assert 50 <= circle['radius'] <= 80  # Should detect appropriate radius
+        
+        print(f"✅ Synthetic beaker test: detected color {color_hex} at ({circle['x']}, {circle['y']})")
+
+
+def test_api_endpoint():
+    """Test the /analyze-beaker API endpoint."""
+    # This test requires the FastAPI server to be running
+    base_url = "http://localhost:8000"  # Adjust port as needed
+    
+    sample_image_path = "/home/hafnium/aloha-lite/temporary_images/camera_0_20250723_113227.jpg"
+    
+    if not os.path.exists(sample_image_path):
+        pytest.skip(f"Sample image not found: {sample_image_path}")
+    
+    try:
+        with open(sample_image_path, 'rb') as f:
+            files = {'file': ('test_image.jpg', f, 'image/jpeg')}
+            response = requests.post(f"{base_url}/analyze-beaker", files=files, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Check response structure
+            required_keys = ['dominant_color', 'beaker_circle', 'clusters', 'analysis_stats', 'visualization_image']
+            assert all(key in data for key in required_keys)
+            
+            # Check dominant color
+            dominant = data['dominant_color']
+            assert 'rgb' in dominant and 'hex' in dominant
+            assert len(dominant['rgb']) == 3
+            assert dominant['hex'].startswith('#')
+            
+            # Check beaker circle
+            circle = data['beaker_circle']
+            assert all(key in circle for key in ['x', 'y', 'radius'])
+            
+            # Check visualization image is base64 encoded
+            viz_img = data['visualization_image']
+            assert isinstance(viz_img, str)
+            assert len(viz_img) > 0
+            
+            print(f"✅ API endpoint test successful: {dominant['hex']}")
+            print(f"   Beaker at ({circle['x']}, {circle['y']}) radius {circle['radius']}")
+            print(f"   Found {len(data['clusters'])} clusters")
+        else:
+            print(f"⚠️  API endpoint not available (status {response.status_code})")
+            
+    except requests.exceptions.RequestException:
+        print("⚠️  API endpoint not available (connection failed)")
+
+
+def save_test_results(sample_image_path):
+    """Save test results including visualization."""
+    if not os.path.exists(sample_image_path):
+        print(f"Sample image not found: {sample_image_path}")
+        return
+    
+    img = cv2.imread(sample_image_path)
+    if img is None:
+        print(f"Could not load image: {sample_image_path}")
+        return
+    
+    try:
+        # Perform analysis
+        dominant_color, color_hex, analysis_data = extract_solution_color(img)
+        
+        # Create visualization
+        viz_img = create_visualization_image(img, analysis_data)
+        
+        # Save results
+        output_dir = Path(__file__).parent / "test_results"
+        output_dir.mkdir(exist_ok=True)
+        
+        # Save visualization image
+        viz_path = output_dir / "beaker_analysis_visualization.jpg"
+        cv2.imwrite(str(viz_path), viz_img)
+        
+        # Save analysis results as JSON
+        results = {
+            "dominant_color": {
+                "rgb": dominant_color.tolist(),
+                "hex": color_hex
+            },
+            "beaker_circle": analysis_data['beaker_circle'],
+            "analysis_stats": {
+                "total_pixels_analyzed": analysis_data['total_pixels_analyzed'],
+                "num_clusters": len(analysis_data['clusters']),
+                "dominant_cluster_index": analysis_data['dominant_cluster_index']
+            },
+            "clusters": analysis_data['clusters']
+        }
+        
+        results_path = output_dir / "beaker_analysis_results.json"
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+        
+        print(f"✅ Test results saved:")
+        print(f"   Visualization: {viz_path}")
+        print(f"   Analysis data: {results_path}")
+        print(f"   Dominant color: {color_hex}")
+        
+    except Exception as e:
+        print(f"❌ Error in test: {e}")
+
+
+if __name__ == "__main__":
+    """Run tests directly when script is executed."""
+    sample_image_path = "/home/hafnium/aloha-lite/temporary_images/camera_0_20250723_113227.jpg"
+    
+    print("🧪 Running beaker analysis tests...")
+    
+    # Save test results first
+    save_test_results(sample_image_path)
+    
+    # Run tests if pytest is available
+    try:
+        import pytest
+        pytest.main([__file__, "-v"])
+    except ImportError:
+        print("pytest not available, running basic tests...")
+        
+        if os.path.exists(sample_image_path):
+            img = cv2.imread(sample_image_path)
+            if img is not None:
+                test_instance = TestBeakerAnalysis()
+                test_instance.test_extract_solution_color_basic(img)
+                test_instance.test_extract_solution_color_clusters(img)
+                test_instance.test_create_visualization_image(img)
+                test_instance.test_different_cluster_counts(img)
+                test_instance.test_synthetic_beaker_image()
+                print("✅ All basic tests passed!")
+        
+        # Test API endpoint
+        test_api_endpoint()

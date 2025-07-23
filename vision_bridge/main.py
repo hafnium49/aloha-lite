@@ -6,6 +6,9 @@ from pydantic import BaseModel
 import httpx, boto3
 import numpy as np, cv2
 from prometheus_client import Counter, start_http_server
+from sklearn.cluster import KMeans
+from matplotlib import colors
+import base64
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -14,23 +17,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Environment
+# Environment (make optional for testing)
 # ---------------------------------------------------------------------------
 PHOS_URL = os.getenv("PHOS_URL", "http://phosphobot")
 BUCKET   = os.getenv("BUCKET", "snapshots")
 
-required_env_vars = ["S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-for var in required_env_vars:
-    if not os.getenv(var):
-        logger.error(f"{var} environment variable is required")
-        raise ValueError(f"{var} environment variable is required")
+# Only require S3 variables if they're needed (for production)
+if os.getenv("REQUIRE_S3", "true").lower() == "true":
+    required_env_vars = ["S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    for var in required_env_vars:
+        if not os.getenv(var):
+            logger.error(f"{var} environment variable is required")
+            raise ValueError(f"{var} environment variable is required")
 
-s3 = boto3.client(
-    "s3",
-    endpoint_url=os.getenv("S3_ENDPOINT"),
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=os.getenv("S3_ENDPOINT"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+else:
+    s3 = None
 
 # ---------------------------------------------------------------------------
 # Metrics
@@ -53,6 +60,134 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Enhanced beaker color detection algorithm
+# ---------------------------------------------------------------------------
+def extract_solution_color(image_data, n_clusters=5):
+    """
+    Automatically detect the beaker in the image and return the dominant solution color.
+    Uses Hough Circles to locate the beaker and KMeans clustering to identify
+    the most saturated cluster inside the beaker.
+
+    Args:
+        image_data: numpy array of the image (BGR format from cv2)
+        n_clusters: number of clusters for KMeans
+
+    Returns:
+        tuple: (dominant_color_rgb, dominant_color_hex, analysis_data)
+    """
+    image_rgb = cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB)
+
+    # Convert to grayscale and blur for circle detection
+    gray = cv2.cvtColor(image_data, cv2.COLOR_BGR2GRAY)
+    gray_blur = cv2.GaussianBlur(gray, (9, 9), 2)
+
+    # Detect circles (the beaker opening)
+    circles = cv2.HoughCircles(
+        gray_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
+        param1=100, param2=30, minRadius=30, maxRadius=200
+    )
+    
+    if circles is None:
+        raise ValueError("No beaker detected")
+
+    # Choose the largest detected circle
+    circles = np.uint16(np.around(circles[0]))
+    x, y, r = sorted(circles, key=lambda c: c[2], reverse=True)[0]
+
+    # Create a mask for the circle and crop around it
+    mask = np.zeros_like(gray)
+    cv2.circle(mask, (x, y), r, 255, thickness=-1)
+    masked_img = cv2.bitwise_and(image_rgb, image_rgb, mask=mask)
+
+    # Extract pixel data inside the circle
+    pixel_data = masked_img[mask > 0].reshape((-1, 3))
+
+    # Filter out very dark pixels (likely background/shadows)
+    brightness_threshold = 30
+    bright_pixels = pixel_data[np.sum(pixel_data, axis=1) > brightness_threshold]
+    
+    if len(bright_pixels) < 10:
+        bright_pixels = pixel_data  # fallback to all pixels
+    
+    # KMeans clustering on the pixel data
+    kmeans = KMeans(n_clusters=min(n_clusters, len(bright_pixels)), random_state=42, n_init=10)
+    kmeans.fit(bright_pixels)
+    centers_rgb = kmeans.cluster_centers_.astype(int)
+    labels = kmeans.labels_
+
+    # Convert pixel data to HSV for saturation analysis
+    hsv_data = cv2.cvtColor(bright_pixels.reshape((-1, 1, 3)), cv2.COLOR_RGB2HSV).reshape((-1, 3))
+
+    # Compute average saturation for each cluster and pick the highest
+    cluster_info = []
+    for i in range(len(centers_rgb)):
+        cluster_pixels = hsv_data[labels == i]
+        if len(cluster_pixels) > 0:
+            avg_saturation = cluster_pixels[:, 1].mean()
+            avg_value = cluster_pixels[:, 2].mean()
+            pixel_count = len(cluster_pixels)
+            
+            cluster_info.append({
+                'index': i,
+                'color_rgb': centers_rgb[i],
+                'avg_saturation': avg_saturation,
+                'avg_value': avg_value,
+                'pixel_count': pixel_count,
+                'score': avg_saturation * avg_value  # Combined score
+            })
+    
+    # Sort by saturation score and pick the best
+    cluster_info.sort(key=lambda x: x['score'], reverse=True)
+    dominant_cluster = cluster_info[0]
+    
+    dominant_color = dominant_cluster['color_rgb']
+    dominant_color_hex = colors.to_hex(dominant_color / 255)
+
+    # Prepare analysis data for visualization
+    analysis_data = {
+        'beaker_circle': {'x': int(x), 'y': int(y), 'radius': int(r)},
+        'clusters': cluster_info,
+        'dominant_cluster_index': dominant_cluster['index'],
+        'total_pixels_analyzed': len(bright_pixels)
+    }
+
+    return dominant_color, dominant_color_hex, analysis_data
+
+
+def create_visualization_image(image_data, analysis_data):
+    """
+    Create a visualization image showing the detected beaker and color analysis.
+    
+    Args:
+        image_data: original image (BGR format)
+        analysis_data: analysis results from extract_solution_color
+    
+    Returns:
+        numpy array: visualization image (BGR format)
+    """
+    viz_img = image_data.copy()
+    
+    # Draw the detected beaker circle
+    circle = analysis_data['beaker_circle']
+    cv2.circle(viz_img, (circle['x'], circle['y']), circle['radius'], (0, 255, 0), 3)
+    
+    # Draw center point
+    cv2.circle(viz_img, (circle['x'], circle['y']), 5, (0, 255, 0), -1)
+    
+    # Add text with dominant color info
+    dominant_cluster = next(c for c in analysis_data['clusters'] 
+                          if c['index'] == analysis_data['dominant_cluster_index'])
+    
+    text = f"Dominant Color: RGB{tuple(dominant_cluster['color_rgb'])}"
+    cv2.putText(viz_img, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    saturation_text = f"Saturation: {dominant_cluster['avg_saturation']:.1f}"
+    cv2.putText(viz_img, saturation_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    return viz_img
+
 
 # ---------------------------------------------------------------------------
 # Models
@@ -79,20 +214,24 @@ async def snapshot(req: SnapReq):
                 raise HTTPException(502, f"Camera error: {r.status_code}")
 
             data = io.BytesIO(r.content)
-            s3.upload_fileobj(
-                data,
-                BUCKET,
-                key,
-                ExtraArgs={"ContentType": "image/jpeg"},
-            )
+            if s3:
+                s3.upload_fileobj(
+                    data,
+                    BUCKET,
+                    key,
+                    ExtraArgs={"ContentType": "image/jpeg"},
+                )
 
         SNAP_OK.inc()
-        presigned = s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": BUCKET, "Key": key},
-            ExpiresIn=86_400,
-        )
-        return {"url": presigned}
+        if s3:
+            presigned = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": BUCKET, "Key": key},
+                ExpiresIn=86_400,
+            )
+            return {"url": presigned}
+        else:
+            return {"url": f"http://localhost/snapshots/{key}"}  # fallback URL
 
     except httpx.TimeoutException:
         SNAP_ERR.inc()
@@ -191,3 +330,86 @@ async def circle_colour(file: UploadFile = File(...)):
         CIRCLE_ERR.inc()
         logger.error(f"Error detecting circle/colour: {e}")
         raise HTTPException(500, f"Circle detection error: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# NEW: Enhanced beaker solution color detection endpoint
+# ---------------------------------------------------------------------------
+@app.post("/analyze-beaker")
+async def analyze_beaker(file: UploadFile = File(...)):
+    """
+    Advanced beaker analysis using Hough Circle Transform and K-Means clustering
+    to automatically detect the beaker and extract the dominant solution color.
+    
+    Response JSON:
+    {
+        "dominant_color": {
+            "rgb": [r, g, b],
+            "hex": "#RRGGBB"
+        },
+        "beaker_circle": {"x": x, "y": y, "radius": r},
+        "clusters": [...],
+        "analysis_stats": {...},
+        "visualization_image": "base64_encoded_image"
+    }
+    """
+    try:
+        # Decode image
+        data = await file.read()
+        arr = np.frombuffer(data, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(400, "Invalid image format")
+
+        # Perform enhanced beaker color analysis
+        dominant_color_rgb, dominant_color_hex, analysis_data = extract_solution_color(img)
+        
+        # Create visualization
+        viz_img = create_visualization_image(img, analysis_data)
+        
+        # Encode visualization image to base64
+        _, buffer = cv2.imencode('.jpg', viz_img)
+        viz_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        # Prepare response - convert numpy types to Python types
+        clusters_json = []
+        for cluster in analysis_data['clusters']:
+            clusters_json.append({
+                "rgb": [int(cluster['color_rgb'][0]), int(cluster['color_rgb'][1]), int(cluster['color_rgb'][2])],
+                "hex": colors.to_hex(cluster['color_rgb'] / 255),
+                "saturation": float(cluster['avg_saturation']),
+                "pixel_count": int(cluster['pixel_count']),
+                "index": int(cluster['index'])
+            })
+        
+        response = {
+            "dominant_color": {
+                "rgb": [int(dominant_color_rgb[0]), int(dominant_color_rgb[1]), int(dominant_color_rgb[2])],
+                "hex": dominant_color_hex
+            },
+            "beaker_circle": {
+                "x": int(analysis_data['beaker_circle']['x']),
+                "y": int(analysis_data['beaker_circle']['y']),
+                "radius": int(analysis_data['beaker_circle']['radius'])
+            },
+            "clusters": clusters_json,
+            "analysis_stats": {
+                "total_pixels_analyzed": int(analysis_data['total_pixels_analyzed']),
+                "num_clusters": len(analysis_data['clusters']),
+                "dominant_cluster_index": int(analysis_data['dominant_cluster_index'])
+            },
+            "visualization_image": viz_base64
+        }
+        
+        CIRCLE_OK.inc()
+        logger.info(f"Beaker analysis successful: {dominant_color_hex}")
+        return response
+
+    except ValueError as e:
+        CIRCLE_ERR.inc()
+        logger.warning(f"Beaker analysis failed: {e}")
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        CIRCLE_ERR.inc()
+        logger.error(f"Error in beaker analysis: {e}")
+        raise HTTPException(500, f"Beaker analysis error: {str(e)}")
