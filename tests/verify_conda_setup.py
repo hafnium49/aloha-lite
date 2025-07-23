@@ -103,7 +103,7 @@ def main():
         print("You can now run aloha-lite development tasks.")
     else:
         print("\n⚠️  Some dependencies are missing. Please check the installation guide.")
-        print("Run: conda activate aloha-lite && pip install -r requirements-dev.txt")
+        print("Run: conda activate aloha-lite && pip install -r ../requirements-dev.txt")
         return 1
     
     return 0

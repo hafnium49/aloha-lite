@@ -14,19 +14,19 @@ conda activate aloha-lite
 ### 2. Install core dependencies
 ```bash
 # Core robot control dependencies
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 
 # Development dependencies (optional but recommended)
-pip install -r requirements-dev.txt
+pip install -r ../requirements-dev.txt
 ```
 
 ### 3. Install service-specific dependencies (if needed)
 ```bash
 # For vision bridge development
-pip install -r vision_bridge/requirements.txt
+pip install -r ../vision_bridge/requirements.txt
 
 # For robot service development  
-pip install -r robot_service/requirements.txt
+pip install -r ../robot_service/requirements.txt
 ```
 
 ## Detailed Setup Steps
@@ -43,27 +43,27 @@ conda activate aloha-lite
 ### Step 2: Install core requirements
 ```bash
 # Install main project dependencies
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 ```
 
 ### Step 3: Install development tools (recommended)
 ```bash
 # Install development and testing tools
-pip install -r requirements-dev.txt
+pip install -r ../requirements-dev.txt
 ```
 
 ### Step 4: Install service dependencies (if developing specific services)
 
 For **vision bridge** development:
 ```bash
-pip install -r vision_bridge/requirements.txt
+pip install -r ../vision_bridge/requirements.txt
 # Additional vision dependencies
 conda install opencv -y
 ```
 
 For **robot service** development:
 ```bash
-pip install -r robot_service/requirements.txt
+pip install -r ../robot_service/requirements.txt
 ```
 
 ### Step 5: Verify installation
@@ -138,7 +138,7 @@ conda deactivate
 ### Update environment
 ```bash
 conda activate aloha-lite
-pip install --upgrade -r requirements.txt -r requirements-dev.txt
+pip install --upgrade -r ../requirements.txt -r ../requirements-dev.txt
 ```
 
 ### Remove environment
@@ -220,7 +220,7 @@ print('✅ Development tools working')
 "
 
 # Run project tests
-cd vision_bridge/tests
+cd ../vision_bridge/tests
 python run_tests.py --type unit
 ```
 

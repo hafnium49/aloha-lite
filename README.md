@@ -23,10 +23,10 @@ pip install -r requirements.txt
 # Verify installation
 python3 verify_installation.py
 # Or verify conda setup
-python3 verify_conda_setup.py
+python3 tests/verify_conda_setup.py
 ```
 
-**For detailed conda environment setup, see [CONDA_SETUP.md](CONDA_SETUP.md)**
+**For detailed conda environment setup, see [CONDA_SETUP.md](tests/CONDA_SETUP.md)**
 
 ### Basic Usage
 
