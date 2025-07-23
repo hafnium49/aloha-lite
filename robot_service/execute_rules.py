@@ -137,6 +137,7 @@ class PhosphobotJointController:
                                    base_scale: float = 10.0) -> int:
         """
         Calculate number of waypoints based on squared sum of joint displacements (excluding gripper).
+        Joint 1 displacement gets double weighting in the calculation.
         
         Args:
             current_joints: Current joint positions [j1, j2, j3, j4, j5, j6]
@@ -146,13 +147,15 @@ class PhosphobotJointController:
             base_scale: Scaling factor for displacement to waypoints conversion
             
         Returns:
-            Number of waypoints to use
+            Number of waypoints to use (increased for joint 1 movements)
         """
         # Calculate squared sum of displacements for joints 1-5 (excluding gripper joint 6)
         displacements = []
         for i in range(min(5, len(current_joints), len(target_joints))):  # Only first 5 joints
             displacement = target_joints[i] - current_joints[i]
-            displacements.append(displacement ** 2)
+            # Give joint 1 (index 0) double weighting for waypoint calculation
+            weight = 2.0 if i == 0 else 1.0
+            displacements.append((displacement ** 2) * weight)
         
         squared_sum = sum(displacements)
         
@@ -163,9 +166,12 @@ class PhosphobotJointController:
         # Clamp to min/max bounds
         waypoints = max(min_waypoints, min(calculated_waypoints, max_waypoints))
         
-        print(f"📊 Adaptive waypoints calculation:")
-        print(f"   📐 Joint displacements (J1-J5): {[f'{d:.3f}' for d in [target_joints[i] - current_joints[i] for i in range(min(5, len(current_joints)))]]}")
-        print(f"   📊 Squared sum: {squared_sum:.3f}")
+        # Get individual displacements for display
+        raw_displacements = [target_joints[i] - current_joints[i] for i in range(min(5, len(current_joints)))]
+        
+        print(f"📊 Adaptive waypoints calculation (Joint 1 gets 2x weighting):")
+        print(f"   📐 Joint displacements (J1-J5): {[f'{d:.3f}' for d in raw_displacements]}")
+        print(f"   📊 Weighted squared sum: {squared_sum:.3f}")
         print(f"   📍 Calculated waypoints: {calculated_waypoints} → {waypoints} (range: {min_waypoints}-{max_waypoints})")
         
         return waypoints
@@ -230,7 +236,7 @@ class PhosphobotJointController:
                 
                 print(f"🛡️  Auto-calculated duration: {duration:.1f}s (max_vel: {max_velocity:.3f} rad/s)")
             
-            # Generate trajectory using ModernRobotics
+            # Generate trajectory using ModernRobotics with special handling for joint 1
             theta_start = np.array(current_joints)
             theta_end = np.array(target_joints)
             
@@ -238,16 +244,50 @@ class PhosphobotJointController:
             print(f"   ⏱️  Duration: {duration:.1f} seconds")
             print(f"   📍 Waypoints: {num_waypoints}")
             print(f"   📈 Method: {'Quintic' if method == 5 else 'Cubic'} time scaling")
+            print(f"   🔄 Joint 1 gets double waypoint density for smoother motion")
             
-            trajectory = mr.JointTrajectory(theta_start, theta_end, duration, num_waypoints, method)
-            timestamps = [i * duration / (num_waypoints - 1) for i in range(num_waypoints)]
+            # Generate base trajectory for joints 2-6 using standard waypoints
+            base_trajectory = mr.JointTrajectory(theta_start, theta_end, duration, num_waypoints, method)
             
-            print(f"✅ Trajectory generated successfully!")
+            # Create enhanced trajectory with double waypoints for joint 1
+            # We'll interpolate between the base waypoints to get 2x density for joint 1
+            enhanced_waypoints = []
+            enhanced_timestamps = []
+            
+            for i in range(num_waypoints):
+                # Add the original waypoint
+                waypoint = base_trajectory[i].copy()
+                time_stamp = i * duration / (num_waypoints - 1)
+                enhanced_waypoints.append(waypoint)
+                enhanced_timestamps.append(time_stamp)
+                
+                # Add an intermediate waypoint (except for the last waypoint)
+                if i < num_waypoints - 1:
+                    # Create intermediate waypoint with interpolated joint 1, others unchanged
+                    next_waypoint = base_trajectory[i + 1]
+                    intermediate_waypoint = waypoint.copy()
+                    
+                    # Interpolate only joint 1 (index 0) to the midpoint
+                    intermediate_waypoint[0] = (waypoint[0] + next_waypoint[0]) / 2.0
+                    
+                    # Add intermediate timestamp
+                    intermediate_time = time_stamp + (duration / (num_waypoints - 1)) / 2.0
+                    enhanced_waypoints.append(intermediate_waypoint)
+                    enhanced_timestamps.append(intermediate_time)
+            
+            # Convert to numpy array for consistency
+            trajectory = np.array(enhanced_waypoints)
+            timestamps = enhanced_timestamps
+            actual_waypoints = len(enhanced_waypoints)
+            
+            print(f"✅ Enhanced trajectory generated successfully!")
+            print(f"   📊 Base waypoints: {num_waypoints} → Enhanced waypoints: {actual_waypoints}")
             print(f"   📊 Shape: {trajectory.shape} (waypoints x joints)")
-            print(f"   ⏱️  Time step: {duration/(num_waypoints-1):.3f} seconds")
+            print(f"   ⏱️  Time step: variable (denser for joint 1)")
+            print(f"   🎯 Joint 1 interpolation: {num_waypoints} → {actual_waypoints} points")
             
             # Execute trajectory
-            print(f"\n🎬 Executing trajectory...")
+            print(f"\n🎬 Executing enhanced trajectory...")
             start_time = time.time()
             
             for i, (waypoint, target_time) in enumerate(zip(trajectory, timestamps)):
@@ -266,11 +306,11 @@ class PhosphobotJointController:
                     time.sleep(pause_between_waypoints)
                 
                 # Progress update
-                progress_interval = max(1, num_waypoints // 5)  # Avoid division by zero
-                if i % progress_interval == 0 or i == num_waypoints - 1:
-                    progress = (i + 1) / num_waypoints * 100
+                progress_interval = max(1, actual_waypoints // 5)  # Avoid division by zero
+                if i % progress_interval == 0 or i == actual_waypoints - 1:
+                    progress = (i + 1) / actual_waypoints * 100
                     actual_time = time.time() - start_time
-                    print(f"   📊 Progress: {progress:3.0f}% (waypoint {i+1}/{num_waypoints}, t={actual_time:.1f}s)")
+                    print(f"   📊 Progress: {progress:3.0f}% (waypoint {i+1}/{actual_waypoints}, t={actual_time:.1f}s)")
             
             # Verify final position
             print(f"\n📖 Verifying final position...")
