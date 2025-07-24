@@ -56,14 +56,35 @@ class ColorOptimizer:
         
     def add_measurement(self, ratios: Dict[str, float], measured_rgb: Tuple[int, int, int]):
         """Add a measurement to the history"""
+        distance = self._calculate_color_distance(measured_rgb, self.target_color) if self.target_color else 0
+        
         measurement = {
             'timestamp': datetime.now().isoformat(),
             'ratios': ratios.copy(),
             'measured_rgb': measured_rgb,
-            'distance_to_target': self._calculate_color_distance(measured_rgb, self.target_color) if self.target_color else 0
+            'distance_to_target': distance
         }
         self.history.append(measurement)
-        logger.info(f"📊 Added measurement: ratios={ratios}, RGB={measured_rgb}, distance={measurement['distance_to_target']:.2f}")
+        
+        # Enhanced logging with optimization insights
+        improvement_msg = ""
+        if len(self.history) > 1:
+            prev_distance = self.history[-2]['distance_to_target']
+            improvement = prev_distance - distance
+            improvement_pct = (improvement / prev_distance) * 100 if prev_distance > 0 else 0
+            improvement_msg = f", improvement: {improvement:+.2f} ({improvement_pct:+.1f}%)"
+            
+            # Track if we found a new best
+            best_so_far = min(h['distance_to_target'] for h in self.history[:-1])
+            if distance < best_so_far:
+                improvement_msg += " 🎯 NEW BEST!"
+        
+        logger.info(f"📊 Added measurement: ratios={ratios}, RGB={measured_rgb}, distance={distance:.2f}{improvement_msg}")
+        
+        # Log optimization status every few measurements
+        if len(self.history) % 3 == 0:
+            stats = self.get_statistics()
+            logger.info(f"🔍 Optimization status: {stats['convergence_status']}, diversity: {stats['ratio_diversity']:.3f}, efficiency: {stats['optimization_efficiency']:.1%}")
         
     def _calculate_color_distance(self, rgb1: Tuple[int, int, int], rgb2: Tuple[int, int, int]) -> float:
         """Calculate Euclidean distance between two RGB colors"""
@@ -101,15 +122,88 @@ class ColorOptimizer:
             logger.info("📝 No history available, using smart initial guess")
             return self._get_initial_guess()
             
+        # Check if optimization appears stuck (recommending very similar ratios)
+        if len(self.history) >= 3 and self._is_optimization_stuck():
+            logger.info("🔄 Optimization appears stuck, injecting exploration")
+            return self._inject_exploration()
+            
         if not ML_AVAILABLE:
             logger.warning("⚠️  ML not available, using heuristic approach")
-            return self._heuristic_recommendation()
+            return self._enhanced_heuristic_recommendation()
             
         try:
             return self._bayesian_optimization()
         except Exception as e:
             logger.error(f"❌ Bayesian optimization failed: {e}")
-            return self._heuristic_recommendation()
+            return self._enhanced_heuristic_recommendation()
+            
+    def _is_optimization_stuck(self) -> bool:
+        """Check if recent recommendations are too similar (indicating convergence/stagnation)"""
+        if len(self.history) < 3:
+            return False
+            
+        # Check last 3 recommendations for similarity
+        recent_ratios = [h['ratios'] for h in self.history[-3:]]
+        
+        # Calculate variance in ratios
+        for color in ['red', 'yellow', 'blue']:
+            values = [r[color] for r in recent_ratios]
+            variance = np.var(values) if ML_AVAILABLE else sum((x - sum(values)/len(values))**2 for x in values) / len(values)
+            if variance > 0.01:  # If any color has significant variance, not stuck
+                return False
+                
+        # Also check if distances aren't improving
+        recent_distances = [h['distance_to_target'] for h in self.history[-3:]]
+        improvement = max(recent_distances) - min(recent_distances)
+        relative_improvement = improvement / (max(recent_distances) + 1e-6)
+        
+        is_stuck = relative_improvement < 0.05  # Less than 5% improvement range
+        if is_stuck:
+            logger.info(f"🚫 Optimization stuck: ratio_variance_low=True, improvement={relative_improvement:.3f}")
+        
+        return is_stuck
+        
+    def _inject_exploration(self) -> Dict[str, float]:
+        """Inject exploration when optimization is stuck"""
+        # Get the best point so far
+        best_measurement = min(self.history, key=lambda x: x['distance_to_target'])
+        best_ratios = best_measurement['ratios'].copy()
+        
+        # Apply large perturbation to break out of local optimum
+        exploration_strength = 0.8  # Large perturbation
+        
+        # Choose random exploration strategy
+        strategy = random.choice(['random_walk', 'opposite_direction', 'dimension_focus'])
+        
+        if strategy == 'random_walk':
+            # Random walk from best point
+            for color in ['red', 'yellow', 'blue']:
+                perturbation = random.uniform(-exploration_strength, exploration_strength)
+                best_ratios[color] = max(0.1, best_ratios[color] * (1 + perturbation))
+                
+        elif strategy == 'opposite_direction':
+            # Try opposite direction from recent trend
+            if len(self.history) >= 2:
+                prev_ratios = self.history[-2]['ratios']
+                for color in ['red', 'yellow', 'blue']:
+                    trend = best_ratios[color] - prev_ratios[color]
+                    # Go opposite direction with amplification
+                    best_ratios[color] = max(0.1, best_ratios[color] - 2 * trend)
+                    
+        else:  # dimension_focus
+            # Focus exploration on one dimension
+            focus_color = random.choice(['red', 'yellow', 'blue'])
+            for color in ['red', 'yellow', 'blue']:
+                if color == focus_color:
+                    # Large change in focus dimension
+                    best_ratios[color] *= random.uniform(0.3, 3.0)
+                else:
+                    # Small changes in other dimensions
+                    best_ratios[color] *= random.uniform(0.8, 1.2)
+                best_ratios[color] = max(0.1, best_ratios[color])
+        
+        logger.info(f"🚀 Injecting exploration (strategy={strategy}): {best_ratios}")
+        return self._normalize_ratios(best_ratios)
             
     def _get_random_ratios(self) -> Dict[str, float]:
         """Generate random ratios for initial exploration"""
@@ -171,51 +265,156 @@ class ColorOptimizer:
         X = np.array([self._ratios_to_array(h['ratios']) for h in self.history])
         y = np.array([h['distance_to_target'] for h in self.history])
         
-        # Train Gaussian Process
-        self.gp_model = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-6, normalize_y=True)
-        self.gp_model.fit(X, y)
+        # Add noise to avoid numerical issues with identical points
+        X_noise = X + np.random.normal(0, 1e-6, X.shape)
         
-        # Acquisition function: Expected Improvement
+        # Train Gaussian Process with better hyperparameters
+        kernel = ConstantKernel(1.0, constant_value_bounds=(1e-3, 1e3)) * RBF(
+            length_scale=1.0, length_scale_bounds=(1e-2, 1e2)
+        )
+        self.gp_model = GaussianProcessRegressor(
+            kernel=kernel, 
+            alpha=1e-4,  # Increased noise parameter
+            normalize_y=True,
+            n_restarts_optimizer=5  # Better hyperparameter optimization
+        )
+        self.gp_model.fit(X_noise, y)
+        
+        # Current best (minimum distance)
+        f_best = np.min(y)
+        
+        # Enhanced acquisition function with adaptive exploration
         def acquisition_function(x):
             x = x.reshape(1, -1)
             mu, sigma = self.gp_model.predict(x, return_std=True)
             
-            # Current best (minimum distance)
-            f_best = np.min(y)
+            # Adaptive exploration parameter based on optimization progress
+            # Start with high exploration, reduce as we get better results
+            base_xi = 0.1  # Increased from 0.01
+            progress_factor = max(0.01, f_best / (np.max(y) + 1e-6))  # How much improvement we've made
+            xi = base_xi * (1 + progress_factor)  # More exploration when progress is slow
             
-            # Expected Improvement
-            xi = 0.01  # exploration parameter
+            # Expected Improvement with enhanced exploration
             improvement = f_best - mu - xi
             Z = improvement / (sigma + 1e-9)
             
             ei = improvement * norm.cdf(Z) + sigma * norm.pdf(Z)
-            return -ei[0]  # Minimize negative EI
             
-        # Optimize acquisition function
+            # Add pure exploration term to encourage diversity
+            exploration_bonus = 0.1 * sigma  # Bonus for high uncertainty areas
+            
+            return -(ei[0] + exploration_bonus)  # Minimize negative EI + exploration
+            
+        # Enhanced optimization with more comprehensive search
         best_x = None
         best_ei = float('inf')
         
-        # Try multiple random starting points
-        for _ in range(10):
-            x0 = np.random.uniform(0.1, 5.0, 3)
+        # Multiple optimization strategies
+        
+        # Strategy 1: Random starts with wider bounds
+        for _ in range(20):  # Increased from 10
+            x0 = np.random.uniform(0.05, 8.0, 3)  # Wider search space
             
             result = minimize(
                 acquisition_function,
                 x0,
                 method='L-BFGS-B',
-                bounds=[(0.1, 5.0), (0.1, 5.0), (0.1, 5.0)]
+                bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]  # Wider bounds
             )
             
             if result.success and result.fun < best_ei:
                 best_ei = result.fun
                 best_x = result.x
                 
+        # Strategy 2: Grid-based initialization for better coverage
+        grid_points = np.linspace(0.1, 5.0, 5)
+        for r in grid_points[::2]:  # Sparse grid to avoid too many evaluations
+            for y in grid_points[::2]:
+                for b in grid_points[::2]:
+                    x0 = np.array([r, y, b])
+                    
+                    result = minimize(
+                        acquisition_function,
+                        x0,
+                        method='L-BFGS-B',
+                        bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]
+                    )
+                    
+                    if result.success and result.fun < best_ei:
+                        best_ei = result.fun
+                        best_x = result.x
+        
+        # Strategy 3: Explore around previous best points
+        if len(self.history) >= 3:
+            # Get top 3 best points
+            sorted_history = sorted(self.history, key=lambda x: x['distance_to_target'])[:3]
+            for measurement in sorted_history:
+                base_ratios = self._ratios_to_array(measurement['ratios'])
+                
+                # Try variations around best points
+                for _ in range(3):
+                    perturbation = np.random.normal(0, 0.5, 3)  # Larger perturbation
+                    x0 = np.clip(base_ratios + perturbation, 0.05, 8.0)
+                    
+                    result = minimize(
+                        acquisition_function,
+                        x0,
+                        method='L-BFGS-B',
+                        bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]
+                    )
+                    
+                    if result.success and result.fun < best_ei:
+                        best_ei = result.fun
+                        best_x = result.x
+                
         if best_x is not None:
             recommended_ratios = self._array_to_ratios(best_x)
-            return self._normalize_ratios(recommended_ratios)
+            normalized_ratios = self._normalize_ratios(recommended_ratios)
+            
+            logger.info(f"🔍 Bayesian optimization: raw={recommended_ratios}, normalized={normalized_ratios}")
+            logger.info(f"🔍 Acquisition value: {best_ei:.6f}, Current best distance: {f_best:.2f}")
+            
+            return normalized_ratios
         else:
-            logger.warning("⚠️  Optimization failed, using heuristic fallback")
-            return self._heuristic_recommendation()
+            logger.warning("⚠️  All optimization attempts failed, using enhanced heuristic fallback")
+            return self._enhanced_heuristic_recommendation()
+            
+    def _enhanced_heuristic_recommendation(self) -> Dict[str, float]:
+        """Enhanced heuristic recommendation with better exploration"""
+        if len(self.history) == 0:
+            return self._get_initial_guess()
+            
+        # Find the best few results, not just the single best
+        sorted_history = sorted(self.history, key=lambda x: x['distance_to_target'])
+        
+        if len(sorted_history) >= 3:
+            # Weighted combination of top 3 results
+            weights = [0.5, 0.3, 0.2]  # Higher weight for better results
+            combined_ratios = {'red': 0, 'yellow': 0, 'blue': 0}
+            
+            for i, measurement in enumerate(sorted_history[:3]):
+                for color in ['red', 'yellow', 'blue']:
+                    combined_ratios[color] += weights[i] * measurement['ratios'][color]
+        else:
+            # Use best result as base
+            combined_ratios = sorted_history[0]['ratios'].copy()
+        
+        # Add adaptive exploration based on convergence
+        recent_distances = [h['distance_to_target'] for h in self.history[-5:]]
+        if len(recent_distances) >= 3:
+            improvement_rate = (max(recent_distances) - min(recent_distances)) / max(1, max(recent_distances))
+            exploration_factor = max(0.1, 0.8 * (1 - improvement_rate))  # More exploration if not improving
+        else:
+            exploration_factor = 0.4
+        
+        # Apply exploration with bias toward promising directions
+        for color in ['red', 'yellow', 'blue']:
+            # Random perturbation with exploration factor
+            perturbation = random.uniform(-exploration_factor, exploration_factor)
+            combined_ratios[color] = max(0.1, combined_ratios[color] * (1 + perturbation))
+            
+        logger.info(f"🎲 Enhanced heuristic: exploration_factor={exploration_factor:.2f}")
+        return self._normalize_ratios(combined_ratios)
             
     def get_statistics(self) -> Dict:
         """Get optimization statistics"""
@@ -224,10 +423,37 @@ class ColorOptimizer:
                 'total_attempts': 0,
                 'best_distance': None,
                 'average_distance': None,
-                'improvement_trend': []
+                'improvement_trend': [],
+                'convergence_status': 'no_data'
             }
             
         distances = [h['distance_to_target'] for h in self.history]
+        
+        # Calculate convergence metrics
+        convergence_status = 'exploring'
+        if len(distances) >= 5:
+            recent_improvement = (max(distances[-5:]) - min(distances[-5:])) / (max(distances[-5:]) + 1e-6)
+            if recent_improvement < 0.05:
+                convergence_status = 'converged' if self._is_optimization_stuck() else 'converging'
+            elif len(distances) >= 10:
+                overall_improvement = (max(distances[:5]) - min(distances[-5:])) / (max(distances[:5]) + 1e-6)
+                if overall_improvement > 0.3:
+                    convergence_status = 'improving'
+        
+        # Calculate ratio diversity (how much we're exploring)
+        ratio_diversity = 0.0
+        if len(self.history) >= 2:
+            recent_ratios = [h['ratios'] for h in self.history[-5:]] if len(self.history) >= 5 else [h['ratios'] for h in self.history]
+            color_variances = []
+            for color in ['red', 'yellow', 'blue']:
+                values = [r[color] for r in recent_ratios]
+                if ML_AVAILABLE:
+                    variance = np.var(values)
+                else:
+                    mean_val = sum(values) / len(values)
+                    variance = sum((x - mean_val)**2 for x in values) / len(values)
+                color_variances.append(variance)
+            ratio_diversity = sum(color_variances) / len(color_variances)
         
         return {
             'total_attempts': len(self.history),
@@ -235,7 +461,11 @@ class ColorOptimizer:
             'average_distance': np.mean(distances) if ML_AVAILABLE else sum(distances) / len(distances),
             'current_distance': distances[-1],
             'improvement_trend': distances,
-            'target_rgb': self.target_color
+            'target_rgb': self.target_color,
+            'convergence_status': convergence_status,
+            'ratio_diversity': ratio_diversity,
+            'recent_improvement': (distances[0] - distances[-1]) / (distances[0] + 1e-6) if len(distances) > 1 else 0,
+            'optimization_efficiency': len([d for d in distances if d < distances[0] * 0.8]) / len(distances) if len(distances) > 1 else 0
         }
 
 def generate_random_target_color() -> Tuple[int, int, int]:
