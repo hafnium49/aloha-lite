@@ -66,7 +66,8 @@ async def proxy_robot_service(request: Request, path: str):
     if request.query_params:
         url += "?" + str(request.query_params)
     
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # Use longer timeout for robot operations (6+ minutes for laboratory procedures)
+    async with httpx.AsyncClient(timeout=400.0) as client:
         try:
             # Get request body if present
             body = await request.body() if request.method in ["POST", "PUT"] else None
