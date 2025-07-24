@@ -166,11 +166,12 @@ class SequentialRobotExecutor:
         """Execute a special function based on the step description."""
         step_lower = step.lower()
         
-        # Pattern for squeeze bottle functions
+        # Pattern for squeeze bottle functions - ordered from most specific to least specific
         squeeze_patterns = [
-            r"squeeze.*bottle.*for.*(\d+\.?\d*)\s*seconds?",
-            r"squeeze.*washing.*bottle.*(\d+\.?\d*)",
-            r"squeeze.*(\d+\.?\d*)"
+            r"squeeze.*(?:washing\s*)?bottle.*for\s*(\d+\.?\d*)\s*seconds?",  # "squeeze [washing] bottle for X seconds"
+            r"squeeze.*washing.*bottle.*?(\d+\.?\d*)\s*(?:seconds?|s)?\s*$",  # "squeeze washing bottle X [seconds]" at end
+            r"squeeze.*bottle.*?(\d+\.?\d*)\s*(?:seconds?|s)?\s*$",           # "squeeze bottle X [seconds]" at end  
+            r"squeeze.*?(\d+\.?\d*)\s*(?:seconds?|s)?\s*$"                    # "squeeze X [seconds]" at end
         ]
         
         # Pattern for await/wait/pause/delay functions
