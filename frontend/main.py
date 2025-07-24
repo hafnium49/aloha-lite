@@ -1,18 +1,36 @@
 #!/usr/bin/env python3
 """
-Frontend FastAPI Server
+Frontend FastAPI Server with ML-based Color Optimization
 
-A simple FastAPI server that serves the frontend HTML interface and acts as a proxy 
-to the robot service and vision bridge to avoid CORS issues.
+A FastAPI server that serves the frontend HTML interface, acts as a proxy 
+to the robot service and vision bridge, and provides ML-powered color 
+optimization using Bayesian optimization for color mixing recommendations.
 """
 
 import os
+import json
+import random
+import numpy as np
+from datetime import datetime
+from typing import List, Tuple, Dict, Optional
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import logging
+
+# Machine Learning imports
+try:
+    from scipy.optimize import minimize
+    from scipy.spatial.distance import euclidean
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+    from scipy.stats import norm
+    ML_AVAILABLE = True
+except ImportError:
+    print("⚠️  ML libraries not available. Install with: pip install scipy scikit-learn")
+    ML_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +39,227 @@ logger = logging.getLogger(__name__)
 # Configuration
 ROBOT_SERVICE_URL = os.getenv("ROBOT_SERVICE_URL", "http://localhost:8000")
 VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
+
+class ColorOptimizer:
+    """Bayesian optimization-based color mixing optimizer"""
+    
+    def __init__(self):
+        self.history: List[Dict] = []
+        self.target_color: Optional[Tuple[int, int, int]] = None
+        self.gp_model = None
+        self.kernel = ConstantKernel(1.0) * RBF(length_scale=1.0) if ML_AVAILABLE else None
+        
+    def set_target_color(self, rgb: Tuple[int, int, int]):
+        """Set the target color for optimization"""
+        self.target_color = rgb
+        logger.info(f"🎯 Target color set to RGB{rgb}")
+        
+    def add_measurement(self, ratios: Dict[str, float], measured_rgb: Tuple[int, int, int]):
+        """Add a measurement to the history"""
+        measurement = {
+            'timestamp': datetime.now().isoformat(),
+            'ratios': ratios.copy(),
+            'measured_rgb': measured_rgb,
+            'distance_to_target': self._calculate_color_distance(measured_rgb, self.target_color) if self.target_color else 0
+        }
+        self.history.append(measurement)
+        logger.info(f"📊 Added measurement: ratios={ratios}, RGB={measured_rgb}, distance={measurement['distance_to_target']:.2f}")
+        
+    def _calculate_color_distance(self, rgb1: Tuple[int, int, int], rgb2: Tuple[int, int, int]) -> float:
+        """Calculate Euclidean distance between two RGB colors"""
+        return euclidean(rgb1, rgb2)
+        
+    def _ratios_to_array(self, ratios: Dict[str, float]) -> np.ndarray:
+        """Convert ratio dict to numpy array [red, yellow, blue]"""
+        return np.array([ratios.get('red', 0), ratios.get('yellow', 0), ratios.get('blue', 0)])
+        
+    def _array_to_ratios(self, arr: np.ndarray) -> Dict[str, float]:
+        """Convert numpy array to ratio dict"""
+        return {'red': float(arr[0]), 'yellow': float(arr[1]), 'blue': float(arr[2])}
+        
+    def _normalize_ratios(self, ratios: Dict[str, float]) -> Dict[str, float]:
+        """Normalize ratios to sum to a reasonable total (3.0 for balanced mixing)"""
+        total = sum(ratios.values())
+        if total == 0:
+            return {'red': 1.0, 'yellow': 1.0, 'blue': 1.0}
+        
+        # Scale to sum to 3.0 for reasonable mixing ratios
+        scale_factor = 3.0 / total
+        return {
+            'red': ratios['red'] * scale_factor,
+            'yellow': ratios['yellow'] * scale_factor,
+            'blue': ratios['blue'] * scale_factor
+        }
+        
+    def recommend_next_ratios(self) -> Dict[str, float]:
+        """Use Bayesian optimization to recommend next color ratios"""
+        if not self.target_color:
+            logger.warning("⚠️  No target color set, using random ratios")
+            return self._get_random_ratios()
+            
+        if len(self.history) == 0:
+            logger.info("📝 No history available, using smart initial guess")
+            return self._get_initial_guess()
+            
+        if not ML_AVAILABLE:
+            logger.warning("⚠️  ML not available, using heuristic approach")
+            return self._heuristic_recommendation()
+            
+        try:
+            return self._bayesian_optimization()
+        except Exception as e:
+            logger.error(f"❌ Bayesian optimization failed: {e}")
+            return self._heuristic_recommendation()
+            
+    def _get_random_ratios(self) -> Dict[str, float]:
+        """Generate random ratios for initial exploration"""
+        ratios = {
+            'red': random.uniform(0.1, 3.0),
+            'yellow': random.uniform(0.1, 3.0),
+            'blue': random.uniform(0.1, 3.0)
+        }
+        return self._normalize_ratios(ratios)
+        
+    def _get_initial_guess(self) -> Dict[str, float]:
+        """Generate intelligent initial guess based on target color"""
+        if not self.target_color:
+            return self._get_random_ratios()
+            
+        r, g, b = self.target_color
+        
+        # Simple color-to-ratio mapping heuristic
+        # This is a rough approximation of how RGB maps to pigment mixing
+        red_ratio = max(0.1, (r / 255.0) * 2.0)
+        yellow_ratio = max(0.1, (g / 255.0) * 2.0)
+        blue_ratio = max(0.1, (b / 255.0) * 2.0)
+        
+        # Adjust for common color mixing rules
+        if r > g and r > b:  # Red dominant
+            red_ratio *= 1.5
+        elif g > r and g > b:  # Green/Yellow dominant
+            yellow_ratio *= 1.5
+            red_ratio *= 0.8  # Red + Yellow = Orange/Green
+        elif b > r and b > g:  # Blue dominant
+            blue_ratio *= 1.5
+            
+        ratios = {'red': red_ratio, 'yellow': yellow_ratio, 'blue': blue_ratio}
+        return self._normalize_ratios(ratios)
+        
+    def _heuristic_recommendation(self) -> Dict[str, float]:
+        """Heuristic-based recommendation when ML is not available"""
+        if len(self.history) == 0:
+            return self._get_initial_guess()
+            
+        # Find the best previous result
+        best_measurement = min(self.history, key=lambda x: x['distance_to_target'])
+        best_ratios = best_measurement['ratios'].copy()
+        
+        # Add some exploration around the best result
+        exploration_factor = 0.3
+        for color in ['red', 'yellow', 'blue']:
+            perturbation = random.uniform(-exploration_factor, exploration_factor)
+            best_ratios[color] = max(0.1, best_ratios[color] * (1 + perturbation))
+            
+        return self._normalize_ratios(best_ratios)
+        
+    def _bayesian_optimization(self) -> Dict[str, float]:
+        """Bayesian optimization using Gaussian Process"""
+        if len(self.history) < 2:
+            return self._get_initial_guess()
+            
+        # Prepare training data
+        X = np.array([self._ratios_to_array(h['ratios']) for h in self.history])
+        y = np.array([h['distance_to_target'] for h in self.history])
+        
+        # Train Gaussian Process
+        self.gp_model = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-6, normalize_y=True)
+        self.gp_model.fit(X, y)
+        
+        # Acquisition function: Expected Improvement
+        def acquisition_function(x):
+            x = x.reshape(1, -1)
+            mu, sigma = self.gp_model.predict(x, return_std=True)
+            
+            # Current best (minimum distance)
+            f_best = np.min(y)
+            
+            # Expected Improvement
+            xi = 0.01  # exploration parameter
+            improvement = f_best - mu - xi
+            Z = improvement / (sigma + 1e-9)
+            
+            ei = improvement * norm.cdf(Z) + sigma * norm.pdf(Z)
+            return -ei[0]  # Minimize negative EI
+            
+        # Optimize acquisition function
+        best_x = None
+        best_ei = float('inf')
+        
+        # Try multiple random starting points
+        for _ in range(10):
+            x0 = np.random.uniform(0.1, 5.0, 3)
+            
+            result = minimize(
+                acquisition_function,
+                x0,
+                method='L-BFGS-B',
+                bounds=[(0.1, 5.0), (0.1, 5.0), (0.1, 5.0)]
+            )
+            
+            if result.success and result.fun < best_ei:
+                best_ei = result.fun
+                best_x = result.x
+                
+        if best_x is not None:
+            recommended_ratios = self._array_to_ratios(best_x)
+            return self._normalize_ratios(recommended_ratios)
+        else:
+            logger.warning("⚠️  Optimization failed, using heuristic fallback")
+            return self._heuristic_recommendation()
+            
+    def get_statistics(self) -> Dict:
+        """Get optimization statistics"""
+        if len(self.history) == 0:
+            return {
+                'total_attempts': 0,
+                'best_distance': None,
+                'average_distance': None,
+                'improvement_trend': []
+            }
+            
+        distances = [h['distance_to_target'] for h in self.history]
+        
+        return {
+            'total_attempts': len(self.history),
+            'best_distance': min(distances),
+            'average_distance': np.mean(distances) if ML_AVAILABLE else sum(distances) / len(distances),
+            'current_distance': distances[-1],
+            'improvement_trend': distances,
+            'target_rgb': self.target_color
+        }
+
+def generate_random_target_color() -> Tuple[int, int, int]:
+    """Generate a random target color that's achievable with RGB pigments"""
+    # Generate colors that are more likely to be achievable with pigment mixing
+    color_profiles = [
+        # Red-based colors
+        (random.randint(150, 255), random.randint(0, 100), random.randint(0, 100)),
+        # Yellow-based colors  
+        (random.randint(200, 255), random.randint(200, 255), random.randint(0, 50)),
+        # Blue-based colors
+        (random.randint(0, 100), random.randint(0, 100), random.randint(150, 255)),
+        # Purple colors (red + blue)
+        (random.randint(100, 200), random.randint(0, 100), random.randint(100, 200)),
+        # Orange colors (red + yellow)
+        (random.randint(200, 255), random.randint(100, 200), random.randint(0, 50)),
+        # Green colors (yellow + blue)
+        (random.randint(0, 100), random.randint(150, 255), random.randint(50, 150)),
+    ]
+    
+    return random.choice(color_profiles)
+
+# Global optimizer instance
+color_optimizer = ColorOptimizer()
 
 app = FastAPI(
     title="Aloha Lite Frontend",
@@ -53,7 +292,80 @@ async def health_check():
         "status": "healthy",
         "service": "frontend",
         "robot_service": ROBOT_SERVICE_URL,
-        "vision_service": VISION_SERVICE_URL
+        "vision_service": VISION_SERVICE_URL,
+        "ml_available": ML_AVAILABLE
+    }
+
+@app.get("/api/target-color")
+async def get_target_color():
+    """Generate new random target color"""
+    rgb = generate_random_target_color()
+    color_optimizer.set_target_color(rgb)
+    
+    return {
+        'status': 'success',
+        'target_rgb': rgb,
+        'target_hex': f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+    }
+
+@app.post("/api/target-color")
+async def set_target_color(request: Request):
+    """Set specific target color"""
+    data = await request.json()
+    rgb = tuple(data.get('rgb', [255, 0, 0]))
+    color_optimizer.set_target_color(rgb)
+    
+    return {
+        'status': 'success',
+        'target_rgb': rgb,
+        'target_hex': f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+    }
+
+@app.post("/api/recommend-ratios")
+async def recommend_ratios(request: Request):
+    """Get ML-based color ratio recommendations"""
+    try:
+        data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+        
+        # If measurement data is provided, add it to history
+        if 'measured_rgb' in data and 'ratios' in data:
+            measured_rgb = tuple(data['measured_rgb'])
+            ratios = data['ratios']
+            color_optimizer.add_measurement(ratios, measured_rgb)
+        
+        # Get recommendation
+        recommended_ratios = color_optimizer.recommend_next_ratios()
+        stats = color_optimizer.get_statistics()
+        
+        return {
+            'status': 'success',
+            'recommended_ratios': recommended_ratios,
+            'statistics': stats,
+            'ml_available': ML_AVAILABLE
+        }
+        
+    except Exception as e:
+        logger.error(f"Recommendation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
+
+@app.get("/api/optimization-history")
+async def optimization_history():
+    """Get the full optimization history"""
+    return {
+        'status': 'success',
+        'history': color_optimizer.history,
+        'statistics': color_optimizer.get_statistics()
+    }
+
+@app.post("/api/reset-optimization")
+async def reset_optimization():
+    """Reset the optimization history"""
+    color_optimizer.history.clear()
+    color_optimizer.gp_model = None
+    
+    return {
+        'status': 'success',
+        'message': 'Optimization history reset'
     }
 
 @app.api_route("/robot/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
@@ -197,4 +509,18 @@ async def system_status():
 
 if __name__ == "__main__":
     import uvicorn
+    
+    logger.info("🎨 Starting Color Optimization Frontend Server")
+    logger.info(f"🤖 Robot Service: {ROBOT_SERVICE_URL}")
+    logger.info(f"👁️  Vision Service: {VISION_SERVICE_URL}")
+    logger.info(f"🧠 ML Available: {ML_AVAILABLE}")
+    
+    if not ML_AVAILABLE:
+        logger.warning("💡 To enable ML features, install: pip install scipy scikit-learn")
+    
+    # Generate initial target color
+    initial_target = generate_random_target_color()
+    color_optimizer.set_target_color(initial_target)
+    logger.info(f"🎯 Initial target color: RGB{initial_target}")
+    
     uvicorn.run(app, host="0.0.0.0", port=3000)

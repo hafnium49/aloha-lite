@@ -20,11 +20,32 @@ img{max-width:100%}
 #analysis-visualization{max-width:100%;border:2px solid #007bff;border-radius:8px;margin-top:1rem}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
 .stat-item{padding:0.5rem;background:white;border:1px solid #ddd;border-radius:4px;text-align:center}
+
+/* Target Color Styles */
+.target-color{margin-bottom:2rem;padding:1rem;border:2px solid #ffc107;border-radius:8px;background:#fffbf0}
+
+/* ML Optimization Styles */
+.ml-optimization{margin-top:2rem;padding:1rem;border:2px solid #28a745;border-radius:8px;background:#f8fff8}
+#trend-canvas{max-width:100%}
+#ml-recommendations .color-ratio{margin:0.5rem 0}
 </style>
-<h1>色混合 + ビーカー分析</h1>
+<h1>色混合 + ビーカー分析 + ML最適化</h1>
+
+<!-- Target Color Section -->
+<section class="target-color">
+<h2>🎯 目標色</h2>
+<div id="target-color-display" style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+  <div id="target-color-swatch" style="width:60px;height:60px;border:3px solid #333;border-radius:8px;background:#ff0000"></div>
+  <div>
+    <div id="target-color-text" style="font-weight:bold;font-size:1.2em">RGB(255, 0, 0)</div>
+    <div id="target-color-hex" style="color:#666">#FF0000</div>
+  </div>
+  <button onclick="generateNewTarget()" style="margin-left:auto">新しい目標色を生成</button>
+</div>
+</section>
 
 <section>
-<h2>色混合</h2>
+<h2>色混合 - 現在の試行</h2>
 <label>色の比率（部分）</label>
 <div class="color-ratio">
   <span style="color:#dc3545">赤:</span>
@@ -87,6 +108,66 @@ img{max-width:100%}
     
     <img id="analysis-visualization" alt="分析の可視化がここに表示されます" style="display:none">
   </div>
+</div>
+</section>
+
+<!-- ML Optimization Section -->
+<section class="ml-optimization" style="margin-top:2rem;padding:1rem;border:2px solid #28a745;border-radius:8px;background:#f8fff8">
+<h2>🧠 ML最適化システム</h2>
+<div id="ml-status" style="margin-bottom:1rem">
+  <span id="ml-available-indicator" style="color:#28a745">✅ 機械学習が利用可能</span>
+</div>
+
+<div id="optimization-stats" style="display:none">
+  <h3>最適化統計</h3>
+  <div class="stats-grid">
+    <div class="stat-item">
+      <strong>試行回数</strong><br>
+      <span id="total-attempts">0</span>
+    </div>
+    <div class="stat-item">
+      <strong>最良距離</strong><br>
+      <span id="best-distance">-</span>
+    </div>
+    <div class="stat-item">
+      <strong>現在の距離</strong><br>
+      <span id="current-distance">-</span>
+    </div>
+    <div class="stat-item">
+      <strong>平均距離</strong><br>
+      <span id="average-distance">-</span>
+    </div>
+  </div>
+  
+  <div id="improvement-chart" style="margin-top:1rem">
+    <h4>改善傾向</h4>
+    <canvas id="trend-canvas" width="400" height="200" style="border:1px solid #ddd;border-radius:4px"></canvas>
+  </div>
+</div>
+
+<div id="ml-recommendations" style="margin-top:1rem">
+  <h3>🎯 次回推奨比率</h3>
+  <div id="recommended-ratios" style="display:none">
+    <div class="color-ratio">
+      <span style="color:#dc3545">推奨赤:</span>
+      <span id="rec-red-value">1.0</span>
+      <button onclick="applyRecommendation()" style="margin-left:1rem">推奨値を適用</button>
+    </div>
+    <div class="color-ratio">
+      <span style="color:#ffc107">推奨黄:</span>
+      <span id="rec-yellow-value">1.0</span>
+    </div>
+    <div class="color-ratio">
+      <span style="color:#007bff">推奨青:</span>
+      <span id="rec-blue-value">1.0</span>
+    </div>
+  </div>
+  <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
+</div>
+
+<div style="margin-top:1rem">
+  <button onclick="resetOptimization()" style="background:#dc3545;color:white">最適化履歴をリセット</button>
+  <button onclick="showOptimizationHistory()" style="margin-left:0.5rem">履歴を表示</button>
 </div>
 </section>
 
@@ -233,12 +314,14 @@ async function send(){
     }
     
     // Check for beaker analysis results one more time after completion
+    let finalAnalysisResults = null
     try {
       let analysisResp = await fetch('/robot/'+cmd_id+'/beaker-analysis')
       if (analysisResp.ok) {
         let analysisData = await analysisResp.json()
         log('🧪 専用エンドポイントからビーカー分析結果を取得しました')
-        displayAnalysisResults(analysisData.analysis_results)
+        finalAnalysisResults = analysisData.analysis_results
+        displayAnalysisResults(finalAnalysisResults)
       } else if (analysisResp.status === 404) {
         log('ビーカー分析結果が見つかりませんでした（分析が実行されなかった場合は正常です）')
         displayAnalysisResults(null) // Show "no results" message
@@ -249,6 +332,40 @@ async function send(){
       // Analysis results not available, that's okay
       log('ビーカー分析結果の取得中にエラーが発生しました: ' + e.message)
       displayAnalysisResults(null) // Show "no results" message
+    }
+    
+    // Send measurement data to ML optimizer if we have beaker analysis results
+    if (finalAnalysisResults && finalAnalysisResults.dominant_color && finalAnalysisResults.dominant_color.rgb) {
+      try {
+        const measuredRgb = finalAnalysisResults.dominant_color.rgb
+        const ratios = {
+          red: redRatio,
+          yellow: yellowRatio,
+          blue: blueRatio
+        }
+        
+        log(`🧠 ML最適化に測定結果を送信中: RGB(${measuredRgb.join(', ')})`)
+        
+        const mlResponse = await fetch('/api/recommend-ratios', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            measured_rgb: measuredRgb,
+            ratios: ratios
+          })
+        })
+        
+        if (mlResponse.ok) {
+          const mlData = await mlResponse.json()
+          if (mlData.status === 'success') {
+            displayRecommendation(mlData.recommended_ratios)
+            updateOptimizationStats(mlData.statistics)
+            log('🎯 次回推奨比率が更新されました')
+          }
+        }
+      } catch (mlError) {
+        log('ML最適化の更新エラー: ' + mlError.message)
+      }
     }
     
     // fetch snapshot with timeout
@@ -275,9 +392,221 @@ function log(txt){
 }
 
 // Initialize preview on page load
-window.onload = function() {
+window.onload = async function() {
   updatePreview()
-  log('色混合 + ビーカー分析が初期化されました')
+  log('色混合 + ビーカー分析 + ML最適化が初期化されました')
+  
+  // Load initial target color and check ML availability
+  await loadTargetColor()
+  await checkMLAvailability()
+  await getRecommendation()
+}
+
+// ML Optimization Functions
+async function loadTargetColor() {
+  try {
+    const response = await fetch('/api/target-color')
+    const data = await response.json()
+    
+    if (data.status === 'success') {
+      updateTargetColorDisplay(data.target_rgb, data.target_hex)
+      log(`🎯 目標色が設定されました: ${data.target_hex}`)
+    }
+  } catch (e) {
+    log('目標色の読み込みエラー: ' + e.message)
+  }
+}
+
+async function generateNewTarget() {
+  try {
+    const response = await fetch('/api/target-color')
+    const data = await response.json()
+    
+    if (data.status === 'success') {
+      updateTargetColorDisplay(data.target_rgb, data.target_hex)
+      log(`🎯 新しい目標色: ${data.target_hex}`)
+      
+      // Reset optimization and get new recommendation
+      await resetOptimization()
+      await getRecommendation()
+    }
+  } catch (e) {
+    log('新しい目標色の生成エラー: ' + e.message)
+  }
+}
+
+function updateTargetColorDisplay(rgb, hex) {
+  document.getElementById('target-color-swatch').style.background = hex
+  document.getElementById('target-color-text').textContent = `RGB(${rgb.join(', ')})`
+  document.getElementById('target-color-hex').textContent = hex
+}
+
+async function checkMLAvailability() {
+  try {
+    const response = await fetch('/health')
+    const data = await response.json()
+    
+    const indicator = document.getElementById('ml-available-indicator')
+    if (data.ml_available) {
+      indicator.innerHTML = '✅ 機械学習（Bayesian最適化）が利用可能'
+      indicator.style.color = '#28a745'
+    } else {
+      indicator.innerHTML = '⚠️ 機械学習が無効（ヒューリスティック最適化を使用）'
+      indicator.style.color = '#ffc107'
+    }
+  } catch (e) {
+    log('ML可用性チェックエラー: ' + e.message)
+  }
+}
+
+async function getRecommendation() {
+  try {
+    const response = await fetch('/api/recommend-ratios', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({})
+    })
+    
+    const data = await response.json()
+    
+    if (data.status === 'success') {
+      displayRecommendation(data.recommended_ratios)
+      updateOptimizationStats(data.statistics)
+      log('🧠 ML推奨比率を取得しました')
+    }
+  } catch (e) {
+    log('推奨比率取得エラー: ' + e.message)
+  }
+}
+
+function displayRecommendation(ratios) {
+  document.getElementById('rec-red-value').textContent = ratios.red.toFixed(2)
+  document.getElementById('rec-yellow-value').textContent = ratios.yellow.toFixed(2)
+  document.getElementById('rec-blue-value').textContent = ratios.blue.toFixed(2)
+  document.getElementById('recommended-ratios').style.display = 'block'
+}
+
+function applyRecommendation() {
+  const redValue = parseFloat(document.getElementById('rec-red-value').textContent)
+  const yellowValue = parseFloat(document.getElementById('rec-yellow-value').textContent)
+  const blueValue = parseFloat(document.getElementById('rec-blue-value').textContent)
+  
+  document.getElementById('red-ratio').value = redValue
+  document.getElementById('yellow-ratio').value = yellowValue
+  document.getElementById('blue-ratio').value = blueValue
+  
+  updatePreview()
+  log('📝 推奨値を適用しました')
+}
+
+function updateOptimizationStats(stats) {
+  if (stats.total_attempts > 0) {
+    document.getElementById('optimization-stats').style.display = 'block'
+    document.getElementById('total-attempts').textContent = stats.total_attempts
+    document.getElementById('best-distance').textContent = stats.best_distance ? stats.best_distance.toFixed(1) : '-'
+    document.getElementById('current-distance').textContent = stats.current_distance ? stats.current_distance.toFixed(1) : '-'
+    document.getElementById('average-distance').textContent = stats.average_distance ? stats.average_distance.toFixed(1) : '-'
+    
+    // Draw improvement trend chart
+    drawTrendChart(stats.improvement_trend)
+  }
+}
+
+function drawTrendChart(trends) {
+  const canvas = document.getElementById('trend-canvas')
+  const ctx = canvas.getContext('2d')
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  
+  if (trends.length === 0) return
+  
+  // Calculate chart dimensions
+  const padding = 30
+  const chartWidth = canvas.width - 2 * padding
+  const chartHeight = canvas.height - 2 * padding
+  
+  // Find min/max values
+  const maxDistance = Math.max(...trends)
+  const minDistance = Math.min(...trends)
+  const range = maxDistance - minDistance || 1
+  
+  // Draw axes
+  ctx.strokeStyle = '#666'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(padding, padding)
+  ctx.lineTo(padding, padding + chartHeight)
+  ctx.lineTo(padding + chartWidth, padding + chartHeight)
+  ctx.stroke()
+  
+  // Draw trend line
+  if (trends.length > 1) {
+    ctx.strokeStyle = '#007bff'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    
+    trends.forEach((distance, index) => {
+      const x = padding + (index / (trends.length - 1)) * chartWidth
+      const y = padding + chartHeight - ((distance - minDistance) / range) * chartHeight
+      
+      if (index === 0) {
+        ctx.moveTo(x, y)
+      } else {
+        ctx.lineTo(x, y)
+      }
+    })
+    
+    ctx.stroke()
+    
+    // Draw points
+    ctx.fillStyle = '#007bff'
+    trends.forEach((distance, index) => {
+      const x = padding + (index / (trends.length - 1)) * chartWidth
+      const y = padding + chartHeight - ((distance - minDistance) / range) * chartHeight
+      
+      ctx.beginPath()
+      ctx.arc(x, y, 3, 0, 2 * Math.PI)
+      ctx.fill()
+    })
+  }
+  
+  // Add labels
+  ctx.fillStyle = '#333'
+  ctx.font = '12px Arial'
+  ctx.fillText('距離', 5, 20)
+  ctx.fillText('試行回数', canvas.width - 50, canvas.height - 5)
+}
+
+async function resetOptimization() {
+  try {
+    const response = await fetch('/api/reset-optimization', {method: 'POST'})
+    const data = await response.json()
+    
+    if (data.status === 'success') {
+      document.getElementById('optimization-stats').style.display = 'none'
+      log('🔄 最適化履歴をリセットしました')
+    }
+  } catch (e) {
+    log('最適化リセットエラー: ' + e.message)
+  }
+}
+
+async function showOptimizationHistory() {
+  try {
+    const response = await fetch('/api/optimization-history')
+    const data = await response.json()
+    
+    if (data.status === 'success') {
+      const historyText = data.history.map((h, i) => 
+        `試行${i+1}: R=${h.ratios.red.toFixed(2)} Y=${h.ratios.yellow.toFixed(2)} B=${h.ratios.blue.toFixed(2)} → 距離=${h.distance_to_target.toFixed(1)}`
+      ).join('\n')
+      
+      log('📊 最適化履歴:\n' + historyText)
+    }
+  } catch (e) {
+    log('履歴表示エラー: ' + e.message)
+  }
 }
 
 // Beaker Analysis Functions
