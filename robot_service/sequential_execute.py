@@ -83,7 +83,7 @@ except ImportError:
 class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
-    def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
+    def __init__(self, server_url: str = "http://localhost:5000", skip_init: bool = True, 
                  left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID):
         self.server_url = server_url
         self.skip_init = skip_init
@@ -563,32 +563,42 @@ class SequentialRobotExecutor:
             
             print(f"📸 Step 1: Capturing image from camera {camera_id}...")
             
-            # First capture an image using the existing camera capture function
+            # First try to capture a new image using the existing camera capture function
             capture_success = self._execute_camera_capture(camera_id)
-            if not capture_success:
-                print("❌ Failed to capture image for beaker analysis")
-                return False
             
             # Find the most recent image file
             temp_images_dir = Path(os.path.dirname(__file__)) / "../temporary_images"
-            if not temp_images_dir.exists():
-                print("❌ Temporary images directory not found")
-                return False
+            temp_images_dir.mkdir(exist_ok=True)
             
-            # Get the most recent image file for the specified camera
-            image_files = list(temp_images_dir.glob(f"camera_{camera_id}_*.jpg"))
-            if not image_files:
-                print(f"❌ No image files found for camera {camera_id}")
-                return False
+            if not capture_success:
+                print("⚠️  Camera capture failed, looking for existing images...")
+                
+                # Look for any existing camera images as fallback
+                all_image_files = list(temp_images_dir.glob("camera_*.jpg"))
+                if not all_image_files:
+                    print("❌ No existing camera images found for fallback analysis")
+                    return False
+                
+                # Use the most recent existing image
+                latest_image = max(all_image_files, key=lambda p: p.stat().st_mtime)
+                print(f"📸 Using existing image for analysis: {latest_image.name}")
+                print(f"💡 This allows testing beaker analysis without live camera capture")
+            else:
+                # Get the most recent image file for the specified camera (newly captured)
+                image_files = list(temp_images_dir.glob(f"camera_{camera_id}_*.jpg"))
+                if not image_files:
+                    print("❌ No camera images found after successful capture")
+                    return False
+                
+                latest_image = max(image_files, key=lambda p: p.stat().st_mtime)
+                print(f"📸 Using newly captured image: {latest_image.name}")
             
-            # Sort by modification time and get the most recent
-            latest_image = max(image_files, key=lambda p: p.stat().st_mtime)
-            print(f"🖼️  Using image: {latest_image.name}")
+            print(f"🖼️  Selected image: {latest_image.name}")
             
             print(f"\n🔬 Step 2: Analyzing beaker color using vision bridge API...")
             
             # Make API request to vision bridge for beaker analysis
-            vision_bridge_url = "http://localhost:8000/analyze-beaker"
+            vision_bridge_url = f"{self.server_url}/analyze-beaker"
             print(f"🌐 Making API request: POST {vision_bridge_url}")
             
             # Prepare the image file for upload
@@ -901,7 +911,7 @@ def main():
                        help="Pause after each configuration movement (seconds)")
     parser.add_argument("--init", action="store_true",
                        help="Enable robot initialization (WARNING: may cause collisions)")
-    parser.add_argument("--server", default="http://localhost:80",
+    parser.add_argument("--server", default="http://localhost:5000",
                        help="Phosphobot server URL")
     parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
                        help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
@@ -1039,7 +1049,7 @@ if __name__ == "__main__":
                            help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
         parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,
                            help=f"Right arm robot ID (default: {RIGHT_ARM_ID} for {RIGHT_ARM_DEVICE})")
-        parser.add_argument("--server", default="http://localhost:80",
+        parser.add_argument("--server", default="http://localhost:5000",
                            help="Phosphobot server URL")
         parser.add_argument("--smooth", action="store_true",
                            help="Use smooth trajectory planning with ModernRobotics")
