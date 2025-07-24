@@ -1,175 +1,577 @@
 <!DOCTYPE html><html lang="ja"><meta charset="utf-8">
 <title>色混合コンソール</title>
 <style>
-body{font-family:Arial,Helvetica,sans-serif;margin:2rem;max-width:600px}
-label,button{display:block;margin-top:1rem}
-img{max-width:100%}
-.color-ratio{display:flex;align-items:center;gap:1rem;margin-top:0.5rem}
-.color-ratio input{flex:1;min-width:60px}
-.color-ratio span{min-width:60px;font-weight:bold}
-#total-volume{margin-top:1rem}
-#color-preview{width:100%;height:40px;margin-top:1rem;border:2px solid #ccc;border-radius:4px}
+/* Global Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #333;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+h1 {
+  text-align: center;
+  color: #2c3e50;
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Main Grid Layout */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Bottom Full Width */
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* Section Styles */
+section {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+}
+
+section h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* Target Color Section */
+.target-color {
+  border-left: 5px solid #ffc107;
+  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+}
+
+#target-color-display {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+#target-color-swatch {
+  width: 80px;
+  height: 80px;
+  border: 4px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+
+#target-color-swatch:hover {
+  transform: scale(1.05);
+}
+
+#target-color-text {
+  font-weight: bold;
+  font-size: 1.3rem;
+  color: #2c3e50;
+}
+
+#target-color-hex {
+  color: #6c757d;
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+}
+
+/* Color Mixing Section */
+.color-mixing {
+  border-left: 5px solid #17a2b8;
+  background: linear-gradient(135deg, #e6f7ff 0%, #b3e5fc 100%);
+}
+
+.color-ratio {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.color-ratio:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(5px);
+}
+
+.color-ratio span {
+  min-width: 80px;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.color-ratio input {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.75rem;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.color-ratio input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+#color-preview {
+  width: 100%;
+  height: 60px;
+  margin: 1.5rem 0;
+  border: 3px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Buttons */
+button {
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 1rem;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+button[onclick="send()"] {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  font-size: 1.1rem;
+  padding: 1rem 2rem;
+}
+
+button[onclick="generateNewTarget()"] {
+  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+  color: white;
+}
+
+button[onclick="applyRecommendation()"] {
+  background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);
+  color: white;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  margin: 0;
+}
 
 /* Beaker Analysis Styles */
-.beaker-analysis{margin-top:2rem;padding:1rem;border:2px solid #007bff;border-radius:8px;background:#f8f9fa}
-.analysis-result{margin-top:1rem;padding:1rem;border:1px solid #ddd;border-radius:4px;background:white}
-.color-swatch{display:inline-block;width:30px;height:30px;border:2px solid #333;border-radius:4px;margin-right:10px;vertical-align:middle}
-.cluster-info{margin:0.5rem 0;padding:0.5rem;background:#f1f1f1;border-radius:4px}
-.upload-area{border:2px dashed #ccc;padding:2rem;text-align:center;border-radius:8px;margin:1rem 0}
-.upload-area.dragover{border-color:#007bff;background:#e7f3ff}
-#analysis-visualization{max-width:100%;border:2px solid #007bff;border-radius:8px;margin-top:1rem}
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
-.stat-item{padding:0.5rem;background:white;border:1px solid #ddd;border-radius:4px;text-align:center}
+.beaker-analysis {
+  border-left: 5px solid #007bff;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
 
-/* Target Color Styles */
-.target-color{margin-bottom:2rem;padding:1rem;border:2px solid #ffc107;border-radius:8px;background:#fffbf0}
+.analysis-result {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.color-swatch {
+  display: inline-block;
+  width: 35px;
+  height: 35px;
+  border: 3px solid #333;
+  border-radius: 8px;
+  margin-right: 12px;
+  vertical-align: middle;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cluster-info {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.cluster-info:hover {
+  background: #e9ecef;
+  transform: translateX(5px);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.stat-item {
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 1px solid #dee2e6;
+  border-radius: 10px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-item strong {
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.stat-item span {
+  color: #007bff;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
 
 /* ML Optimization Styles */
-.ml-optimization{margin-top:2rem;padding:1rem;border:2px solid #28a745;border-radius:8px;background:#f8fff8}
-#trend-canvas{max-width:100%}
-#ml-recommendations .color-ratio{margin:0.5rem 0}
-</style>
-<h1>色混合 + ビーカー分析 + ML最適化</h1>
+.ml-optimization {
+  border-left: 5px solid #28a745;
+  background: linear-gradient(135deg, #e8f5e8 0%, #c3e6cb 100%);
+}
 
-<!-- Target Color Section -->
-<section class="target-color">
-<h2>🎯 目標色</h2>
-<div id="target-color-display" style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-  <div id="target-color-swatch" style="width:60px;height:60px;border:3px solid #333;border-radius:8px;background:#ff0000"></div>
-  <div>
-    <div id="target-color-text" style="font-weight:bold;font-size:1.2em">RGB(255, 0, 0)</div>
-    <div id="target-color-hex" style="color:#666">#FF0000</div>
-  </div>
-  <button onclick="generateNewTarget()" style="margin-left:auto">新しい目標色を生成</button>
-</div>
-</section>
+#ml-recommendations .color-ratio {
+  margin: 0.75rem 0;
+  background: rgba(255, 255, 255, 0.8);
+}
 
-<section>
-<h2>色混合 - 現在の試行</h2>
-<label>色の比率（部分）</label>
-<div class="color-ratio">
-  <span style="color:#dc3545">赤:</span>
-  <input id="red-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-</div>
-<div class="color-ratio">
-  <span style="color:#ffc107">黄:</span>
-  <input id="yellow-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-</div>
-<div class="color-ratio">
-  <span style="color:#007bff">青:</span>
-  <input id="blue-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-</div>
+#trend-canvas {
+  max-width: 100%;
+  border: 2px solid #dee2e6;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
 
-<div id="color-preview"></div>
+/* Log Area */
+#log {
+  background: #2c3e50;
+  color: #ecf0f1;
+  padding: 1rem;
+  border-radius: 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 1rem;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+}
 
-<button onclick="send()">混合を調剤してスナップ撮影</button>
-<pre id="log"></pre>
-<img id="snap">
-</section>
+#log::-webkit-scrollbar {
+  width: 8px;
+}
 
-<section class="beaker-analysis">
-<h2>🧪 高度ビーカー分析</h2>
-<p>ロボットが実行するビーカー分析の結果がここに表示されます。</p>
+#log::-webkit-scrollbar-track {
+  background: #34495e;
+  border-radius: 4px;
+}
 
-<div id="analysis-results" style="display:none">
-  <div class="analysis-result">
-    <h3>分析結果</h3>
-    <div id="dominant-color-info">
-      <h4>主要溶液色</h4>
-      <div id="color-display">
-        <span id="color-swatch" class="color-swatch"></span>
-        <span id="color-text"></span>
-      </div>
-    </div>
-    
-    <div class="stats-grid">
-      <div class="stat-item">
-        <strong>ビーカー位置</strong><br>
-        <span id="beaker-position">-</span>
-      </div>
-      <div class="stat-item">
-        <strong>ビーカー半径</strong><br>
-        <span id="beaker-radius">-</span>
-      </div>
-      <div class="stat-item">
-        <strong>検出クラスター数</strong><br>
-        <span id="cluster-count">-</span>
-      </div>
-      <div class="stat-item">
-        <strong>分析ピクセル数</strong><br>
-        <span id="pixels-analyzed">-</span>
-      </div>
-    </div>
-    
-    <div id="cluster-details">
-      <h4>色クラスター（彩度順）</h4>
-      <div id="clusters-list"></div>
-    </div>
-    
-    <img id="analysis-visualization" alt="分析の可視化がここに表示されます" style="display:none">
-  </div>
-</div>
-</section>
+#log::-webkit-scrollbar-thumb {
+  background: #7f8c8d;
+  border-radius: 4px;
+}
 
-<!-- ML Optimization Section -->
-<section class="ml-optimization" style="margin-top:2rem;padding:1rem;border:2px solid #28a745;border-radius:8px;background:#f8fff8">
-<h2>🧠 ML最適化システム</h2>
-<div id="ml-status" style="margin-bottom:1rem">
-  <span id="ml-available-indicator" style="color:#28a745">✅ 機械学習が利用可能</span>
-</div>
+#log::-webkit-scrollbar-thumb:hover {
+  background: #95a5a6;
+}
 
-<div id="optimization-stats" style="display:none">
-  <h3>最適化統計</h3>
-  <div class="stats-grid">
-    <div class="stat-item">
-      <strong>試行回数</strong><br>
-      <span id="total-attempts">0</span>
-    </div>
-    <div class="stat-item">
-      <strong>最良距離</strong><br>
-      <span id="best-distance">-</span>
-    </div>
-    <div class="stat-item">
-      <strong>現在の距離</strong><br>
-      <span id="current-distance">-</span>
-    </div>
-    <div class="stat-item">
-      <strong>平均距離</strong><br>
-      <span id="average-distance">-</span>
-    </div>
-  </div>
+/* Image Styles */
+img {
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#analysis-visualization {
+  border: 3px solid #007bff;
+  border-radius: 12px;
+  margin-top: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
   
-  <div id="improvement-chart" style="margin-top:1rem">
-    <h4>改善傾向</h4>
-    <canvas id="trend-canvas" width="400" height="200" style="border:1px solid #ddd;border-radius:4px"></canvas>
+  .container {
+    padding: 1.5rem;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 1rem;
+  }
+  
+  .container {
+    padding: 1rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  #target-color-display {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .color-ratio {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .color-ratio span {
+    min-width: auto;
+  }
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.loading {
+  animation: pulse 1.5s infinite;
+}
+
+/* Utility Classes */
+.text-center { text-align: center; }
+.mt-1 { margin-top: 1rem; }
+.mb-1 { margin-bottom: 1rem; }
+.p-1 { padding: 1rem; }
+</style>
+<div class="container">
+<h1>🎨 色混合 + ビーカー分析 + ML最適化</h1>
+
+<div class="main-grid">
+  <!-- Left Column -->
+  <div class="left-column">
+    <!-- Target Color Section -->
+    <section class="target-color">
+      <h2>🎯 目標色</h2>
+      <div id="target-color-display">
+        <div id="target-color-swatch" style="background:#ff0000"></div>
+        <div>
+          <div id="target-color-text">RGB(255, 0, 0)</div>
+          <div id="target-color-hex">#FF0000</div>
+        </div>
+        <button onclick="generateNewTarget()">新しい目標色を生成</button>
+      </div>
+    </section>
+
+    <!-- Color Mixing Section -->
+    <section class="color-mixing">
+      <h2>🎨 色混合 - 現在の試行</h2>
+      <label>色の比率（部分）</label>
+      <div class="color-ratio">
+        <span style="color:#dc3545">赤:</span>
+        <input id="red-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
+      </div>
+      <div class="color-ratio">
+        <span style="color:#ffc107">黄:</span>
+        <input id="yellow-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
+      </div>
+      <div class="color-ratio">
+        <span style="color:#007bff">青:</span>
+        <input id="blue-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
+      </div>
+
+      <div id="color-preview"></div>
+      <button onclick="send()">混合を調剤してスナップ撮影</button>
+      
+      <img id="snap" style="display:none">
+    </section>
+  </div>
+
+  <!-- Right Column -->
+  <div class="right-column">
+    <!-- ML Optimization Section -->
+    <section class="ml-optimization">
+      <h2>🧠 ML最適化システム</h2>
+      <div id="ml-status">
+        <span id="ml-available-indicator" style="color:#28a745">✅ 機械学習が利用可能</span>
+      </div>
+
+      <div id="ml-recommendations">
+        <h3>🎯 次回推奨比率</h3>
+        <div id="recommended-ratios" style="display:none">
+          <div class="color-ratio">
+            <span style="color:#dc3545">推奨赤:</span>
+            <span id="rec-red-value">1.0</span>
+            <button onclick="applyRecommendation()">推奨値を適用</button>
+          </div>
+          <div class="color-ratio">
+            <span style="color:#ffc107">推奨黄:</span>
+            <span id="rec-yellow-value">1.0</span>
+          </div>
+          <div class="color-ratio">
+            <span style="color:#007bff">推奨青:</span>
+            <span id="rec-blue-value">1.0</span>
+          </div>
+        </div>
+        <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
+      </div>
+
+      <div id="optimization-stats" style="display:none">
+        <h3>📊 最適化統計</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <strong>試行回数</strong><br>
+            <span id="total-attempts">0</span>
+          </div>
+          <div class="stat-item">
+            <strong>最良距離</strong><br>
+            <span id="best-distance">-</span>
+          </div>
+          <div class="stat-item">
+            <strong>現在の距離</strong><br>
+            <span id="current-distance">-</span>
+          </div>
+          <div class="stat-item">
+            <strong>平均距離</strong><br>
+            <span id="average-distance">-</span>
+          </div>
+        </div>
+        
+        <div id="improvement-chart">
+          <h4>📈 改善傾向</h4>
+          <canvas id="trend-canvas" width="400" height="200"></canvas>
+        </div>
+      </div>
+
+      <div class="mt-1">
+        <button onclick="resetOptimization()" style="background:#dc3545;color:white">最適化履歴をリセット</button>
+        <button onclick="showOptimizationHistory()">履歴を表示</button>
+      </div>
+    </section>
   </div>
 </div>
 
-<div id="ml-recommendations" style="margin-top:1rem">
-  <h3>🎯 次回推奨比率</h3>
-  <div id="recommended-ratios" style="display:none">
-    <div class="color-ratio">
-      <span style="color:#dc3545">推奨赤:</span>
-      <span id="rec-red-value">1.0</span>
-      <button onclick="applyRecommendation()" style="margin-left:1rem">推奨値を適用</button>
-    </div>
-    <div class="color-ratio">
-      <span style="color:#ffc107">推奨黄:</span>
-      <span id="rec-yellow-value">1.0</span>
-    </div>
-    <div class="color-ratio">
-      <span style="color:#007bff">推奨青:</span>
-      <span id="rec-blue-value">1.0</span>
-    </div>
-  </div>
-  <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
-</div>
+<!-- Full Width Bottom Sections -->
+<div class="full-width">
+  <!-- Beaker Analysis Section -->
+  <section class="beaker-analysis">
+    <h2>🧪 高度ビーカー分析</h2>
+    <p>ロボットが実行するビーカー分析の結果がここに表示されます。</p>
 
-<div style="margin-top:1rem">
-  <button onclick="resetOptimization()" style="background:#dc3545;color:white">最適化履歴をリセット</button>
-  <button onclick="showOptimizationHistory()" style="margin-left:0.5rem">履歴を表示</button>
+    <div id="analysis-results" style="display:none">
+      <div class="analysis-result">
+        <h3>分析結果</h3>
+        <div id="dominant-color-info">
+          <h4>主要溶液色</h4>
+          <div id="color-display">
+            <span id="color-swatch" class="color-swatch"></span>
+            <span id="color-text"></span>
+          </div>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-item">
+            <strong>ビーカー位置</strong><br>
+            <span id="beaker-position">-</span>
+          </div>
+          <div class="stat-item">
+            <strong>ビーカー半径</strong><br>
+            <span id="beaker-radius">-</span>
+          </div>
+          <div class="stat-item">
+            <strong>検出クラスター数</strong><br>
+            <span id="cluster-count">-</span>
+          </div>
+          <div class="stat-item">
+            <strong>分析ピクセル数</strong><br>
+            <span id="pixels-analyzed">-</span>
+          </div>
+        </div>
+        
+        <div id="cluster-details">
+          <h4>色クラスター（彩度順）</h4>
+          <div id="clusters-list"></div>
+        </div>
+        
+        <img id="analysis-visualization" alt="分析の可視化がここに表示されます" style="display:none">
+      </div>
+    </div>
+  </section>
+
+  <!-- Log Section -->
+  <section>
+    <h2>📝 システムログ</h2>
+    <pre id="log"></pre>
+  </section>
 </div>
-</section>
+</div>
 
 <script>
 async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
@@ -377,7 +779,9 @@ async function send(){
         throw new Error(`スナップショットに失敗しました: ${snapResp.status}`)
       }
       let snap = await snapResp.json()
-      document.querySelector('#snap').src=snap.url
+      const snapImg = document.querySelector('#snap')
+      snapImg.src = snap.url
+      snapImg.style.display = 'block'
       log('スナップショットの撮影に成功しました')
     } catch (e) {
       log('スナップショット撮影エラー: ' + e.message)
