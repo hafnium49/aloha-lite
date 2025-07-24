@@ -438,11 +438,11 @@ class SequentialRobotExecutor:
                 print("❌ Failed to read current right arm position for squeeze operation")
                 return False
             
-            # Create squeeze position (modify only j6 to 0.1 for tighter squeeze)
+            # Create squeeze position (modify only j6 to 0.0 for maximum squeeze)
             squeeze_joints = current_right_joints.copy()
-            squeeze_joints[5] = 0.1  # j6 = 0.1 for stronger squeeze
+            squeeze_joints[5] = 0.0  # j6 = 0.0 for maximum squeeze strength
             
-            print(f"🤏 Squeezing: Right arm j6 from {current_right_joints[5]:.3f} to 0.100")
+            print(f"🤏 Squeezing: Right arm j6 from {current_right_joints[5]:.3f} to 0.000")
             
             # Execute squeeze
             result = self.controller.write_joint_positions(self.right_arm_id, squeeze_joints)
