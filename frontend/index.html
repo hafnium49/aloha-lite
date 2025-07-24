@@ -245,10 +245,16 @@ async function send(){
         let analysisData = await analysisResp.json()
         log('🧪 専用エンドポイントからビーカー分析結果を取得しました')
         displayAnalysisResults(analysisData.analysis_results)
+      } else if (analysisResp.status === 404) {
+        log('ビーカー分析結果が見つかりませんでした（分析が実行されなかった場合は正常です）')
+        displayAnalysisResults(null) // Show "no results" message
+      } else {
+        throw new Error(`分析結果の取得に失敗: ${analysisResp.status}`)
       }
     } catch (e) {
       // Analysis results not available, that's okay
-      log('ビーカー分析結果が見つかりませんでした（分析が実行されなかった場合は正常です）')
+      log('ビーカー分析結果の取得中にエラーが発生しました: ' + e.message)
+      displayAnalysisResults(null) // Show "no results" message
     }
     
     // fetch snapshot with timeout
@@ -346,6 +352,15 @@ async function analyzeImage(imageFile) {
 
 function displayAnalysisResults(results) {
   try {
+    // Check if results exist
+    if (!results) {
+      log('分析結果の表示エラー: 結果データが存在しません')
+      document.getElementById('analysis-results').style.display = 'block'
+      document.querySelector('#analysis-results .analysis-result').innerHTML = 
+        `<p style="color:orange">分析結果が利用できません。ロボットが分析を実行しなかった可能性があります。</p>`
+      return
+    }
+    
     // Show results container
     document.getElementById('analysis-results').style.display = 'block'
     
