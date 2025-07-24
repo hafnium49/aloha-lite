@@ -5,11 +5,12 @@ The Vision Bridge is a FastAPI-based service that provides computer vision capab
 ## Features
 
 - 🔍 **Beaker Analysis**: AI-powered color detection and clustering analysis of beaker solutions
+- 🎯 **Center-Weighted Detection**: Enhanced beaker detection optimized for center-positioned beakers
 - 📸 **Camera Snapshots**: Capture and store images from connected cameras
 - 🎨 **Color Processing**: Advanced color space analysis with K-means clustering
 - ☁️ **S3 Integration**: Optional cloud storage for images (can be disabled for local development)
 - 📊 **Prometheus Metrics**: Built-in monitoring and metrics collection
-- 🔄 **Circle Detection**: Automated beaker detection using computer vision
+- 🔄 **Circle Detection**: Automated beaker detection using computer vision with adaptive parameters
 
 ## Quick Start
 
@@ -36,6 +37,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `REQUIRE_S3` | No | `true` | Set to `false` to disable S3 requirements for local development |
+| `TESTING` | No | `false` | Set to `true` to disable Prometheus server startup during testing |
 | `S3_ENDPOINT` | Yes* | - | S3-compatible storage endpoint URL |
 | `AWS_ACCESS_KEY_ID` | Yes* | - | AWS access key for S3 authentication |
 | `AWS_SECRET_ACCESS_KEY` | Yes* | - | AWS secret key for S3 authentication |
@@ -88,7 +90,31 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 
 ## Computer Vision Pipeline
 
-### Beaker Detection
+### Enhanced Beaker Detection (v2.0)
+The vision bridge now features an improved center-weighted detection algorithm optimized for beakers positioned near the image center:
+
+1. **Hough Circle Transform**: Detects all circular objects in the image
+2. **Center-Weighted Scoring**: Combines circle size (30%) and center proximity (70%) to rank candidates
+3. **Adaptive Parameters**: Automatically scales detection parameters based on image dimensions
+4. **Fallback Logic**: Maintains compatibility with edge-case scenarios
+
+#### Detection Algorithm
+```python
+# Center-weighted scoring formula
+score = 0.7 * center_score + 0.3 * size_score
+
+# Where:
+# center_score = 1 - (distance_from_center / max_distance)
+# size_score = radius / max_radius_found
+```
+
+#### Key Improvements
+- **Higher Accuracy**: Prioritizes center-located beakers (typical use case)
+- **Robust Performance**: Handles multiple circular objects in frame
+- **Adaptive Scaling**: Works across different image resolutions
+- **Enhanced Logging**: Detailed debugging information for circle selection
+
+### Beaker Detection (Legacy)
 1. **Circle Detection**: Uses Hough Circle Transform to locate beaker in image
 2. **Region Extraction**: Extracts circular region of interest
 3. **Color Analysis**: Performs K-means clustering on extracted pixels
@@ -137,9 +163,21 @@ Key Python packages:
 
 ### Running Tests
 ```bash
-cd /home/hafnium/aloha-lite/vision_bridge
-python -m pytest tests/ -v
+cd /home/hafnium/aloha-lite/vision_bridge/tests
+python test_beaker_analysis.py
 ```
+
+The test suite includes:
+- **Center-weighted detection validation**: Confirms algorithm prefers center-located beakers
+- **Adaptive parameter testing**: Verifies scaling across different image sizes  
+- **Synthetic beaker generation**: Creates test images for controlled validation
+- **API endpoint testing**: Full integration tests with running server
+- **Color analysis verification**: Validates clustering and dominant color detection
+
+### Test Results Interpretation
+- Tests save visualization images to `tests/test_results/` directory
+- JSON analysis data includes beaker coordinates, colors, and cluster information
+- Center distance logging helps validate detection accuracy
 
 ### Local Development Setup
 1. Install dependencies: `pip install -r requirements.txt`
@@ -166,7 +204,13 @@ Camera error: 502
 ```
 No beaker detected in image
 ```
-**Solution**: Ensure image contains a clear circular beaker with good contrast.
+**Solution**: Ensure image contains a clear circular beaker with good contrast. The enhanced algorithm works best with beakers positioned near the center of the image.
+
+**Beaker Detection Accuracy Issues**
+```
+INFO:main:Beaker detection: found X circles, selected (x, y, r=radius) with score 0.XXX
+```
+**Solution**: Check the logged center distance. For optimal results, position beakers within the center region of the camera frame. The algorithm prioritizes circles closer to the image center.
 
 ### Debug Mode
 Add logging configuration for detailed debugging:
@@ -188,6 +232,23 @@ The Vision Bridge works in conjunction with the Robot Service:
 2. Add tests for new functionality
 3. Update this README for new features
 4. Ensure both development and production modes work correctly
+
+## Changelog
+
+### v2.0 - Center-Weighted Detection (July 2025)
+- **NEW**: Implemented center-weighted beaker detection algorithm
+- **IMPROVED**: 70% center proximity + 30% size scoring for better accuracy
+- **ENHANCED**: Adaptive parameter scaling based on image dimensions
+- **ADDED**: Comprehensive test suite with synthetic beaker generation
+- **FIXED**: Robust handling of multiple circular objects in frame
+- **UPDATED**: Enhanced logging for detection debugging and monitoring
+
+### v1.0 - Initial Release
+- Basic Hough Circle Transform detection
+- K-means color clustering analysis
+- S3 integration for image storage
+- FastAPI web service framework
+- Prometheus metrics collection
 
 ## License
 
