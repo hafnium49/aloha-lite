@@ -316,8 +316,10 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
             }
         }
         
-        # Save temporary sequence file
-        temp_sequence_file = os.path.join(os.path.dirname(__file__), f"temp_sequence_{cmd_id}.json")
+        # Save temporary sequence file in untracked tmp directory
+        tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+        os.makedirs(tmp_dir, exist_ok=True)
+        temp_sequence_file = os.path.join(tmp_dir, f"temp_sequence_{cmd_id}.json")
         try:
             with open(temp_sequence_file, 'w') as f:
                 json.dump(temp_sequence_data, f, indent=2)

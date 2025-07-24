@@ -1,0 +1,4 @@
+# Temporary sequence files
+tmp/
+*.json.tmp
+temp_sequence_*.json
