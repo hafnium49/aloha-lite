@@ -680,33 +680,74 @@ async def get_beaker_analysis(cmd_id: str):
 @app.get("/robot/procedure/info")
 async def get_procedure_info():
     """Get information about the timed laboratory procedure."""
-    return {
-        "procedure_name": "timed_laboratory_procedure",
-        "description": "Complete laboratory workflow with multi-color dispensing, positioning, stirring, and analysis",
-        "total_steps": 29,
-        "features": [
-            "Multi-color dispensing (red, yellow, blue)",
-            "Precise arm positioning and coordination", 
-            "Automated squeeze bottle operations",
-            "Stirring capabilities",
-            "Timed delays for process control",
-            "AI-powered beaker color analysis",
-            "Real-time progress tracking"
-        ],
-        "sequence_overview": {
-            "configurations": 23,
-            "special_functions": 6,
-            "colors_dispensed": ["red", "yellow", "blue"],
-            "squeeze_operations": 3,
-            "timing_delays": 2,
-            "analysis_steps": 1
-        },
-        "timing": {
-            "pause_between_steps": "0.1 seconds",
-            "smooth_trajectory": True,
-            "estimated_duration": "3-5 minutes"
+    try:
+        # Dynamically load and analyze the current sequence
+        sequences_file = os.path.join(os.path.dirname(__file__), "..", "temp_rules", "sequential_sequences.json")
+        with open(sequences_file, 'r') as f:
+            sequences_data = json.load(f)
+        
+        sequence = sequences_data["predefined_sequences"]["timed_laboratory_procedure"]["configurations"]
+        execution_options = sequences_data["predefined_sequences"]["timed_laboratory_procedure"].get("execution_options", {})
+        
+        # Calculate dynamic counts
+        total_steps = len(sequence)
+        
+        # Count special functions (squeeze, await, analyze, take)
+        special_functions = sum(1 for step in sequence if any(keyword in step.lower() for keyword in ['squeeze', 'await', 'analyze', 'take']))
+        
+        # Count configuration steps (everything else)
+        configurations = total_steps - special_functions
+        
+        # Count specific operation types
+        squeeze_operations = sum(1 for step in sequence if 'squeeze' in step.lower())
+        timing_delays = sum(1 for step in sequence if 'await' in step.lower())
+        analysis_steps = sum(1 for step in sequence if 'analyze' in step.lower())
+        
+        return {
+            "procedure_name": "timed_laboratory_procedure",
+            "description": "Complete laboratory workflow with multi-color dispensing, positioning, stirring, and analysis",
+            "total_steps": total_steps,
+            "features": [
+                "Multi-color dispensing (red, yellow, blue)",
+                "Precise arm positioning and coordination", 
+                "Automated squeeze bottle operations",
+                "Stirring capabilities",
+                "Timed delays for process control",
+                "AI-powered beaker color analysis",
+                "Real-time progress tracking"
+            ],
+            "sequence_overview": {
+                "configurations": configurations,
+                "special_functions": special_functions,
+                "colors_dispensed": ["red", "yellow", "blue"],
+                "squeeze_operations": squeeze_operations,
+                "timing_delays": timing_delays,
+                "analysis_steps": analysis_steps
+            },
+            "timing": {
+                "pause_between_steps": f"{execution_options.get('pause_between', 0.1)} seconds",
+                "pause_after_steps": f"{execution_options.get('pause_after', 0.1)} seconds",
+                "smooth_trajectory": execution_options.get('smooth', True),
+                "estimated_duration": "3-5 minutes"
+            }
         }
-    }
+    except Exception as e:
+        logger.error(f"Error loading procedure info: {e}")
+        # Fallback response if file reading fails
+        return {
+            "procedure_name": "timed_laboratory_procedure",
+            "description": "Complete laboratory workflow with multi-color dispensing, positioning, stirring, and analysis",
+            "error": f"Could not load dynamic procedure info: {str(e)}",
+            "features": [
+                "Multi-color dispensing (red, yellow, blue)",
+                "Precise arm positioning and coordination", 
+                "Automated squeeze bottle operations",
+                "Stirring capabilities",
+                "Timed delays for process control",
+                "AI-powered beaker color analysis",
+                "Real-time progress tracking"
+            ]
+        }
 
 
 @app.get("/robot/{cmd_id}/pose-snapshot")
