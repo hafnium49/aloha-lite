@@ -46,7 +46,10 @@ SNAP_OK   = Counter("cam_snapshot_ok_total",   "Snapshots succeeded")
 SNAP_ERR  = Counter("cam_snapshot_err_total",  "Snapshots failed")
 CIRCLE_OK = Counter("circle_detect_ok_total",  "Circle detections succeeded")
 CIRCLE_ERR= Counter("circle_detect_err_total", "Circle detections failed")
-start_http_server(9003)
+
+# Only start Prometheus server if not in testing mode
+if not os.environ.get('TESTING', '').lower() == 'true':
+    start_http_server(9003)
 
 # ---------------------------------------------------------------------------
 # FastAPI
@@ -78,23 +81,68 @@ def extract_solution_color(image_data, n_clusters=5):
         tuple: (dominant_color_rgb, dominant_color_hex, analysis_data)
     """
     image_rgb = cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB)
+    h, w = image_data.shape[:2]
+    img_center_x, img_center_y = w // 2, h // 2
 
     # Convert to grayscale and blur for circle detection
     gray = cv2.cvtColor(image_data, cv2.COLOR_BGR2GRAY)
     gray_blur = cv2.GaussianBlur(gray, (9, 9), 2)
 
-    # Detect circles (the beaker opening)
+    # Detect circles (the beaker opening) with improved parameters for center detection
     circles = cv2.HoughCircles(
-        gray_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
-        param1=100, param2=30, minRadius=30, maxRadius=200
+        gray_blur, cv2.HOUGH_GRADIENT, 
+        dp=1.2, 
+        minDist=max(30, min(w, h) // 8),  # Adaptive minimum distance
+        param1=100, 
+        param2=25,  # Slightly lower threshold for better detection
+        minRadius=max(20, min(w, h) // 20),  # Adaptive minimum radius
+        maxRadius=min(300, min(w, h) // 3)   # Adaptive maximum radius
     )
     
     if circles is None:
         raise ValueError("No beaker detected")
 
-    # Choose the largest detected circle
+    # Improved circle selection: combine size and proximity to center
     circles = np.uint16(np.around(circles[0]))
-    x, y, r = sorted(circles, key=lambda c: c[2], reverse=True)[0]
+    
+    def score_circle(circle):
+        """Score circles based on size and proximity to image center."""
+        cx, cy, radius = circle
+        
+        # Distance from image center (normalized by image diagonal)
+        center_dist = math.sqrt((cx - img_center_x)**2 + (cy - img_center_y)**2)
+        max_dist = math.sqrt(img_center_x**2 + img_center_y**2)  # Max possible distance
+        center_score = 1.0 - (center_dist / max_dist)  # Higher score for center proximity
+        
+        # Size score (normalized by max possible radius)
+        size_score = radius / min(w, h) * 2  # Normalize to 0-1 range
+        
+        # Combined score: 70% center proximity, 30% size
+        combined_score = 0.7 * center_score + 0.3 * size_score
+        
+        return combined_score
+    
+    # Score all circles and select the best one
+    scored_circles = [(score_circle(c), c) for c in circles]
+    best_score, (x, y, r) = max(scored_circles, key=lambda x: x[0])
+    
+    # Log detection details for debugging
+    logger.info(f"Beaker detection: found {len(circles)} circles, selected ({x}, {y}, r={r}) with score {best_score:.3f}")
+    logger.info(f"Image center: ({img_center_x}, {img_center_y}), selected distance from center: {math.sqrt((x - img_center_x)**2 + (y - img_center_y)**2):.1f}")
+    
+    # Optional: Add validation that the best circle is reasonably centered
+    center_distance = math.sqrt((x - img_center_x)**2 + (y - img_center_y)**2)
+    max_acceptable_distance = min(w, h) * 0.3  # Allow up to 30% of image size from center
+    
+    if center_distance > max_acceptable_distance:
+        # Look for a more centered alternative
+        centered_circles = [c for c in circles 
+                          if math.sqrt((c[0] - img_center_x)**2 + (c[1] - img_center_y)**2) <= max_acceptable_distance]
+        if centered_circles:
+            # Among centered circles, pick the largest
+            old_x, old_y, old_r = x, y, r
+            x, y, r = max(centered_circles, key=lambda c: c[2])
+            logger.info(f"Fallback to centered circle: ({old_x}, {old_y}, r={old_r}) -> ({x}, {y}, r={r})")
 
     # Create a mask for the circle and crop around it
     mask = np.zeros_like(gray)
@@ -272,19 +320,20 @@ async def circle_colour(file: UploadFile = File(...)):
             raise HTTPException(400, "Invalid image format")
 
         h, w = img.shape[:2]
+        img_center_x, img_center_y = w // 2, h // 2
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.medianBlur(gray, 5)
 
         # ------------------------------------------------------------------
-        # Hough‑circle detection
+        # Improved Hough‑circle detection with center weighting
         # ------------------------------------------------------------------
         circles = cv2.HoughCircles(
             gray,
             cv2.HOUGH_GRADIENT,
             dp=1.2,
-            minDist=h // 4,
+            minDist=max(30, h // 8),  # Adaptive minimum distance
             param1=100,
-            param2=30,
+            param2=25,  # Slightly lower threshold for better detection
             minRadius=int(min(h, w) * 0.05),
             maxRadius=int(min(h, w) * 0.4),
         )
@@ -296,13 +345,40 @@ async def circle_colour(file: UploadFile = File(...)):
 
         circles = np.round(circles[0, :]).astype(int)
 
-        # Keep only circles whose centre is in the left half
-        left_circles = [c for c in circles if c[0] < w // 2]
-        if not left_circles:
-            left_circles = circles.tolist()
+        def score_circle_legacy(circle):
+            """Score circles for legacy endpoint with center preference."""
+            cx, cy, radius = circle
+            
+            # Distance from image center
+            center_dist = math.sqrt((cx - img_center_x)**2 + (cy - img_center_y)**2)
+            max_dist = math.sqrt(img_center_x**2 + img_center_y**2)
+            center_score = 1.0 - (center_dist / max_dist)
+            
+            # Size score
+            size_score = radius / min(w, h) * 2
+            
+            # Left-side preference (legacy behavior)
+            left_score = 1.0 if cx < w // 2 else 0.7
+            
+            # Combined score: 50% center, 30% size, 20% left preference
+            combined_score = 0.5 * center_score + 0.3 * size_score + 0.2 * left_score
+            
+            return combined_score
 
-        # Choose the largest radius among remaining circles
-        cx, cy, r = max(left_circles, key=lambda c: c[2])
+        # Score all circles and select the best one
+        scored_circles = [(score_circle_legacy(c), c) for c in circles]
+        best_score, (cx, cy, r) = max(scored_circles, key=lambda x: x[0])
+        
+        # Fallback to center-proximity if no good left-side circles
+        center_distance = math.sqrt((cx - img_center_x)**2 + (cy - img_center_y)**2)
+        max_acceptable_distance = min(w, h) * 0.35  # Allow up to 35% from center
+        
+        if center_distance > max_acceptable_distance:
+            # Look for more centered alternatives
+            centered_circles = [c for c in circles 
+                              if math.sqrt((c[0] - img_center_x)**2 + (c[1] - img_center_y)**2) <= max_acceptable_distance]
+            if centered_circles:
+                cx, cy, r = max(centered_circles, key=lambda c: c[2])
 
         # Sanity‑check radius
         r = int(max(1, min(r, w, h)))

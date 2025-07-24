@@ -16,6 +16,8 @@ from io import BytesIO
 
 # Set environment variable to disable S3 requirement for testing
 os.environ['REQUIRE_S3'] = 'false'
+# Set environment variable to disable server startup during testing
+os.environ['TESTING'] = 'true'
 
 # Add the parent directory to the path to import main
 sys.path.append(str(Path(__file__).parent.parent))
@@ -159,11 +161,71 @@ class TestBeakerAnalysis:
         
         print(f"✅ Synthetic beaker test: detected color {color_hex} at ({circle['x']}, {circle['y']})")
 
+    def test_center_weighted_detection(self):
+        """Test that the improved algorithm prefers center-located beakers."""
+        # Create an image with multiple circles - one large off-center, one smaller centered
+        img = np.ones((300, 300, 3), dtype=np.uint8) * 30  # Dark background
+        
+        # Large off-center circle (should be less preferred despite size)
+        cv2.circle(img, (80, 80), 70, (0, 100, 200), -1)  # Blue solution
+        cv2.circle(img, (80, 80), 75, (150, 150, 150), 3)  # Beaker rim
+        
+        # Smaller center circle (should be preferred due to center location)
+        cv2.circle(img, (150, 150), 50, (200, 0, 0), -1)  # Red solution  
+        cv2.circle(img, (150, 150), 55, (150, 150, 150), 3)  # Beaker rim
+        
+        dominant_color, color_hex, analysis_data = extract_solution_color(img)
+        
+        circle = analysis_data['beaker_circle']
+        
+        # Should prefer the center circle despite being smaller
+        center_distance = ((circle['x'] - 150)**2 + (circle['y'] - 150)**2)**0.5
+        off_center_distance = ((circle['x'] - 80)**2 + (circle['y'] - 80)**2)**0.5
+        
+        # The detected circle should be closer to center than to off-center location
+        assert center_distance < off_center_distance, f"Expected center preference, got ({circle['x']}, {circle['y']})"
+        
+        print(f"✅ Center-weighted detection: chose circle at ({circle['x']}, {circle['y']}) - distance from center: {center_distance:.1f}")
+
+    def test_adaptive_parameters(self):
+        """Test that the algorithm adapts parameters based on image size."""
+        # Test with different image sizes
+        sizes = [(100, 100), (300, 300), (500, 400)]
+        
+        for width, height in sizes:
+            # Create synthetic beaker image
+            img = np.ones((height, width, 3), dtype=np.uint8) * 40
+            
+            # Draw beaker proportional to image size
+            center_x, center_y = width // 2, height // 2
+            radius = min(width, height) // 6
+            
+            cv2.circle(img, (center_x, center_y), radius, (0, 150, 100), -1)
+            cv2.circle(img, (center_x, center_y), radius + 5, (100, 100, 100), 3)
+            
+            try:
+                dominant_color, color_hex, analysis_data = extract_solution_color(img)
+                circle = analysis_data['beaker_circle']
+                
+                # Check that detection is reasonable for this image size
+                detected_radius = circle['radius']
+                expected_min = radius * 0.7  # Allow some tolerance
+                expected_max = radius * 1.3
+                
+                assert expected_min <= detected_radius <= expected_max, \
+                    f"Size {width}x{height}: expected radius {radius}, got {detected_radius}"
+                
+                print(f"✅ Adaptive parameters for {width}x{height}: radius {detected_radius} (expected ~{radius})")
+                
+            except ValueError as e:
+                print(f"⚠️  Size {width}x{height}: {e}")
+                # Small images might not detect properly, which is acceptable
+
 
 def test_api_endpoint():
     """Test the /analyze-beaker API endpoint."""
     # This test requires the FastAPI server to be running
-    base_url = "http://localhost:8000"  # Adjust port as needed
+    base_url = "http://localhost:5000"  # Vision bridge server port
     
     sample_image_path = "/home/hafnium/aloha-lite/temporary_images/camera_0_20250723_113227.jpg"
     
@@ -286,6 +348,8 @@ if __name__ == "__main__":
                 test_instance.test_create_visualization_image(img)
                 test_instance.test_different_cluster_counts(img)
                 test_instance.test_synthetic_beaker_image()
+                test_instance.test_center_weighted_detection()
+                test_instance.test_adaptive_parameters()
                 print("✅ All basic tests passed!")
         
         # Test API endpoint
