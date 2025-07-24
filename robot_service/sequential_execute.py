@@ -83,7 +83,7 @@ except ImportError:
 class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
-    def __init__(self, server_url: str = "http://localhost:5000", skip_init: bool = True, 
+    def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
                  left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID):
         self.server_url = server_url
         self.skip_init = skip_init
@@ -478,37 +478,40 @@ class SequentialRobotExecutor:
             
             print(f"📁 Images will be saved to: {temp_images_dir.absolute()}")
             
-            # Make API request to capture snapshot from vision bridge
-            snapshot_url = f"{self.server_url}/snapshot"
-            print(f"🌐 Making API request: POST {snapshot_url}")
+            # Make API request to capture frames from all cameras using phosphobot API
+            frames_url = f"{self.server_url}/frames"
+            print(f"🌐 Making API request: GET {frames_url}")
             
-            # Generate a unique command ID for the snapshot request
-            import uuid
-            cmd_id = str(uuid.uuid4())
-            
-            # Use the correct camera ID format for vision bridge
-            cam_id = f"camera_{camera_id}" if isinstance(camera_id, int) else camera_id
-            snapshot_data = {
-                "cmd_id": cmd_id,
-                "cam_id": cam_id
-            }
-            
-            response = requests.post(snapshot_url, json=snapshot_data, timeout=10)
+            response = requests.get(frames_url, timeout=10)
             
             if response.status_code != 200:
                 print(f"❌ API request failed with status {response.status_code}: {response.text}")
                 return False
             
-            snapshot_response = response.json()
-            print(f"📋 Snapshot response received for camera {cam_id}")
+            frames_data = response.json()
+            print(f"📋 Available cameras in response: {list(frames_data.keys())}")
             
-            # Extract base64 image from the snapshot response
-            if 'image' not in snapshot_response:
-                print(f"❌ No image data in snapshot response")
-                print(f"💡 Response keys: {list(snapshot_response.keys())}")
-                return False
+            # Check if the requested camera ID exists in the response
+            # Phosphobot API returns keys like 'camera_0', 'camera_1', 'camera_2', etc.
+            camera_key = f"camera_{camera_id}"
+            if camera_key not in frames_data:
+                # Try alternative formats: just the number as string, or 'realsense'
+                alt_keys = [str(camera_id), camera_id, 'realsense']
+                found_key = None
+                for alt_key in alt_keys:
+                    if alt_key in frames_data:
+                        camera_key = alt_key
+                        found_key = alt_key
+                        break
+                
+                if found_key is None:
+                    print(f"❌ Camera {camera_id} not found in available cameras")
+                    print(f"💡 Available cameras: {list(frames_data.keys())}")
+                    print(f"💡 Tried keys: {camera_key}, {alt_keys}")
+                    return False
             
-            base64_image = snapshot_response['image']
+            # Get the base64 encoded image for the specified camera
+            base64_image = frames_data[camera_key]
             
             if base64_image is None:
                 print(f"❌ Camera {camera_id} returned None (camera might be unavailable)")
@@ -597,8 +600,8 @@ class SequentialRobotExecutor:
             
             print(f"\n🔬 Step 2: Analyzing beaker color using vision bridge API...")
             
-            # Make API request to vision bridge for beaker analysis
-            vision_bridge_url = f"{self.server_url}/analyze-beaker"
+            # Make API request to vision bridge for beaker analysis (always port 5000)
+            vision_bridge_url = "http://localhost:5000/analyze-beaker"
             print(f"🌐 Making API request: POST {vision_bridge_url}")
             
             # Prepare the image file for upload
@@ -911,7 +914,7 @@ def main():
                        help="Pause after each configuration movement (seconds)")
     parser.add_argument("--init", action="store_true",
                        help="Enable robot initialization (WARNING: may cause collisions)")
-    parser.add_argument("--server", default="http://localhost:5000",
+    parser.add_argument("--server", default="http://localhost:80",
                        help="Phosphobot server URL")
     parser.add_argument("--left-arm-id", type=int, default=LEFT_ARM_ID,
                        help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
@@ -1049,7 +1052,7 @@ if __name__ == "__main__":
                            help=f"Left arm robot ID (default: {LEFT_ARM_ID} for {LEFT_ARM_DEVICE})")
         parser.add_argument("--right-arm-id", type=int, default=RIGHT_ARM_ID,
                            help=f"Right arm robot ID (default: {RIGHT_ARM_ID} for {RIGHT_ARM_DEVICE})")
-        parser.add_argument("--server", default="http://localhost:5000",
+        parser.add_argument("--server", default="http://localhost:80",
                            help="Phosphobot server URL")
         parser.add_argument("--smooth", action="store_true",
                            help="Use smooth trajectory planning with ModernRobotics")
