@@ -1,0 +1,29 @@
+{
+  "test_beaker_analysis_only": {
+    "description": "Test beaker analysis functionality without robot arm movement",
+    "sequences": [
+      "analyze beaker color"
+    ],
+    "timing": [
+      0
+    ],
+    "robot_config": {
+      "left_arm": {
+        "robot_id": 2,
+        "device_id": "5A68011529"
+      },
+      "right_arm": {
+        "robot_id": 1,
+        "device_id": "5A68009540"
+      }
+    },
+    "pause_after_each": 1.0,
+    "total_duration": 5.0,
+    "metadata": {
+      "created_for": "testing beaker analysis without arm movement",
+      "test_purpose": "Verify vision bridge integration and color analysis functionality",
+      "requires_robot": false,
+      "requires_vision": true
+    }
+  }
+}

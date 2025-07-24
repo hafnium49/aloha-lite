@@ -478,29 +478,37 @@ class SequentialRobotExecutor:
             
             print(f"📁 Images will be saved to: {temp_images_dir.absolute()}")
             
-            # Make API request to capture frames from all cameras
-            frames_url = f"{self.server_url}/frames"
-            print(f"🌐 Making API request: GET {frames_url}")
+            # Make API request to capture snapshot from vision bridge
+            snapshot_url = f"{self.server_url}/snapshot"
+            print(f"🌐 Making API request: POST {snapshot_url}")
             
-            response = requests.get(frames_url, timeout=10)
+            # Generate a unique command ID for the snapshot request
+            import uuid
+            cmd_id = str(uuid.uuid4())
+            
+            # Use the correct camera ID format for vision bridge
+            cam_id = f"camera_{camera_id}" if isinstance(camera_id, int) else camera_id
+            snapshot_data = {
+                "cmd_id": cmd_id,
+                "cam_id": cam_id
+            }
+            
+            response = requests.post(snapshot_url, json=snapshot_data, timeout=10)
             
             if response.status_code != 200:
                 print(f"❌ API request failed with status {response.status_code}: {response.text}")
                 return False
             
-            frames_data = response.json()
-            print(f"📋 Available cameras in response: {list(frames_data.keys())}")
+            snapshot_response = response.json()
+            print(f"📋 Snapshot response received for camera {cam_id}")
             
-            # Check if the requested camera ID exists in the response
-            # API returns keys like 'camera_0', 'camera_1', 'camera_2'
-            camera_key = f"camera_{camera_id}"
-            if camera_key not in frames_data:
-                print(f"❌ Camera {camera_id} not found in available cameras")
-                print(f"💡 Available cameras: {list(frames_data.keys())}")
+            # Extract base64 image from the snapshot response
+            if 'image' not in snapshot_response:
+                print(f"❌ No image data in snapshot response")
+                print(f"💡 Response keys: {list(snapshot_response.keys())}")
                 return False
             
-            # Get the base64 encoded image for the specified camera
-            base64_image = frames_data[camera_key]
+            base64_image = snapshot_response['image']
             
             if base64_image is None:
                 print(f"❌ Camera {camera_id} returned None (camera might be unavailable)")
