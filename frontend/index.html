@@ -198,12 +198,14 @@ function updatePreview(){
   
   document.querySelector('#color-preview').style.background = gradient
   
-  // Update button text with ratios (show up to 1 decimal place)
-  const button = document.querySelector('button')
+  // Update mixing button text with ratios (show up to 1 decimal place)
+  const mixingButton = document.querySelector('button[onclick="send()"]')
   const redDisplay = red % 1 === 0 ? red.toString() : red.toFixed(1)
   const yellowDisplay = yellow % 1 === 0 ? yellow.toString() : yellow.toFixed(1)
   const blueDisplay = blue % 1 === 0 ? blue.toString() : blue.toFixed(1)
-  button.textContent = `混合を調剤 (${redDisplay}:${yellowDisplay}:${blueDisplay}) してスナップ撮影`
+  if (mixingButton) {
+    mixingButton.textContent = `混合を調剤 (${redDisplay}:${yellowDisplay}:${blueDisplay}) してスナップ撮影`
+  }
 }
 
 async function send(){
