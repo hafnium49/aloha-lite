@@ -144,3 +144,8 @@ logs/
 *~
 
 temporary_images/
+
+# Robot service temporary files
+robot_service/tmp/
+robot_service/*.json.tmp
+robot_service/temp_sequence_*.json
