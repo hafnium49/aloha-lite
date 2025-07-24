@@ -377,13 +377,14 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
             logger.error(f"Error during sequential execution: {e}")
             success = False
         finally:
-            # Clean up temporary sequence file
+            # Keep temporary sequence file for debugging and inspection
+            # The file will remain in robot_service/tmp/ directory
             try:
                 if os.path.exists(temp_sequence_file):
-                    os.remove(temp_sequence_file)
-                    logger.info(f"Cleaned up temporary sequence file: {temp_sequence_file}")
+                    logger.info(f"Temporary sequence file preserved for debugging: {temp_sequence_file}")
+                    logger.info(f"File contains the modified sequence with dynamic squeeze durations")
             except Exception as e:
-                logger.warning(f"Could not clean up temporary file {temp_sequence_file}: {e}")
+                logger.warning(f"Could not check temporary file {temp_sequence_file}: {e}")
         
         if not success:
             async with TASKS_LOCK:
