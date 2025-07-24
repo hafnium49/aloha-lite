@@ -370,6 +370,30 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
                 logger.info("Sequential execution completed successfully")
                 success = True
                 
+                # Load beaker analysis results if they were generated
+                try:
+                    temp_images_dir = Path(__file__).parent / "../temporary_images"
+                    analysis_files = list(temp_images_dir.glob("beaker_analysis_*.json"))
+                    
+                    if analysis_files:
+                        # Get the most recent analysis file
+                        latest_analysis_file = max(analysis_files, key=lambda f: f.stat().st_mtime)
+                        
+                        with open(latest_analysis_file, 'r') as f:
+                            analysis_data = json.load(f)
+                        
+                        # Store the analysis results in the task
+                        async with TASKS_LOCK:
+                            TASKS[cmd_id].beaker_analysis_results = analysis_data
+                        
+                        logger.info(f"Loaded beaker analysis results from: {latest_analysis_file.name}")
+                        logger.info(f"Analysis found dominant color: {analysis_data.get('dominant_color', {}).get('hex', 'unknown')}")
+                    else:
+                        logger.info("No beaker analysis results found - analysis step may not have been executed")
+                        
+                except Exception as e:
+                    logger.warning(f"Could not load beaker analysis results: {e}")
+                
         except subprocess.TimeoutExpired:
             logger.error("Timed laboratory procedure timed out")
             success = False

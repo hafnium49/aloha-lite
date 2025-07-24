@@ -1,0 +1,22 @@
+{
+  "predefined_sequences": {
+    "beaker_analysis_only": {
+      "name": "beaker_analysis_only",
+      "description": "Test beaker analysis functionality without robot arm movements",
+      "configurations": [
+        "analyze beaker color"
+      ],
+      "execution_options": {
+        "smooth": false,
+        "pause_between": 0.0,
+        "pause_after": 0.0,
+        "description": "Direct beaker analysis test without arm movements"
+      }
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "description": "Minimal sequence for testing beaker analysis only",
+    "purpose": "Verify beaker analysis without robot hardware dependencies"
+  }
+}
