@@ -6,6 +6,11 @@ Test SAM 2 imports and functionality without full main.py initialization
 import os
 import sys
 
+# Add parent directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+parent_dir = os.path.join(current_dir, '..')
+sys.path.insert(0, parent_dir)
+
 # Test SAM 2 imports directly
 print("🧪 Testing SAM 2 imports and integration...")
 

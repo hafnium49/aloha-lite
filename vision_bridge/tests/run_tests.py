@@ -37,6 +37,43 @@ def run_consolidated_service_test():
                           capture_output=False)
     return result.returncode == 0
 
+def run_sam2_tests():
+    """Run SAM 2 integration tests."""
+    print("🔍 Running SAM 2 integration tests...")
+    
+    # Run comprehensive SAM 2 integration test
+    comprehensive_test = "test_sam2_integration.py"
+    if os.path.exists(comprehensive_test):
+        print("   Running comprehensive SAM 2 integration test...")
+        result = subprocess.run([sys.executable, comprehensive_test], capture_output=False)
+        if result.returncode != 0:
+            print("   ❌ Comprehensive SAM 2 test failed")
+            return False
+        else:
+            print("   ✅ Comprehensive SAM 2 test passed")
+    
+    # Run additional specific tests
+    additional_tests = [
+        ("test_sam2_final.py", "SAM 2 final integration test"),
+        ("test_sam2_update.py", "SAM 2 update verification test"),
+        ("test_sam_integration.py", "SAM integration compatibility test")
+    ]
+    
+    all_passed = True
+    for test_file, description in additional_tests:
+        if os.path.exists(test_file):
+            print(f"   Running {description}...")
+            result = subprocess.run([sys.executable, test_file], capture_output=False)
+            if result.returncode != 0:
+                print(f"   ❌ {test_file} failed")
+                all_passed = False
+            else:
+                print(f"   ✅ {test_file} passed")
+        else:
+            print(f"   ⚠️  {test_file} not found, skipping")
+    
+    return all_passed
+
 def run_container_test():
     """Run direct color checker test inside container."""
     print("🐳 Running container-based test...")
@@ -62,7 +99,7 @@ def run_container_test():
 
 def main():
     parser = argparse.ArgumentParser(description="Run vision bridge tests")
-    parser.add_argument("--type", "-t", choices=["unit", "api", "container", "multi-color", "consolidated", "all"],
+    parser.add_argument("--type", "-t", choices=["unit", "api", "container", "multi-color", "consolidated", "sam2", "all"],
                       default="all", help="Type of tests to run")
     
     args = parser.parse_args()
@@ -89,6 +126,10 @@ def main():
     
     if args.type in ["consolidated", "all"]:
         success &= run_consolidated_service_test()
+        print()
+    
+    if args.type in ["sam2", "all"]:
+        success &= run_sam2_tests()
         print()
     
     if args.type == "container":

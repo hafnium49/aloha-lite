@@ -8,6 +8,11 @@ import sys
 import cv2
 import numpy as np
 
+# Add parent directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+parent_dir = os.path.join(current_dir, '..')
+sys.path.insert(0, parent_dir)
+
 print("🧪 Testing SAM 2 integration updates...")
 
 # Test 1: Check if beaker_analysis imports correctly
