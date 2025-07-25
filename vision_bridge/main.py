@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx, boto3
-import numpy as np, cv2
+import numpy as np, cv2, torch                            # ← NEW
 from prometheus_client import Counter, start_http_server
 from sklearn.cluster import KMeans
 from matplotlib import colors
@@ -15,6 +15,23 @@ import base64
 # ---------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────────────────────────────────
+# Optional: Segment‑Anything v2
+# ──────────────────────────────────────────────────────────────────────────
+SAM_PREDICTOR = None
+try:
+    from segment_anything import sam_model_registry, SamPredictor
+    SAM_CKPT = os.getenv("SAM_CHECKPOINT", "/models/sam2_vith.ckpt")
+    if os.path.exists(SAM_CKPT):
+        _sam = sam_model_registry["vit_h"](checkpoint=SAM_CKPT)
+        _sam.to("cuda" if torch.cuda.is_available() else "cpu")
+        SAM_PREDICTOR = SamPredictor(_sam)
+        logger.info(f"SAM‑2 loaded from {SAM_CKPT}")
+    else:
+        logger.warning(f"SAM checkpoint not found ({SAM_CKPT}); SAM disabled")
+except ImportError:
+    logger.warning("segment_anything not installed; SAM disabled")
 
 # ---------------------------------------------------------------------------
 # Environment (make optional for testing)
@@ -144,9 +161,33 @@ def extract_solution_color(image_data, n_clusters=5):
             x, y, r = max(centered_circles, key=lambda c: c[2])
             logger.info(f"Fallback to centered circle: ({old_x}, {old_y}, r={old_r}) -> ({x}, {y}, r={r})")
 
-    # Create a mask for the circle and crop around it
-    mask = np.zeros_like(gray)
-    cv2.circle(mask, (x, y), r, 255, thickness=-1)
+    # ───────────────────────────────────────────────────────────────────
+    # A.  Build a base circular ROI (always available)
+    # ───────────────────────────────────────────────────────────────────
+    circle_mask = np.zeros_like(gray, dtype=np.uint8)
+    cv2.circle(circle_mask, (x, y), r, 255, thickness=-1)
+
+    # ───────────────────────────────────────────────────────────────────
+    # B.  Optional SAM‑2 refinement (box‑prompted by the detected circle)
+    # ───────────────────────────────────────────────────────────────────
+    if SAM_PREDICTOR is not None:
+        try:
+            SAM_PREDICTOR.set_image(image_rgb)          # SAM expects RGB
+            x0, y0 = max(0, x - r), max(0, y - r)
+            x1, y1 = min(image_rgb.shape[1]-1, x + r), min(image_rgb.shape[0]-1, y + r)
+            box    = np.array([x0, y0, x1, y1])
+            masks, scores, _ = SAM_PREDICTOR.predict(
+                box=np.expand_dims(box, 0),
+                multimask_output=False)
+            sam_mask = masks[0].astype(np.uint8) * 255   # H×W uint8
+            mask = cv2.bitwise_and(circle_mask, sam_mask)
+            logger.debug(f"SAM mask IoU≈{scores[0]:.3f}")
+        except Exception as e:
+            # Fail‑soft: revert to circle‑only mask
+            logger.warning(f"SAM failed ({e}); falling back to circle mask")
+            mask = circle_mask
+    else:
+        mask = circle_mask
     masked_img = cv2.bitwise_and(image_rgb, image_rgb, mask=mask)
 
     # Extract pixel data inside the circle
@@ -201,6 +242,9 @@ def extract_solution_color(image_data, n_clusters=5):
         'total_pixels_analyzed': len(bright_pixels)
     }
 
+    # keep a tiny preview (uint8) for optional visualisation
+    analysis_data['sam_mask_preview'] = mask if mask.dtype == np.uint8 else (mask*255).astype(np.uint8)
+
     return dominant_color, dominant_color_hex, analysis_data
 
 
@@ -217,12 +261,20 @@ def create_visualization_image(image_data, analysis_data):
     """
     viz_img = image_data.copy()
     
-    # Draw the detected beaker circle
+    # A. Draw the detected beaker circle
     circle = analysis_data['beaker_circle']
     cv2.circle(viz_img, (circle['x'], circle['y']), circle['radius'], (0, 255, 0), 3)
     
     # Draw center point
     cv2.circle(viz_img, (circle['x'], circle['y']), 5, (0, 255, 0), -1)
+
+    # B.  If a SAM mask was returned, overlay it in translucent yellow
+    if analysis_data.get("sam_mask_preview") is not None:
+        sam_alpha = 0.35
+        yellow    = np.array([0, 255, 255], dtype=np.uint8)
+        mask_bool = analysis_data["sam_mask_preview"] > 0
+        viz_img[mask_bool] = cv2.addWeighted(viz_img, 1-sam_alpha,
+                                             np.full_like(viz_img, yellow), sam_alpha, 0)[mask_bool]
     
     # Add text with dominant color info
     dominant_cluster = next(c for c in analysis_data['clusters'] 

@@ -6,3 +6,4 @@ python-multipart
 prometheus-client
 colour-checker-detection
 scikit-learn>=1.0.0
+segment-anything>=2.0.0
