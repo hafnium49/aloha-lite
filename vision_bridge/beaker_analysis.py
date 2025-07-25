@@ -217,8 +217,10 @@ if __name__ == "__main__":
                 # Create visualization
                 viz_img = create_visualization_image(img, analysis_data)
                 
-                # Save visualization
-                output_path = "/home/hafnium/aloha-lite/vision_bridge/tests/beaker_analysis_result.jpg"
+                # Save visualization in test_results directory
+                test_results_dir = "/home/hafnium/aloha-lite/vision_bridge/tests/test_results"
+                os.makedirs(test_results_dir, exist_ok=True)
+                output_path = os.path.join(test_results_dir, "beaker_analysis_result.jpg")
                 cv2.imwrite(output_path, viz_img)
                 print(f"   Visualization saved to: {output_path}")
                 
