@@ -128,14 +128,14 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 ```
 
 **Access the System:**
-- **Web Interface**: http://localhost:3000 (Main color mixing and beaker analysis interface)
+- **Web Interface**: http://localhost:3000 (Main color mixing and beaker analysis interface with SAM 2 integration)
 - **Robot Service API**: http://localhost:8000/docs (Direct robot control API)
 - **Vision Service API**: http://localhost:5000/docs (Direct vision processing API)
 
 **Notes:**
 - **Frontend Service**: Provides the main web interface and acts as a proxy to backend services
 - **Robot Service**: Handles color mixing and dispensing operations
-- **Vision Bridge Service**: Provides beaker analysis and image processing
+- **Vision Bridge Service**: Provides advanced beaker analysis with SAM 2 segmentation and image processing
 - All three services need to be running for full functionality
 - Services communicate via HTTP (robot service calls vision bridge, frontend proxies to both)
 - **S3 Configuration**: Set `REQUIRE_S3=false` for local development to bypass S3 requirements
@@ -338,7 +338,7 @@ python3 utilities/push_subtree.py "Your commit message"
 The system consists of:
 
 1. **Robot Service** - FastAPI service for robot operations and control
-2. **Vision Bridge** - Image capture and processing service  
+2. **Vision Bridge** - Advanced image capture and processing service with SAM 2 integration  
 3. **Frontend** - Web interface for robot control
 4. **Phosphobot Core** - Robot control system (managed separately)
 5. **Demo2Rules** - Dataset processing and rule extraction with CSV/Python output
@@ -560,7 +560,7 @@ The system consists of:
 
 1. **Phosphobot Core** - Robot control system with ZMQ state publishing and four-arm support
 2. **Robot Service** - FastAPI service for dispense operations  
-3. **Vision Bridge** - Image capture and processing service
+3. **Vision Bridge** - Advanced image capture and processing service with SAM 2 integration
 4. **Frontend** - Web interface for robot control
 5. **Demo2Rules** - Dataset processing and rule extraction with CSV/Python output
 6. **Extract At Time** - Precise joint value extraction at specific timestamps
@@ -597,13 +597,14 @@ For production use:
 1. **Update credentials** in `.env` file with secure values
 2. **Configure robot type** appropriate for your hardware
 3. **Configure arm IDs** for your four-arm phosphobot setup
-4. **Configure CORS** origins in the FastAPI applications
-5. **Set up proper SSL/TLS** termination
-6. **Configure monitoring** and alerting for the Prometheus metrics
-7. **Set up log aggregation** for centralized logging
-8. **Use external database** instead of in-memory storage for tasks
-9. **Validate robot configurations** before deployment
-10. **Test single-arm safety** in controlled environment
+4. **Configure SAM 2 models** for enhanced vision processing (optional)
+5. **Configure CORS** origins in the FastAPI applications
+6. **Set up proper SSL/TLS** termination
+7. **Configure monitoring** and alerting for the Prometheus metrics
+8. **Set up log aggregation** for centralized logging
+9. **Use external database** instead of in-memory storage for tasks
+10. **Validate robot configurations** before deployment
+11. **Test single-arm safety** in controlled environment
 
 ## Git Subtree Management
 
@@ -651,9 +652,13 @@ aloha-lite/
 ├── vision_bridge/                # Image processing and computer vision service
 │                                  # - FastAPI service (port 5000) 
 │                                  # - Beaker analysis with AI-powered color detection
+│                                  # - SAM 2 integration for advanced semantic segmentation
 │                                  # - Camera snapshot capture and S3 storage
 │                                  # - K-means clustering for color analysis
+│                                  # - Center-weighted detection algorithms
 │                                  # - Optional S3 integration (set REQUIRE_S3=false for local dev)
+│                                  # - Graceful fallback when SAM 2 models unavailable
+│                                  # - Comprehensive test suite with organized results
 │                                  # - Prometheus metrics on port 9003
 ├── phosphobot/                   # Robot control system (subtree)
 ├── aloha-lite-demo2rule/         # Dataset processing (subtree)
@@ -674,13 +679,20 @@ aloha-lite/
 - `POST /move/init` - Initialize robot system
 
 ### Vision Processing (Port 5000)
-- `POST /analyze-beaker` - AI-powered beaker color analysis (accepts image upload)
+- `POST /analyze-beaker` - Enhanced beaker color analysis with optional SAM 2 segmentation
 - `POST /snap` - Capture camera snapshot (with optional S3 storage)
 - `POST /color-checker` - Analyze color checker in images
+- `POST /circle-colour` - Advanced circle detection and color analysis
 - `GET /health` - Vision bridge service health check
 
+**Vision Analysis Features:**
+- **SAM 2 Integration**: Meta's Segment Anything Model 2.1 for precise segmentation
+- **Center-Weighted Detection**: Optimized for beakers positioned near image center
+- **Hybrid Analysis**: Combines traditional circle detection with AI segmentation
+- **Graceful Fallback**: Automatic fallback to circle detection when SAM 2 unavailable
+
 ### Frontend Interface (Port 3000)
-- `GET /` - Main color mixing and beaker analysis web interface
+- `GET /` - Main color mixing and beaker analysis web interface with SAM 2 support
 - `GET /health` - Frontend service health check
 - `GET /status` - Check status of all backend services
 - `POST /robot/*` - Proxy to robot service (eliminates CORS issues)
@@ -693,12 +705,31 @@ aloha-lite/
 
 ## Testing and Validation
 
-### Color Checker Detection
-To verify the color checker detection:
+### Vision Bridge Testing
+Test vision processing capabilities including SAM 2 integration:
 
 ```bash
-python vision_bridge/tests/test_color_checker.py
+cd /home/hafnium/aloha-lite/vision_bridge/tests
+
+# Run all vision tests via test runner
+python run_tests.py --type all
+
+# Run specific test categories
+python run_tests.py --type sam2      # SAM 2 integration tests
+python run_tests.py --type unit      # Unit tests
+python run_tests.py --type api       # API integration tests
+
+# Run individual tests
+python test_color_checker.py           # Color checker detection
+python test_beaker_analysis.py         # Beaker analysis algorithms
+python test_sam2_integration.py        # Comprehensive SAM 2 tests
 ```
+
+**Test Features:**
+- **SAM 2 Integration**: Tests model loading, segmentation, and fallback behavior
+- **Beaker Analysis**: Color detection, clustering, and visualization
+- **API Endpoints**: Full integration testing with running services
+- **Graceful Fallback**: Validates behavior when SAM 2 is unavailable
 
 ### Robot Configuration Testing
 Test robot configurations safely:
@@ -796,6 +827,24 @@ docker-compose -f docker-compose.prod.yml up -d
   export AWS_ACCESS_KEY_ID="your-access-key"
   export AWS_SECRET_ACCESS_KEY="your-secret-key"
   ```
+
+### Vision Bridge SAM 2 Configuration
+- **SAM 2 Not Available Warning**: 
+  ```
+  WARNING:main:SAM checkpoint not found (/models/sam2.1_hiera_large.pt); SAM disabled
+  ```
+- **Solution**: SAM 2 is optional - vision bridge continues with circle detection fallback. To enable SAM 2:
+  ```bash
+  # Use automatic setup script
+  cd /home/hafnium/aloha-lite/vision_bridge
+  python setup_sam2.py
+  
+  # Or set environment variables manually
+  export SAM_CHECKPOINT="/models/sam2.1_hiera_large.pt"
+  export SAM_CONFIG="configs/sam2.1/sam2.1_hiera_l.yaml"
+  ```
+- **Enhanced Analysis**: When SAM 2 is available, vision bridge provides hybrid circle + segmentation analysis
+- **Performance**: SAM 2 models require significant memory (GPU recommended for large models)
 
 ### Robot Service MODEL_ID Configuration Error
 - **Problem**: `ERROR:main:MODEL_ID environment variable is required`
