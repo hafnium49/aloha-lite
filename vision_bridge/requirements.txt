@@ -6,4 +6,6 @@ python-multipart
 prometheus-client
 colour-checker-detection
 scikit-learn>=1.0.0
-segment-anything>=2.0.0
+sam2>=1.1.0
+torch>=2.5.1
+torchvision>=0.20.1

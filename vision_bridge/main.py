@@ -17,21 +17,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────
-# Optional: Segment‑Anything v2
+# Optional: SAM 2 (Segment Anything Model 2)
 # ──────────────────────────────────────────────────────────────────────────
 SAM_PREDICTOR = None
 try:
-    from segment_anything import sam_model_registry, SamPredictor
-    SAM_CKPT = os.getenv("SAM_CHECKPOINT", "/models/sam2_vith.ckpt")
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+    SAM_CKPT = os.getenv("SAM_CHECKPOINT", "/models/sam2.1_hiera_large.pt")
+    SAM_CONFIG = os.getenv("SAM_CONFIG", "configs/sam2.1/sam2.1_hiera_l.yaml")
     if os.path.exists(SAM_CKPT):
-        _sam = sam_model_registry["vit_h"](checkpoint=SAM_CKPT)
-        _sam.to("cuda" if torch.cuda.is_available() else "cpu")
-        SAM_PREDICTOR = SamPredictor(_sam)
+        model = build_sam2(SAM_CONFIG, SAM_CKPT)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
+        SAM_PREDICTOR = SAM2ImagePredictor(model)
         logger.info(f"SAM‑2 loaded from {SAM_CKPT}")
     else:
         logger.warning(f"SAM checkpoint not found ({SAM_CKPT}); SAM disabled")
 except ImportError:
-    logger.warning("segment_anything not installed; SAM disabled")
+    logger.warning("sam2 not installed; SAM disabled")
 
 # ---------------------------------------------------------------------------
 # Environment (make optional for testing)
@@ -175,9 +178,9 @@ def extract_solution_color(image_data, n_clusters=5):
             SAM_PREDICTOR.set_image(image_rgb)          # SAM expects RGB
             x0, y0 = max(0, x - r), max(0, y - r)
             x1, y1 = min(image_rgb.shape[1]-1, x + r), min(image_rgb.shape[0]-1, y + r)
-            box    = np.array([x0, y0, x1, y1])
+            input_box = np.array([x0, y0, x1, y1])
             masks, scores, _ = SAM_PREDICTOR.predict(
-                box=np.expand_dims(box, 0),
+                box=input_box[None, :],
                 multimask_output=False)
             sam_mask = masks[0].astype(np.uint8) * 255   # H×W uint8
             mask = cv2.bitwise_and(circle_mask, sam_mask)
