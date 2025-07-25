@@ -79,8 +79,8 @@ print("✅ All core functionality working correctly")
 
 print(f"\n🎯 Next steps:")
 print("1. Install SAM 2: pip install sam2>=1.1.0")
-print("2. Download checkpoint: SAM_CHECKPOINT=/path/to/sam2.1_hiera_large.pt")
-print("3. Set config path: SAM_CONFIG=/path/to/configs/sam2.1/sam2.1_hiera_l.yaml")
+print("2. Download checkpoint: SAM_CHECKPOINT=./checkpoints/sam2.1_hiera_tiny.pt")
+print("3. Set config path: SAM_CONFIG=configs/sam2.1/sam2.1_hiera_t.yaml")
 print("4. Re-run tests to verify SAM 2 enhanced segmentation")
 
 print("\n✅ SAM 2 integration update completed successfully!")

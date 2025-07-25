@@ -24,8 +24,12 @@ SAM_PREDICTOR = None
 try:
     from sam2.build_sam import build_sam2
     from sam2.sam2_image_predictor import SAM2ImagePredictor
-    SAM_CKPT = os.getenv("SAM_CHECKPOINT", "/models/sam2.1_hiera_large.pt")
-    SAM_CONFIG = os.getenv("SAM_CONFIG", "configs/sam2.1/sam2.1_hiera_l.yaml")
+    
+    # Use local checkpoint and SAM 2 package config
+    default_checkpoint = os.path.join(os.path.dirname(__file__), "checkpoints", "sam2.1_hiera_tiny.pt")
+    
+    SAM_CKPT = os.getenv("SAM_CHECKPOINT", default_checkpoint)
+    SAM_CONFIG = os.getenv("SAM_CONFIG", "configs/sam2.1/sam2.1_hiera_t.yaml")  # SAM 2 package config path
     if os.path.exists(SAM_CKPT):
         model = build_sam2(SAM_CONFIG, SAM_CKPT)
         device = "cuda" if torch.cuda.is_available() else "cpu"
