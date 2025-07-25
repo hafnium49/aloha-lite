@@ -1,16 +1,18 @@
 # Vision Bridge Service
 
-The Vision Bridge is a FastAPI-based service that provides computer vision capabilities for the ALOHA Lite robot system. It handles image processing, beaker analysis, camera snapshots, and integrates with S3 storage for image management.
+The Vision Bridge is a FastAPI-based service that provides computer vision capabilities for the ALOHA Lite robot system. It handles image processing, beaker analysis, camera snapshots, and integrates with S3 storage for image management. The service now includes advanced SAM 2 integration for enhanced segmentation capabilities.
 
 ## Features
 
 - 🔍 **Beaker Analysis**: AI-powered color detection and clustering analysis of beaker solutions
 - 🎯 **Center-Weighted Detection**: Enhanced beaker detection optimized for center-positioned beakers
+- 🤖 **SAM 2 Integration**: Advanced semantic segmentation with Meta's SAM 2.1 models (optional)
 - 📸 **Camera Snapshots**: Capture and store images from connected cameras
 - 🎨 **Color Processing**: Advanced color space analysis with K-means clustering
 - ☁️ **S3 Integration**: Optional cloud storage for images (can be disabled for local development)
 - 📊 **Prometheus Metrics**: Built-in monitoring and metrics collection
 - 🔄 **Circle Detection**: Automated beaker detection using computer vision with adaptive parameters
+- 🧪 **Graceful Fallback**: Robust operation with or without SAM 2 models
 
 ## Quick Start
 
@@ -38,6 +40,8 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 |----------|----------|---------|-------------|
 | `REQUIRE_S3` | No | `true` | Set to `false` to disable S3 requirements for local development |
 | `TESTING` | No | `false` | Set to `true` to disable Prometheus server startup during testing |
+| `SAM_CHECKPOINT` | No | - | Path to SAM 2 model checkpoint file (enables SAM segmentation) |
+| `SAM_CONFIG` | No | - | Path to SAM 2 model configuration file |
 | `S3_ENDPOINT` | Yes* | - | S3-compatible storage endpoint URL |
 | `AWS_ACCESS_KEY_ID` | Yes* | - | AWS access key for S3 authentication |
 | `AWS_SECRET_ACCESS_KEY` | Yes* | - | AWS secret key for S3 authentication |
@@ -90,8 +94,22 @@ python -m uvicorn main:app --host 0.0.0.0 --port 5000
 
 ## Computer Vision Pipeline
 
+### SAM 2 Enhanced Analysis (v3.0)
+When SAM 2 is available, the vision bridge leverages Meta's Segment Anything Model 2.1 for advanced segmentation:
+
+1. **Hough Circle Detection**: Initial beaker location using traditional computer vision
+2. **SAM 2 Segmentation**: High-precision mask generation using the detected circle as a prompt
+3. **Hybrid Analysis**: Combines circle detection (70%) with SAM segmentation (30%) for optimal accuracy
+4. **Graceful Fallback**: Automatically falls back to circle-only detection if SAM 2 is unavailable
+
+#### SAM 2 Integration Features
+- **Multiple Model Support**: Compatible with SAM 2.1 tiny, small, base_plus, and large variants
+- **Automatic Setup**: Use `setup_sam2.py` script for easy model and configuration download
+- **Performance Optimization**: Efficient GPU/CPU utilization with model caching
+- **Quality Enhancement**: Superior edge detection and segmentation accuracy
+
 ### Enhanced Beaker Detection (v2.0)
-The vision bridge now features an improved center-weighted detection algorithm optimized for beakers positioned near the image center:
+The vision bridge features an improved center-weighted detection algorithm optimized for beakers positioned near the image center:
 
 1. **Hough Circle Transform**: Detects all circular objects in the image
 2. **Center-Weighted Scoring**: Combines circle size (30%) and center proximity (70%) to rank candidates
@@ -143,6 +161,41 @@ Key Python packages:
 - `numpy` - Numerical computations
 - `boto3` - AWS S3 integration
 - `prometheus-client` - Metrics collection
+- `sam2>=1.1.0` - Meta's Segment Anything Model 2 (optional)
+- `torch` - PyTorch deep learning framework (for SAM 2)
+
+## SAM 2 Setup
+
+### Automatic Setup (Recommended)
+```bash
+cd /home/hafnium/aloha-lite/vision_bridge
+python setup_sam2.py
+```
+
+This script will:
+- Download and set up the SAM 2 repository
+- Download your chosen model checkpoint
+- Create environment configuration files
+- Test the installation
+
+### Manual Setup
+1. **Install SAM 2 package**:
+   ```bash
+   pip install sam2>=1.1.0
+   ```
+
+2. **Download model checkpoints**:
+   ```bash
+   # Available models: sam2.1_hiera_tiny.pt, sam2.1_hiera_small.pt, 
+   #                   sam2.1_hiera_base_plus.pt, sam2.1_hiera_large.pt
+   wget -P /models/ https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+   ```
+
+3. **Set environment variables**:
+   ```bash
+   export SAM_CHECKPOINT="/models/sam2.1_hiera_large.pt"
+   export SAM_CONFIG="configs/sam2.1/sam2.1_hiera_l.yaml"
+   ```
 
 ## Architecture
 
@@ -162,22 +215,46 @@ Key Python packages:
 ## Development
 
 ### Running Tests
+The comprehensive test suite is located in `/tests` directory with organized structure:
+
 ```bash
 cd /home/hafnium/aloha-lite/vision_bridge/tests
+
+# Run all tests via test runner
+python run_tests.py --type all
+
+# Run specific test categories
+python run_tests.py --type unit      # Unit tests
+python run_tests.py --type api       # API integration tests
+python run_tests.py --type sam2      # SAM 2 integration tests
+python run_tests.py --type container # Container-based tests
+
+# Run individual tests
 python test_beaker_analysis.py
+python test_sam2_integration.py
 ```
 
-The test suite includes:
-- **Center-weighted detection validation**: Confirms algorithm prefers center-located beakers
-- **Adaptive parameter testing**: Verifies scaling across different image sizes  
-- **Synthetic beaker generation**: Creates test images for controlled validation
-- **API endpoint testing**: Full integration tests with running server
-- **Color analysis verification**: Validates clustering and dominant color detection
+### Test Categories
 
-### Test Results Interpretation
-- Tests save visualization images to `tests/test_results/` directory
+The test suite includes:
+
+#### Core Vision Tests
+- **Beaker analysis validation**: Color detection and clustering accuracy
+- **Center-weighted detection**: Algorithm performance with various beaker positions
+- **API endpoint testing**: Full integration tests with running server
+- **Circle detection**: Hough transform parameter validation
+
+#### SAM 2 Integration Tests
+- **Import and functionality testing**: SAM 2 package integration
+- **Model loading and inference**: Checkpoint compatibility verification
+- **Visualization generation**: Output quality and format validation
+- **Graceful fallback testing**: Behavior when SAM 2 is unavailable
+- **Environment configuration**: Variable and path validation
+
+#### Test Results
+- Test visualizations are saved to `tests/test_results/` directory
 - JSON analysis data includes beaker coordinates, colors, and cluster information
-- Center distance logging helps validate detection accuracy
+- SAM 2 test outputs include segmentation masks and hybrid analysis results
 
 ### Local Development Setup
 1. Install dependencies: `pip install -r requirements.txt`
@@ -199,6 +276,18 @@ ERROR:main:S3_ENDPOINT environment variable is required
 Camera error: 502
 ```
 **Solution**: Verify `PHOS_URL` points to accessible camera service.
+
+**SAM 2 Not Available**
+```
+WARNING:main:SAM checkpoint not found (/models/sam2.1_hiera_large.pt); SAM disabled
+```
+**Solution**: Install SAM 2 using `python setup_sam2.py` or set `SAM_CHECKPOINT` environment variable. Service continues with circle detection fallback.
+
+**Model Loading Error**
+```
+ERROR: Failed to load SAM model
+```
+**Solution**: Verify SAM checkpoint file exists and is compatible. Check `SAM_CONFIG` path points to correct configuration file.
 
 **Circle Detection Failed**
 ```
@@ -234,6 +323,16 @@ The Vision Bridge works in conjunction with the Robot Service:
 4. Ensure both development and production modes work correctly
 
 ## Changelog
+
+### v3.0 - SAM 2 Integration (July 2025)
+- **NEW**: Meta SAM 2.1 integration for advanced semantic segmentation
+- **ADDED**: Support for all SAM 2.1 model variants (tiny, small, base_plus, large)
+- **ENHANCED**: Hybrid analysis combining circle detection with SAM segmentation
+- **IMPROVED**: Automatic setup script for easy SAM 2 configuration
+- **ADDED**: Comprehensive SAM 2 test suite with unittest integration
+- **UPDATED**: Graceful fallback when SAM 2 models are unavailable
+- **ORGANIZED**: Restructured test files in dedicated tests/ directory
+- **ENHANCED**: Test result organization in test_results/ subdirectory
 
 ### v2.0 - Center-Weighted Detection (July 2025)
 - **NEW**: Implemented center-weighted beaker detection algorithm
