@@ -1,0 +1,5 @@
+Collecting segment-anything
+  Downloading segment_anything-1.0-py3-none-any.whl.metadata (487 bytes)
+Downloading segment_anything-1.0-py3-none-any.whl (36 kB)
+Installing collected packages: segment-anything
+Successfully installed segment-anything-1.0
