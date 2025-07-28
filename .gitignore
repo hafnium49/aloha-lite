@@ -153,6 +153,7 @@ robot_service/temp_sequence_*.json
 # SAM 2 model files and configurations
 vision_bridge/checkpoints/
 vision_bridge/configs/
+vision_bridge/tests/test_results/
 *.pt
 *.pth
 sam2_*
