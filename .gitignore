@@ -157,3 +157,6 @@ vision_bridge/tests/test_results/
 *.pt
 *.pth
 sam2_*
+
+*.backup
+temp_rules/archive/

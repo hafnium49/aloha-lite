@@ -21,7 +21,14 @@
             "j5": -1.3824541568756104,
             "j6": 1.58
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         },
         "right_arm": {
@@ -34,7 +41,14 @@
             "j5": -1.614141821861267,
             "j6": 1.5803860425949097
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -71,7 +85,14 @@
             "j5": -1.3824541568756104,
             "j6": 1.58
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -86,7 +107,7 @@
       }
     },
     "right_arm_standoff": {
-      "name": "right_arm_standoff", 
+      "name": "right_arm_standoff",
       "description": "Right arm standoff position - extracted from standoff_configuration_stage1",
       "source": {
         "dataset": "Hafnium49/aloha_lite",
@@ -107,7 +128,14 @@
             "j5": -1.614141821861267,
             "j6": 1.5803860425949097
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -131,7 +159,10 @@
         "frame_index": 126,
         "extraction_method": "time_based",
         "task": "laboratory_procedure",
-        "equipment": ["wash_bottle", "beaker"]
+        "equipment": [
+          "wash_bottle",
+          "beaker"
+        ]
       },
       "timestamp": "2025-07-15",
       "configuration": {
@@ -145,7 +176,14 @@
             "j5": -1.7292184829711914,
             "j6": -0.006137421354651451
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         },
         "right_arm": {
@@ -158,7 +196,14 @@
             "j5": -2.065242290496826,
             "j6": 0.4879250228404999
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -195,7 +240,14 @@
             "j5": -1.4913934469223022,
             "j6": 1.58
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -228,7 +280,14 @@
             "j5": -1.0,
             "j6": 0.5
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -261,7 +320,14 @@
             "j5": -1.8,
             "j6": 1.0
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -285,7 +351,10 @@
         "frame_index": 81,
         "extraction_method": "time_based",
         "task": "laboratory_procedure",
-        "equipment": ["red_solution", "beaker"]
+        "equipment": [
+          "red_solution",
+          "beaker"
+        ]
       },
       "timestamp": "2025-07-15",
       "configuration": {
@@ -296,10 +365,17 @@
             "j2": -0.395864,
             "j3": 1.176851,
             "j4": -0.885323,
-            "j5": -2.237090,
+            "j5": -2.23709,
             "j6": 0.53
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         },
         "right_arm": {
@@ -312,7 +388,14 @@
             "j5": -1.426951,
             "j6": 1.503668
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -347,7 +430,7 @@
             "j1": 0.455704,
             "j2": -0.719613,
             "j3": 0.454169,
-            "j4": 0.190260,
+            "j4": 0.19026,
             "j5": -2.289859,
             "j6": 0.53
           },
@@ -406,7 +489,10 @@
         "frame_index": 192,
         "extraction_method": "time_based",
         "task": "laboratory_procedure",
-        "equipment": ["blue_solution", "beaker"]
+        "equipment": [
+          "blue_solution",
+          "beaker"
+        ]
       },
       "timestamp": "2025-07-16",
       "configuration": {
@@ -414,13 +500,20 @@
           "name": "SO-101 Left Arm",
           "joints": {
             "j1": 0.220947,
-            "j2": 0.035290,
+            "j2": 0.03529,
             "j3": -1.256637,
             "j4": 1.232087,
-            "j5": 4.145828,
+            "j5": -2.1373573071795864,
             "j6": 0.53
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         },
         "right_arm": {
@@ -429,22 +522,29 @@
             "j1": -0.082855,
             "j2": -0.779453,
             "j3": 0.196397,
-            "j4": 0.690460,
+            "j4": 0.69046,
             "j5": -1.495997,
             "j6": 1.5
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with body: [0.220947, 0.035290, -1.256637, 1.232087, 4.145828, 0.53]",
-          "right_arm": "POST /joints/write with body: [-0.082855, -0.779453, 0.196397, 0.690460, -1.495997, 1.5]"
+          "left_arm": "POST /joints/write with body: [0.220947, 0.03529, -1.256637, 1.232087, -2.1373573071795864, 0.53]",
+          "right_arm": "POST /joints/write with body: [-0.082855, -0.779453, 0.196397, 0.69046, -1.495997, 1.5]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.220947, 0.035290, -1.256637, 1.232087, 4.145828, 0.53])\nright_arm.move_j([-0.082855, -0.779453, 0.196397, 0.690460, -1.495997, 1.5])"
+          "code": "left_arm.move_j([0.220947, 0.03529, -1.256637, 1.232087, -2.1373573071795864, 0.53])\nright_arm.move_j([-0.082855, -0.779453, 0.196397, 0.69046, -1.495997, 1.5])"
         }
       }
     },
@@ -463,7 +563,14 @@
           "joints": {
             "j6": 0.3
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -500,7 +607,14 @@
             "j4": -1.4469,
             "j5": -1.4991
           },
-          "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
           "units": "radians"
         }
       },
@@ -706,12 +820,12 @@
           "id": 2,
           "device_id": "5A68009540",
           "joints": {
-            "j1": 0.095130,
+            "j1": 0.09513,
             "j2": -1.265843,
-            "j3": 1.405470,
+            "j3": 1.40547,
             "j4": -0.504803,
             "j5": -1.376317,
-            "j6": 1.845830
+            "j6": 1.84583
           },
           "joint_names": [
             "shoulder_pan",
@@ -755,7 +869,7 @@
             "j2": -0.127351,
             "j3": 0.678185,
             "j4": -0.494062,
-            "j5": 4.649097,
+            "j5": -1.634088307179586,
             "j6": 0.53
           },
           "joint_names": [
@@ -771,11 +885,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/2/joints/write with body: [1.262774, -0.127351, 0.678185, -0.494062, 4.649097, 0.53]"
+          "left_arm": "POST /robot/2/joints/write with body: [1.262774, -0.127351, 0.678185, -0.494062, -1.634088307179586, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([1.262774, -0.127351, 0.678185, -0.494062, 4.649097, 0.53])"
+          "code": "left_arm.move_j([1.262774, -0.127351, 0.678185, -0.494062, -1.634088307179586, 0.53])"
         }
       }
     },
@@ -800,7 +914,7 @@
             "j2": 0.457238,
             "j3": 0.691994,
             "j4": -0.986591,
-            "j5": 4.664440,
+            "j5": -1.6187453071795863,
             "j6": 0.53
           },
           "joint_names": [
@@ -816,11 +930,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/2/joints/write with body: [1.259706, 0.457238, 0.691994, -0.986591, 4.664440, 0.53]"
+          "left_arm": "POST /robot/2/joints/write with body: [1.259706, 0.457238, 0.691994, -0.986591, -1.6187453071795863, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([1.259706, 0.457238, 0.691994, -0.986591, 4.664440, 0.53])"
+          "code": "left_arm.move_j([1.259706, 0.457238, 0.691994, -0.986591, -1.6187453071795863, 0.53])"
         }
       }
     }
