@@ -32,6 +32,15 @@ except ImportError:
     print("⚠️  ML libraries not available. Install with: pip install scipy scikit-learn")
     ML_AVAILABLE = False
 
+# Color Science imports for perceptually uniform plotting
+try:
+    import colour
+    COLOR_SCIENCE_AVAILABLE = True
+    print("✅ Color science library available for CAM02-UCS plotting")
+except ImportError:
+    COLOR_SCIENCE_AVAILABLE = False
+    print("⚠️  Color science library not available. Install with: pip install colour-science")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,7 +70,63 @@ class ColorOptimizer:
         # hyper-parameters
         self.epsilon_rgb = 10.0   # acceptable Euclidean RGB error
 
-    # ---------- utility helpers ----------------------------------------------
+    # ---------- color space conversion helpers --------------------------------
+    @staticmethod
+    def _rgb_to_cam02ucs(rgb: Tuple[int, int, int]) -> Tuple[float, float, float]:
+        """Convert sRGB (0-255) to CAM02-UCS J' a' b' coordinates"""
+        if not COLOR_SCIENCE_AVAILABLE:
+            # Fallback to approximate CIELAB conversion
+            return ColorOptimizer._rgb_to_lab(rgb)
+        
+        try:
+            # Convert sRGB to XYZ
+            rgb_norm = np.array(rgb) / 255.0
+            xyz = colour.sRGB_to_XYZ(rgb_norm)
+            
+            # Convert XYZ to CAM02-UCS
+            # Using standard viewing conditions (D65, 20% background, average surround)
+            cam02ucs = colour.XYZ_to_CAM02UCS(xyz)
+            
+            return tuple(cam02ucs)
+        except Exception as e:
+            logger.warning(f"CAM02-UCS conversion failed: {e}, falling back to CIELAB")
+            return ColorOptimizer._rgb_to_lab(rgb)
+    
+    @staticmethod
+    def _rgb_to_lab(rgb: Tuple[int, int, int]) -> Tuple[float, float, float]:
+        """Convert sRGB (0-255) to CIELAB L* a* b* coordinates"""
+        if COLOR_SCIENCE_AVAILABLE:
+            try:
+                rgb_norm = np.array(rgb) / 255.0
+                xyz = colour.sRGB_to_XYZ(rgb_norm)
+                lab = colour.XYZ_to_Lab(xyz)
+                return tuple(lab)
+            except Exception as e:
+                logger.warning(f"CIELAB conversion failed: {e}, using approximation")
+        
+        # Fallback approximation for CIELAB without colour-science
+        r, g, b = np.array(rgb) / 255.0
+        
+        # Rough sRGB to XYZ approximation
+        xyz = np.array([
+            0.4124 * r + 0.3576 * g + 0.1805 * b,
+            0.2126 * r + 0.7152 * g + 0.0722 * b,
+            0.0193 * r + 0.1192 * g + 0.9505 * b
+        ])
+        
+        # Rough XYZ to LAB approximation
+        xyz = xyz / np.array([0.95047, 1.0, 1.08883])  # D65 reference white
+        
+        def f(t):
+            return np.where(t > 0.008856, np.power(t, 1/3), (7.787 * t + 16/116))
+        
+        fx, fy, fz = f(xyz)
+        
+        L = 116 * fy - 16
+        a = 500 * (fx - fy)
+        b = 200 * (fy - fz)
+        
+        return (L, a, b)
     @staticmethod
     def _lin_rgb(rgb: Tuple[int, int, int]) -> np.ndarray:
         """sRGB (0-255) → linear RGB (0-1)"""
@@ -236,9 +301,53 @@ class ColorOptimizer:
         if err <= self.epsilon_rgb:
             logger.info("✅ deterministic inverse good enough (err=%.1f)", err)
             return w_cal
+        else:
+            # Error too high, blend with GP suggestion
+            logger.info(f"⚠️  deterministic inverse error={err:.1f} > {self.epsilon_rgb}, refining with GP")
+            w_gp = self._gp_next()
+            blend = {c: 0.5*w_cal[c] + 0.5*w_gp[c] for c in w_cal}
+            return self._normalize(blend)
 
-        logger.info("♻️  inverse err %.1f > %.1f → GP fine-tune", err, self.epsilon_rgb)
-        return self._gp_next(initial=w_cal)
+    def get_color_space_data(self) -> Dict:
+        """Get color space data for perceptual plotting"""
+        if not self.target_color or len(self.history) == 0:
+            return {
+                'available': False,
+                'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
+                'target': None,
+                'trail': []
+            }
+        
+        # Convert target color
+        target_lab = self._rgb_to_cam02ucs(self.target_color)
+        
+        # Convert history
+        trail_data = []
+        for measurement in self.history:
+            rgb = measurement['measured_rgb']
+            lab = self._rgb_to_cam02ucs(rgb)
+            trail_data.append({
+                'lab': lab,
+                'rgb': rgb,
+                'ratios': measurement['ratios'],
+                'distance': measurement['distance_to_target'],
+                'timestamp': measurement['timestamp']
+            })
+        
+        return {
+            'available': True,
+            'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
+            'target': {
+                'lab': target_lab,
+                'rgb': self.target_color
+            },
+            'trail': trail_data,
+            'axis_labels': {
+                'x': "a'" if COLOR_SCIENCE_AVAILABLE else 'a*',
+                'y': "b'" if COLOR_SCIENCE_AVAILABLE else 'b*',
+                'title': 'Color Optimization Progress in CAM02-UCS a′b′ plane' if COLOR_SCIENCE_AVAILABLE else 'Color Optimization Progress in CIELAB a*b* plane'
+            }
+        }
             
     def _is_optimization_stuck(self) -> bool:
         """Check if recent recommendations are too similar (indicating convergence/stagnation)"""
@@ -433,6 +542,19 @@ async def optimization_history():
         'history': color_optimizer.history,
         'statistics': color_optimizer.get_statistics()
     }
+
+@app.get("/api/color-space-data")
+async def get_color_space_data():
+    """Get color space data for perceptual plotting"""
+    try:
+        data = color_optimizer.get_color_space_data()
+        return {
+            'status': 'success',
+            'data': data
+        }
+    except Exception as e:
+        logger.error(f"Color space data error: {e}")
+        raise HTTPException(status_code=500, detail=f"Color space data error: {str(e)}")
 
 @app.post("/api/reset-optimization")
 async def reset_optimization():

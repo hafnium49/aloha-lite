@@ -124,6 +124,23 @@ def test_optimization_evolution():
     elif len(optimizer.history) >= 3:
         print("⚠️  WARNING: Should have calibration matrix by phase 3+")
     
+    # Test CAM02-UCS color space data
+    color_data = optimizer.get_color_space_data()
+    if color_data['available']:
+        print(f"🎨 Color space plotting available: {color_data['color_space']}")
+        print(f"   Target in {color_data['color_space']}: {[round(x, 1) for x in color_data['target']['lab']]}")
+        print(f"   Trail points: {len(color_data['trail'])}")
+        perceptual_distances = []
+        target_lab = color_data['target']['lab']
+        for point in color_data['trail']:
+            lab = point['lab']
+            dist = ((lab[1] - target_lab[1])**2 + (lab[2] - target_lab[2])**2)**0.5
+            perceptual_distances.append(dist)
+        print(f"   Perceptual distances (ΔE): {[round(d, 1) for d in perceptual_distances]}")
+        print("✅ GOOD: CAM02-UCS perceptual plotting ready")
+    else:
+        print("⚠️  WARNING: Color space plotting not available")
+    
     return diversity_good or improvement_good
 
 def test_phase_specific_behavior():

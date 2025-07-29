@@ -518,6 +518,14 @@ img {
           <h4>📈 改善傾向</h4>
           <canvas id="trend-canvas" width="400" height="200"></canvas>
         </div>
+        
+        <div id="perceptual-chart" style="margin-top: 1.5rem;">
+          <h4>🎨 知覚的色空間での進捗</h4>
+          <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+            CAM02-UCS a'b' 平面での最適化の軌跡（知覚的に均一な色空間）
+          </p>
+          <canvas id="perceptual-canvas" width="500" height="400"></canvas>
+        </div>
       </div>
 
       <div class="mt-1">
@@ -816,6 +824,9 @@ window.onload = async function() {
   await loadTargetColor()
   await checkMLAvailability()
   await getRecommendation()
+  
+  // Initialize perceptual chart
+  await drawPerceptualChart()
 }
 
 // ML Optimization Functions
@@ -925,6 +936,9 @@ function updateOptimizationStats(stats) {
     
     // Draw improvement trend chart
     drawTrendChart(stats.improvement_trend)
+    
+    // Draw perceptual color space chart
+    drawPerceptualChart()
   }
 }
 
@@ -992,6 +1006,211 @@ function drawTrendChart(trends) {
   ctx.font = '12px Arial'
   ctx.fillText('距離', 5, 20)
   ctx.fillText('試行回数', canvas.width - 50, canvas.height - 5)
+}
+
+async function drawPerceptualChart() {
+  try {
+    const response = await fetch('/api/color-space-data')
+    const result = await response.json()
+    
+    if (result.status !== 'success' || !result.data.available) {
+      return
+    }
+    
+    const data = result.data
+    const canvas = document.getElementById('perceptual-canvas')
+    const ctx = canvas.getContext('2d')
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    
+    // Chart dimensions
+    const padding = 60
+    const chartWidth = canvas.width - 2 * padding
+    const chartHeight = canvas.height - 2 * padding
+    
+    // Find data bounds for a' and b' (indices 1 and 2 in LAB)
+    let minA = Infinity, maxA = -Infinity
+    let minB = Infinity, maxB = -Infinity
+    
+    // Include target in bounds
+    const targetA = data.target.lab[1]
+    const targetB = data.target.lab[2]
+    minA = Math.min(minA, targetA)
+    maxA = Math.max(maxA, targetA)
+    minB = Math.min(minB, targetB)
+    maxB = Math.max(maxB, targetB)
+    
+    // Include trail points in bounds
+    data.trail.forEach(point => {
+      minA = Math.min(minA, point.lab[1])
+      maxA = Math.max(maxA, point.lab[1])
+      minB = Math.min(minB, point.lab[2])
+      maxB = Math.max(maxB, point.lab[2])
+    })
+    
+    // Add some padding to bounds
+    const rangeA = maxA - minA || 20
+    const rangeB = maxB - minB || 20
+    minA -= rangeA * 0.1
+    maxA += rangeA * 0.1
+    minB -= rangeB * 0.1
+    maxB += rangeB * 0.1
+    
+    // Helper function to convert LAB coordinates to canvas coordinates
+    function labToCanvas(a, b) {
+      const x = padding + ((a - minA) / (maxA - minA)) * chartWidth
+      const y = padding + chartHeight - ((b - minB) / (maxB - minB)) * chartHeight
+      return [x, y]
+    }
+    
+    // Draw axes
+    ctx.strokeStyle = '#ccc'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(padding, padding)
+    ctx.lineTo(padding, padding + chartHeight)
+    ctx.lineTo(padding + chartWidth, padding + chartHeight)
+    ctx.stroke()
+    
+    // Draw grid lines
+    ctx.strokeStyle = '#f0f0f0'
+    ctx.lineWidth = 0.5
+    for (let i = 1; i < 5; i++) {
+      // Vertical grid lines
+      const x = padding + (i / 5) * chartWidth
+      ctx.beginPath()
+      ctx.moveTo(x, padding)
+      ctx.lineTo(x, padding + chartHeight)
+      ctx.stroke()
+      
+      // Horizontal grid lines
+      const y = padding + (i / 5) * chartHeight
+      ctx.beginPath()
+      ctx.moveTo(padding, y)
+      ctx.lineTo(padding + chartWidth, y)
+      ctx.stroke()
+    }
+    
+    // Draw trail line
+    if (data.trail.length > 1) {
+      ctx.strokeStyle = '#666'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 5])
+      ctx.beginPath()
+      
+      data.trail.forEach((point, index) => {
+        const [x, y] = labToCanvas(point.lab[1], point.lab[2])
+        if (index === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      })
+      
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+    
+    // Draw trail points (colored by actual measured color)
+    data.trail.forEach((point, index) => {
+      const [x, y] = labToCanvas(point.lab[1], point.lab[2])
+      const [r, g, b] = point.rgb
+      
+      // Draw point with actual color
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+      ctx.strokeStyle = '#333'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(x, y, 8, 0, 2 * Math.PI)
+      ctx.fill()
+      ctx.stroke()
+      
+      // Add iteration number
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 10px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText((index + 1).toString(), x, y + 3)
+    })
+    
+    // Draw target point (larger, with black border)
+    const [targetX, targetY] = labToCanvas(targetA, targetB)
+    const [tr, tg, tb] = data.target.rgb
+    ctx.fillStyle = `rgb(${tr}, ${tg}, ${tb})`
+    ctx.strokeStyle = '#000'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(targetX, targetY, 12, 0, 2 * Math.PI)
+    ctx.fill()
+    ctx.stroke()
+    
+    // Target label
+    ctx.fillStyle = '#000'
+    ctx.font = 'bold 12px Arial'  
+    ctx.textAlign = 'center'
+    ctx.fillText('目標', targetX, targetY - 18)
+    
+    // Draw ΔE circles (perceptually meaningful distances)
+    ctx.strokeStyle = '#ddd'
+    ctx.lineWidth = 1
+    ctx.setLineDash([2, 2])
+    
+    // ΔE circles of 1, 2, 5 units (just noticeable, noticeable, clear difference)
+    const deltaECircles = [1, 2, 5]
+    deltaECircles.forEach(deltaE => {
+      // In CAM02-UCS, Euclidean distance ≈ ΔE
+      // Convert ΔE to canvas pixels
+      const radiusA = deltaE
+      const radiusB = deltaE
+      
+      const radiusPixelsA = (radiusA / (maxA - minA)) * chartWidth
+      const radiusPixelsB = (radiusB / (maxB - minB)) * chartHeight
+      const radiusPixels = Math.sqrt(radiusPixelsA * radiusPixelsA + radiusPixelsB * radiusPixelsB) / Math.sqrt(2)
+      
+      ctx.beginPath()
+      ctx.arc(targetX, targetY, radiusPixels, 0, 2 * Math.PI)
+      ctx.stroke()
+      
+      // Label the circle
+      ctx.fillStyle = '#999'
+      ctx.font = '10px Arial'
+      ctx.fillText(`ΔE=${deltaE}`, targetX + radiusPixels * 0.7, targetY - radiusPixels * 0.7)
+    })
+    
+    ctx.setLineDash([])
+    
+    // Add axis labels
+    ctx.fillStyle = '#333'
+    ctx.font = '14px Arial'
+    ctx.textAlign = 'center'
+    
+    // X-axis label
+    ctx.fillText(data.axis_labels.x, canvas.width / 2, canvas.height - 10)
+    
+    // Y-axis label (rotated)
+    ctx.save()
+    ctx.translate(15, canvas.height / 2)
+    ctx.rotate(-Math.PI / 2)
+    ctx.fillText(data.axis_labels.y, 0, 0)
+    ctx.restore()
+    
+    // Title
+    ctx.font = 'bold 16px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText(data.axis_labels.title, canvas.width / 2, 25)
+    
+    // Legend
+    ctx.font = '12px Arial'
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#666'
+    const legendY = canvas.height - 40
+    ctx.fillText('● 測定色（番号付き）', padding, legendY)
+    ctx.fillText('● 目標色', padding + 150, legendY)
+    ctx.fillText('--- 最適化経路', padding + 250, legendY)
+    
+  } catch (error) {
+    console.error('Error drawing perceptual chart:', error)
+  }
 }
 
 async function resetOptimization() {
