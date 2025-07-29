@@ -19,7 +19,7 @@
         "j3": -0.454169,
         "j4": 1.032621,
         "j5": -1.859639,
-        "j6": 0.906804033343867
+        "j6": 0.53
       },
       "joint_names": [
         "shoulder_pan",
@@ -34,11 +34,11 @@
   },
   "usage": {
     "phosphobot_api": {
-      "left_arm": "POST /robot/3/joints/write with body: [0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.906804033343867]"
+      "left_arm": "POST /robot/3/joints/write with body: [0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.53]"
     },
     "python_example": {
       "description": "Example usage with phosphobot SkillClient",
-      "code": "left_arm.move_j([0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.906804033343867])"
+      "code": "left_arm.move_j([0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.53])"
     }
   }
 }

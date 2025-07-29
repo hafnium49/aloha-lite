@@ -297,7 +297,7 @@
             "j3": 1.229019,
             "j4": -1.081721,
             "j5": -2.034555,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
           "units": "radians"
@@ -318,12 +318,12 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with body: [0.145764, -0.199466, 1.229019, -1.081721, -2.034555, 0.906804033343867]",
+          "left_arm": "POST /joints/write with body: [0.145764, -0.199466, 1.229019, -1.081721, -2.034555, 0.53]",
           "right_arm": "POST /joints/write with body: [0.162642, 0.461841, 1.250500, -1.643295, -1.453035, 1.5]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.145764, -0.199466, 1.229019, -1.081721, -2.034555, 0.906804033343867])\nright_arm.move_j([0.162642, 0.461841, 1.250500, -1.643295, -1.453035, 1.5])"
+          "code": "left_arm.move_j([0.145764, -0.199466, 1.229019, -1.081721, -2.034555, 0.53])\nright_arm.move_j([0.162642, 0.461841, 1.250500, -1.643295, -1.453035, 1.5])"
         }
       }
     },
@@ -349,7 +349,7 @@
             "j3": -0.095130,
             "j4": 0.661307,
             "j5": -1.921013,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -386,12 +386,12 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/3/joints/write with body: [0.182588, -0.286924, -0.095130, 0.661307, -1.921013, 0.906804033343867]",
+          "left_arm": "POST /robot/3/joints/write with body: [0.182588, -0.286924, -0.095130, 0.661307, -1.921013, 0.53]",
           "right_arm": "POST /robot/2/joints/write with body: [0.038359, -0.761040, 0.994262, -0.115077, -1.439225, 0.8577046394348145]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.182588, -0.286924, -0.095130, 0.661307, -1.921013, 0.906804033343867])\nright_arm.move_j([0.038359, -0.761040, 0.994262, -0.115077, -1.439225, 0.8577046394348145])"
+          "code": "left_arm.move_j([0.182588, -0.286924, -0.095130, 0.661307, -1.921013, 0.53])\nright_arm.move_j([0.038359, -0.761040, 0.994262, -0.115077, -1.439225, 0.8577046394348145])"
         }
       }
     },
@@ -418,7 +418,7 @@
             "j3": -1.031087,
             "j4": 1.324149,
             "j5": -1.851967,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
           "units": "radians"
@@ -439,12 +439,12 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with body: [-0.013809, -0.090527, -1.031087, 1.324149, -1.851967, 0.906804033343867]",
+          "left_arm": "POST /joints/write with body: [-0.013809, -0.090527, -1.031087, 1.324149, -1.851967, 0.53]",
           "right_arm": "POST /joints/write with body: [-0.116611, -0.899132, 0.314543, 0.618345, -1.422347, 1.5]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([-0.013809, -0.090527, -1.031087, 1.324149, -1.851967, 0.906804033343867])\nright_arm.move_j([-0.116611, -0.899132, 0.314543, 0.618345, -1.422347, 1.5])"
+          "code": "left_arm.move_j([-0.013809, -0.090527, -1.031087, 1.324149, -1.851967, 0.53])\nright_arm.move_j([-0.116611, -0.899132, 0.314543, 0.618345, -1.422347, 1.5])"
         }
       }
     },
@@ -536,7 +536,7 @@
             "j3": 1.090927,
             "j4": 0.081321,
             "j5": -1.693928,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -551,11 +551,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/3/joints/write with body: [0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.906804033343867]"
+          "left_arm": "POST /robot/3/joints/write with body: [0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.906804033343867])"
+          "code": "left_arm.move_j([0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.53])"
         }
       }
     },
@@ -580,7 +580,7 @@
             "j3": -0.454169,
             "j4": 1.032621,
             "j5": -1.859639,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -595,11 +595,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/3/joints/write with body: [0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.906804033343867]"
+          "left_arm": "POST /robot/3/joints/write with body: [0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.906804033343867])"
+          "code": "left_arm.move_j([0.337558, -0.412742, -0.454169, 1.032621, -1.859639, 0.53])"
         }
       }
     },
@@ -624,7 +624,7 @@
             "j3": 1.5266836094367982,
             "j4": -1.561973783323277,
             "j5": -1.6417602634144461,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -639,11 +639,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/3/joints/write with body: [-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.906804033343867]"
+          "left_arm": "POST /robot/3/joints/write with body: [-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.906804033343867])"
+          "code": "left_arm.move_j([-0.7748494701161639, 0.07211470315932614, 1.5266836094367982, -1.561973783323277, -1.6417602634144461, 0.53])"
         }
       }
     },
@@ -667,7 +667,7 @@
             "j3": 1.399332,
             "j4": -1.706203,
             "j5": -1.506737,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -682,11 +682,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with body: [-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.906804033343867]"
+          "left_arm": "POST /joints/write with body: [-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.906804033343867])"
+          "code": "left_arm.move_j([-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.53])"
         }
       }
     },
@@ -756,7 +756,7 @@
             "j3": 1.077117,
             "j4": -1.041827,
             "j5": -1.497531,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -771,11 +771,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/2/joints/write with body: [1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.906804033343867]"
+          "left_arm": "POST /robot/2/joints/write with body: [1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.906804033343867])"
+          "code": "left_arm.move_j([1.043362, -0.081321, 1.077117, -1.041827, -1.497531, 0.53])"
         }
       }
     },
@@ -801,7 +801,7 @@
             "j3": 0.761040,
             "j4": -1.051033,
             "j5": -1.557371,
-            "j6": 0.906804033343867
+            "j6": 0.53
           },
           "joint_names": [
             "shoulder_pan",
@@ -816,11 +816,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/2/joints/write with body: [1.101667, 0.412742, 0.761040, -1.051033, -1.557371, 0.906804033343867]"
+          "left_arm": "POST /robot/2/joints/write with body: [1.101667, 0.412742, 0.761040, -1.051033, -1.557371, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([1.101667, 0.412742, 0.761040, -1.051033, -1.557371, 0.906804033343867])"
+          "code": "left_arm.move_j([1.101667, 0.412742, 0.761040, -1.051033, -1.557371, 0.53])"
         }
       }
     }

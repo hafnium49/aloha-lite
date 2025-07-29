@@ -18,7 +18,7 @@
         "j3": 1.399332,
         "j4": -1.706203,
         "j5": -1.506737,
-        "j6": 0.906804033343867
+        "j6": 0.53
       },
       "joint_names": ["shoulder_pan", "shoulder_lift", "elbow", "wrist_1", "wrist_2", "wrist_3"],
       "units": "radians"
@@ -27,7 +27,7 @@
   "usage": {
     "description": "This configuration specifies all 6 joints for the left arm - current position joints j1-j5 with preserved gripper position j6. Right arm stays in current position.",
     "phosphobot_api": {
-      "left_arm": "POST /joints/write with body: [-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.906804033343867]"
+      "left_arm": "POST /joints/write with body: [-0.167245, 0.362108, 1.399332, -1.706203, -1.506737, 0.53]"
     },
     "python_example": {
       "description": "Example usage with enhanced execute_rules.py",
@@ -41,7 +41,7 @@
       "j3": 1.399332,
       "j4": -1.706203,
       "j5": -1.506737,
-      "j6": 0.906804033343867
+      "j6": 0.53
     },
     "original_current_position_reading": {
       "j1": -0.167245,
