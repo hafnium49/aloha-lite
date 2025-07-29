@@ -22,7 +22,7 @@ import logging
 
 # Machine Learning imports
 try:
-    from scipy.optimize import minimize
+    from scipy.optimize import minimize, lsq_linear
     from scipy.spatial.distance import euclidean
     from sklearn.gaussian_process import GaussianProcessRegressor
     from sklearn.gaussian_process.kernels import RBF, ConstantKernel
@@ -41,380 +41,196 @@ ROBOT_SERVICE_URL = os.getenv("ROBOT_SERVICE_URL", "http://localhost:8000")
 VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
 
 class ColorOptimizer:
-    """Bayesian optimization-based color mixing optimizer"""
-    
+    """
+    Hybrid pigment optimiser with 4-phase logic:
+      0 samples  → pure dominant pigment
+      1 sample   → GP only
+      2 samples  → rough scale-only calibration ⊕ GP (70/30 blend)
+      ≥3 samples → full NNLS calibration; GP refines only if error > ε
+    """
+
+    # ---------- initialisation ------------------------------------------------
     def __init__(self):
         self.history: List[Dict] = []
         self.target_color: Optional[Tuple[int, int, int]] = None
-        self.gp_model = None
-        self.kernel = ConstantKernel(1.0) * RBF(length_scale=1.0) if ML_AVAILABLE else None
-        
-    def set_target_color(self, rgb: Tuple[int, int, int]):
-        """Set the target color for optimization"""
+
+        # calibration / modelling state
+        self.P_est   : Optional[np.ndarray] = None      # (3,3) absorbance matrix
+        self.gp_model: Optional[GaussianProcessRegressor] = None
+
+        # hyper-parameters
+        self.epsilon_rgb = 10.0   # acceptable Euclidean RGB error
+
+    # ---------- utility helpers ----------------------------------------------
+    @staticmethod
+    def _lin_rgb(rgb: Tuple[int, int, int]) -> np.ndarray:
+        """sRGB (0-255) → linear RGB (0-1)"""
+        arr = np.asarray(rgb, dtype=np.float64)/255.0
+        return np.power(arr, 2.2).clip(1e-4, 1.0)  # avoid log(0)
+
+    @staticmethod
+    def _rgb_to_absorb(rgb: Tuple[int, int, int]) -> np.ndarray:
+        """Approx. Beer-Lambert absorbance from sRGB tuple"""
+        return -np.log10(ColorOptimizer._lin_rgb(rgb))
+
+    def _ratios_to_array(self, r: Dict[str, float]) -> np.ndarray:
+        return np.array([r.get('red',0), r.get('yellow',0), r.get('blue',0)])
+
+    def _array_to_ratios(self, a: np.ndarray) -> Dict[str,float]:
+        return {'red': float(a[0]), 'yellow': float(a[1]), 'blue': float(a[2])}
+
+    def _normalize(self, ratios: Dict[str,float]) -> Dict[str,float]:
+        s = sum(ratios.values()) or 1.0
+        f = 3.0/s
+        return {k: max(0.1, v*f) for k,v in ratios.items()}
+
+    # ---------- public API ----------------------------------------------------
+    def set_target_color(self, rgb: Tuple[int,int,int]):
         self.target_color = rgb
-        logger.info(f"🎯 Target color set to RGB{rgb}")
-        
-    def add_measurement(self, ratios: Dict[str, float], measured_rgb: Tuple[int, int, int]):
-        """Add a measurement to the history"""
-        distance = self._calculate_color_distance(measured_rgb, self.target_color) if self.target_color else 0
-        
-        measurement = {
-            'timestamp': datetime.now().isoformat(),
-            'ratios': ratios.copy(),
-            'measured_rgb': measured_rgb,
-            'distance_to_target': distance
-        }
-        self.history.append(measurement)
-        
-        # Enhanced logging with optimization insights
-        improvement_msg = ""
-        if len(self.history) > 1:
-            prev_distance = self.history[-2]['distance_to_target']
-            improvement = prev_distance - distance
-            improvement_pct = (improvement / prev_distance) * 100 if prev_distance > 0 else 0
-            improvement_msg = f", improvement: {improvement:+.2f} ({improvement_pct:+.1f}%)"
-            
-            # Track if we found a new best
-            best_so_far = min(h['distance_to_target'] for h in self.history[:-1])
-            if distance < best_so_far:
-                improvement_msg += " 🎯 NEW BEST!"
-        
-        logger.info(f"📊 Added measurement: ratios={ratios}, RGB={measured_rgb}, distance={distance:.2f}{improvement_msg}")
-        
-        # Log optimization status every few measurements
-        if len(self.history) % 3 == 0:
-            stats = self.get_statistics()
-            logger.info(f"🔍 Optimization status: {stats['convergence_status']}, diversity: {stats['ratio_diversity']:.3f}, efficiency: {stats['optimization_efficiency']:.1%}")
-        
-    def _calculate_color_distance(self, rgb1: Tuple[int, int, int], rgb2: Tuple[int, int, int]) -> float:
-        """Calculate Euclidean distance between two RGB colors"""
-        return euclidean(rgb1, rgb2)
-        
-    def _ratios_to_array(self, ratios: Dict[str, float]) -> np.ndarray:
-        """Convert ratio dict to numpy array [red, yellow, blue]"""
-        return np.array([ratios.get('red', 0), ratios.get('yellow', 0), ratios.get('blue', 0)])
-        
-    def _array_to_ratios(self, arr: np.ndarray) -> Dict[str, float]:
-        """Convert numpy array to ratio dict"""
-        return {'red': float(arr[0]), 'yellow': float(arr[1]), 'blue': float(arr[2])}
-        
-    def _normalize_ratios(self, ratios: Dict[str, float]) -> Dict[str, float]:
-        """Normalize ratios to sum to a reasonable total (3.0 for balanced mixing)"""
-        total = sum(ratios.values())
-        if total == 0:
-            return {'red': 1.0, 'yellow': 1.0, 'blue': 1.0}
-        
-        # Scale to sum to 3.0 for reasonable mixing ratios
-        scale_factor = 3.0 / total
-        return {
-            'red': ratios['red'] * scale_factor,
-            'yellow': ratios['yellow'] * scale_factor,
-            'blue': ratios['blue'] * scale_factor
-        }
-        
-    def recommend_next_ratios(self) -> Dict[str, float]:
-        """Use Bayesian optimization to recommend next color ratios"""
-        if not self.target_color:
-            logger.warning("⚠️  No target color set, using random ratios")
-            return self._get_random_ratios()
-            
-        if len(self.history) == 0:
-            logger.info("📝 No history available, using smart initial guess")
-            return self._get_initial_guess()
-            
-        # Check if optimization appears stuck (recommending very similar ratios)
-        if len(self.history) >= 3 and self._is_optimization_stuck():
-            logger.info("🔄 Optimization appears stuck, injecting exploration")
-            return self._inject_exploration()
-            
-        if not ML_AVAILABLE:
-            logger.warning("⚠️  ML not available, using heuristic approach")
-            return self._enhanced_heuristic_recommendation()
-            
-        try:
-            return self._bayesian_optimization()
-        except Exception as e:
-            logger.error(f"❌ Bayesian optimization failed: {e}")
-            return self._enhanced_heuristic_recommendation()
-            
-    def _is_optimization_stuck(self) -> bool:
-        """Check if recent recommendations are too similar (indicating convergence/stagnation)"""
-        if len(self.history) < 3:
-            return False
-            
-        # Check last 3 recommendations for similarity
-        recent_ratios = [h['ratios'] for h in self.history[-3:]]
-        
-        # Calculate variance in ratios
-        for color in ['red', 'yellow', 'blue']:
-            values = [r[color] for r in recent_ratios]
-            variance = np.var(values) if ML_AVAILABLE else sum((x - sum(values)/len(values))**2 for x in values) / len(values)
-            if variance > 0.01:  # If any color has significant variance, not stuck
-                return False
-                
-        # Also check if distances aren't improving
-        recent_distances = [h['distance_to_target'] for h in self.history[-3:]]
-        improvement = max(recent_distances) - min(recent_distances)
-        relative_improvement = improvement / (max(recent_distances) + 1e-6)
-        
-        is_stuck = relative_improvement < 0.05  # Less than 5% improvement range
-        if is_stuck:
-            logger.info(f"🚫 Optimization stuck: ratio_variance_low=True, improvement={relative_improvement:.3f}")
-        
-        return is_stuck
-        
-    def _inject_exploration(self) -> Dict[str, float]:
-        """Inject exploration when optimization is stuck"""
-        # Get the best point so far
-        best_measurement = min(self.history, key=lambda x: x['distance_to_target'])
-        best_ratios = best_measurement['ratios'].copy()
-        
-        # Apply large perturbation to break out of local optimum
-        exploration_strength = 0.8  # Large perturbation
-        
-        # Choose random exploration strategy
-        strategy = random.choice(['random_walk', 'opposite_direction', 'dimension_focus'])
-        
-        if strategy == 'random_walk':
-            # Random walk from best point
-            for color in ['red', 'yellow', 'blue']:
-                perturbation = random.uniform(-exploration_strength, exploration_strength)
-                best_ratios[color] = max(0.1, best_ratios[color] * (1 + perturbation))
-                
-        elif strategy == 'opposite_direction':
-            # Try opposite direction from recent trend
-            if len(self.history) >= 2:
-                prev_ratios = self.history[-2]['ratios']
-                for color in ['red', 'yellow', 'blue']:
-                    trend = best_ratios[color] - prev_ratios[color]
-                    # Go opposite direction with amplification
-                    best_ratios[color] = max(0.1, best_ratios[color] - 2 * trend)
-                    
-        else:  # dimension_focus
-            # Focus exploration on one dimension
-            focus_color = random.choice(['red', 'yellow', 'blue'])
-            for color in ['red', 'yellow', 'blue']:
-                if color == focus_color:
-                    # Large change in focus dimension
-                    best_ratios[color] *= random.uniform(0.3, 3.0)
-                else:
-                    # Small changes in other dimensions
-                    best_ratios[color] *= random.uniform(0.8, 1.2)
-                best_ratios[color] = max(0.1, best_ratios[color])
-        
-        logger.info(f"🚀 Injecting exploration (strategy={strategy}): {best_ratios}")
-        return self._normalize_ratios(best_ratios)
-            
-    def _get_random_ratios(self) -> Dict[str, float]:
-        """Generate random ratios for initial exploration"""
-        ratios = {
-            'red': random.uniform(0.1, 3.0),
-            'yellow': random.uniform(0.1, 3.0),
-            'blue': random.uniform(0.1, 3.0)
-        }
-        return self._normalize_ratios(ratios)
-        
-    def _get_initial_guess(self) -> Dict[str, float]:
-        """Generate intelligent initial guess based on target color"""
-        if not self.target_color:
-            return self._get_random_ratios()
-            
-        r, g, b = self.target_color
-        
-        # Simple color-to-ratio mapping heuristic
-        # This is a rough approximation of how RGB maps to pigment mixing
-        red_ratio = max(0.1, (r / 255.0) * 2.0)
-        yellow_ratio = max(0.1, (g / 255.0) * 2.0)
-        blue_ratio = max(0.1, (b / 255.0) * 2.0)
-        
-        # Adjust for common color mixing rules
-        if r > g and r > b:  # Red dominant
-            red_ratio *= 1.5
-        elif g > r and g > b:  # Green/Yellow dominant
-            yellow_ratio *= 1.5
-            red_ratio *= 0.8  # Red + Yellow = Orange/Green
-        elif b > r and b > g:  # Blue dominant
-            blue_ratio *= 1.5
-            
-        ratios = {'red': red_ratio, 'yellow': yellow_ratio, 'blue': blue_ratio}
-        return self._normalize_ratios(ratios)
-        
-    def _heuristic_recommendation(self) -> Dict[str, float]:
-        """Heuristic-based recommendation when ML is not available"""
-        if len(self.history) == 0:
-            return self._get_initial_guess()
-            
-        # Find the best previous result
-        best_measurement = min(self.history, key=lambda x: x['distance_to_target'])
-        best_ratios = best_measurement['ratios'].copy()
-        
-        # Add some exploration around the best result
-        exploration_factor = 0.3
-        for color in ['red', 'yellow', 'blue']:
-            perturbation = random.uniform(-exploration_factor, exploration_factor)
-            best_ratios[color] = max(0.1, best_ratios[color] * (1 + perturbation))
-            
-        return self._normalize_ratios(best_ratios)
-        
-    def _bayesian_optimization(self) -> Dict[str, float]:
-        """Bayesian optimization using Gaussian Process"""
+        logger.info(f"🎯 New target RGB{rgb}")
+
+    def add_measurement(self, ratios: Dict[str,float], measured_rgb: Tuple[int,int,int]):
+        dist = euclidean(measured_rgb, self.target_color) if self.target_color else 0
+        self.history.append({
+            "timestamp": datetime.now().isoformat(),
+            "ratios":    ratios.copy(),
+            "measured_rgb": measured_rgb,
+            "distance_to_target": dist
+        })
+        logger.info(f"📊 logged measurement #{len(self.history)}  dist={dist:.2f}")
+
+    # ---------- calibration routines -----------------------------------------
+    def _rough_scale_calibration(self):
+        """Estimate 3 scalar strengths α_r,y,b assuming fixed canonical hues."""
         if len(self.history) < 2:
-            return self._get_initial_guess()
-            
-        # Prepare training data
-        X = np.array([self._ratios_to_array(h['ratios']) for h in self.history])
-        y = np.array([h['distance_to_target'] for h in self.history])
-        
-        # Add noise to avoid numerical issues with identical points
-        X_noise = X + np.random.normal(0, 1e-6, X.shape)
-        
-        # Train Gaussian Process with better hyperparameters
-        kernel = ConstantKernel(1.0, constant_value_bounds=(1e-3, 1e3)) * RBF(
-            length_scale=1.0, length_scale_bounds=(1e-2, 1e2)
-        )
-        self.gp_model = GaussianProcessRegressor(
-            kernel=kernel, 
-            alpha=1e-4,  # Increased noise parameter
-            normalize_y=True,
-            n_restarts_optimizer=5  # Better hyperparameter optimization
-        )
-        self.gp_model.fit(X_noise, y)
-        
-        # Current best (minimum distance)
-        f_best = np.min(y)
-        
-        # Enhanced acquisition function with adaptive exploration
-        def acquisition_function(x):
-            x = x.reshape(1, -1)
-            mu, sigma = self.gp_model.predict(x, return_std=True)
-            
-            # Adaptive exploration parameter based on optimization progress
-            # Start with high exploration, reduce as we get better results
-            base_xi = 0.1  # Increased from 0.01
-            progress_factor = max(0.01, f_best / (np.max(y) + 1e-6))  # How much improvement we've made
-            xi = base_xi * (1 + progress_factor)  # More exploration when progress is slow
-            
-            # Expected Improvement with enhanced exploration
-            improvement = f_best - mu - xi
-            Z = improvement / (sigma + 1e-9)
-            
-            ei = improvement * norm.cdf(Z) + sigma * norm.pdf(Z)
-            
-            # Add pure exploration term to encourage diversity
-            exploration_bonus = 0.1 * sigma  # Bonus for high uncertainty areas
-            
-            return -(ei[0] + exploration_bonus)  # Minimize negative EI + exploration
-            
-        # Enhanced optimization with more comprehensive search
-        best_x = None
-        best_ei = float('inf')
-        
-        # Multiple optimization strategies
-        
-        # Strategy 1: Random starts with wider bounds
-        for _ in range(20):  # Increased from 10
-            x0 = np.random.uniform(0.05, 8.0, 3)  # Wider search space
-            
-            result = minimize(
-                acquisition_function,
-                x0,
-                method='L-BFGS-B',
-                bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]  # Wider bounds
-            )
-            
-            if result.success and result.fun < best_ei:
-                best_ei = result.fun
-                best_x = result.x
-                
-        # Strategy 2: Grid-based initialization for better coverage
-        grid_points = np.linspace(0.1, 5.0, 5)
-        for r in grid_points[::2]:  # Sparse grid to avoid too many evaluations
-            for y in grid_points[::2]:
-                for b in grid_points[::2]:
-                    x0 = np.array([r, y, b])
-                    
-                    result = minimize(
-                        acquisition_function,
-                        x0,
-                        method='L-BFGS-B',
-                        bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]
-                    )
-                    
-                    if result.success and result.fun < best_ei:
-                        best_ei = result.fun
-                        best_x = result.x
-        
-        # Strategy 3: Explore around previous best points
-        if len(self.history) >= 3:
-            # Get top 3 best points
-            sorted_history = sorted(self.history, key=lambda x: x['distance_to_target'])[:3]
-            for measurement in sorted_history:
-                base_ratios = self._ratios_to_array(measurement['ratios'])
-                
-                # Try variations around best points
-                for _ in range(3):
-                    perturbation = np.random.normal(0, 0.5, 3)  # Larger perturbation
-                    x0 = np.clip(base_ratios + perturbation, 0.05, 8.0)
-                    
-                    result = minimize(
-                        acquisition_function,
-                        x0,
-                        method='L-BFGS-B',
-                        bounds=[(0.05, 8.0), (0.05, 8.0), (0.05, 8.0)]
-                    )
-                    
-                    if result.success and result.fun < best_ei:
-                        best_ei = result.fun
-                        best_x = result.x
-                
-        if best_x is not None:
-            recommended_ratios = self._array_to_ratios(best_x)
-            normalized_ratios = self._normalize_ratios(recommended_ratios)
-            
-            logger.info(f"🔍 Bayesian optimization: raw={recommended_ratios}, normalized={normalized_ratios}")
-            logger.info(f"🔍 Acquisition value: {best_ei:.6f}, Current best distance: {f_best:.2f}")
-            
-            return normalized_ratios
-        else:
-            logger.warning("⚠️  All optimization attempts failed, using enhanced heuristic fallback")
-            return self._enhanced_heuristic_recommendation()
-            
-    def _enhanced_heuristic_recommendation(self) -> Dict[str, float]:
-        """Enhanced heuristic recommendation with better exploration"""
-        if len(self.history) == 0:
-            return self._get_initial_guess()
-            
-        # Find the best few results, not just the single best
-        sorted_history = sorted(self.history, key=lambda x: x['distance_to_target'])
-        
-        if len(sorted_history) >= 3:
-            # Weighted combination of top 3 results
-            weights = [0.5, 0.3, 0.2]  # Higher weight for better results
-            combined_ratios = {'red': 0, 'yellow': 0, 'blue': 0}
-            
-            for i, measurement in enumerate(sorted_history[:3]):
-                for color in ['red', 'yellow', 'blue']:
-                    combined_ratios[color] += weights[i] * measurement['ratios'][color]
-        else:
-            # Use best result as base
-            combined_ratios = sorted_history[0]['ratios'].copy()
-        
-        # Add adaptive exploration based on convergence
-        recent_distances = [h['distance_to_target'] for h in self.history[-5:]]
-        if len(recent_distances) >= 3:
-            improvement_rate = (max(recent_distances) - min(recent_distances)) / max(1, max(recent_distances))
-            exploration_factor = max(0.1, 0.8 * (1 - improvement_rate))  # More exploration if not improving
-        else:
-            exploration_factor = 0.4
-        
-        # Apply exploration with bias toward promising directions
-        for color in ['red', 'yellow', 'blue']:
-            # Random perturbation with exploration factor
-            perturbation = random.uniform(-exploration_factor, exploration_factor)
-            combined_ratios[color] = max(0.1, combined_ratios[color] * (1 + perturbation))
-            
-        logger.info(f"🎲 Enhanced heuristic: exploration_factor={exploration_factor:.2f}")
-        return self._normalize_ratios(combined_ratios)
+            return
+        # canonical absorbances (very coarse!)
+        P_hue = np.array([[0.8,0.1,0.1],
+                          [0.2,0.9,0.1],
+                          [0.1,0.1,0.9]])
+        W = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])   # (n,3)
+        A = np.stack([self._rgb_to_absorb(h["measured_rgb"]) for h in self.history])  # (n,3)
+
+        left  = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1,3)
+        right = A.reshape(-1)
+        alpha, *_ = np.linalg.lstsq(left, right, rcond=None)
+        self.P_est = np.diag(alpha.clip(1e-6))*P_hue
+        logger.info("🔧 rough α-estimate = %s", alpha.round(3))
+
+    def _fit_full_calibration(self):
+        """NNLS fit of full 3×3 pigment matrix once ≥3 data-points exist."""
+        if len(self.history) < 3:
+            return
+        if not ML_AVAILABLE:
+            return
+        from scipy.optimize import lsq_linear
+        W = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])   # (n,3)
+        A = np.stack([self._rgb_to_absorb(h["measured_rgb"]) for h in self.history])  # (n,3)
+        res = lsq_linear(W, A, bounds=(0, np.inf))
+        self.P_est = res.x.reshape(3,3)
+        logger.info("🧮 full calibration solved ‖res‖=%.4f", res.cost)
+
+    def _inverse_weights(self) -> Optional[Dict[str,float]]:
+        """Deterministic inverse mix using current P_est."""
+        if self.P_est is None: return None
+        if not ML_AVAILABLE: return None
+        from scipy.optimize import lsq_linear
+        A_tgt = self._rgb_to_absorb(self.target_color)
+        res   = lsq_linear(self.P_est, A_tgt, bounds=(0,8))
+        return self._normalize(self._array_to_ratios(res.x))
+
+    # ---------- Gaussian-process helper --------------------------------------
+    def _gp_next(self, force=False, initial: Optional[Dict[str,float]]=None) -> Dict[str,float]:
+        """Single GP recommendation (slightly simplified)."""
+        if not ML_AVAILABLE:
+            return self._get_random()
+        if len(self.history) < 2 and not force:
+            return self._get_initial()
+
+        X = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])
+        y = np.array([h["distance_to_target"] for h in self.history])
+        X += np.random.normal(0,1e-6,X.shape)
+
+        ker = ConstantKernel(1.0,(1e-3,1e3))*RBF(1.0,(1e-2,1e2))
+        self.gp_model = GaussianProcessRegressor(kernel=ker, alpha=1e-4,
+                                                 normalize_y=True, n_restarts_optimizer=3)
+        self.gp_model.fit(X,y)
+        f_best = y.min()
+
+        def acq(x):
+            m,s = self.gp_model.predict(x.reshape(1,-1), return_std=True)
+            xi  = 0.1
+            imp = f_best - m - xi
+            z   = imp/(s+1e-9)
+            return -(imp*norm.cdf(z) + s*norm.pdf(z))[0]
+
+        # start points
+        starts = [np.random.uniform(0.1,5,(3,)) for _ in range(6)]
+        if initial is not None:
+            starts.append(self._ratios_to_array(initial))
+
+        best_x,best_v = None, np.inf
+        for x0 in starts:
+            res = minimize(acq, x0, method='L-BFGS-B', bounds=[(0.05,8)]*3)
+            if res.success and res.fun < best_v:
+                best_v,best_x = res.fun,res.x
+        return self._normalize(self._array_to_ratios(best_x if best_x is not None else starts[0]))
+
+    # ---------- ratio generators ---------------------------------------------
+    def _get_random(self) -> Dict[str,float]:
+        return self._normalize({c: random.uniform(0.1,3.0) for c in ('red','yellow','blue')})
+
+    def _get_initial(self) -> Dict[str,float]:
+        if not self.target_color: return self._get_random()
+        r,g,b = self.target_color
+        ratios = {'red':(r/255)*2+0.1, 'yellow':(g/255)*2+0.1, 'blue':(b/255)*2+0.1}
+        return self._normalize(ratios)
+
+    # ---------- MAIN decision logic ------------------------------------------
+    def recommend_next_ratios(self) -> Dict[str,float]:
+        n = len(self.history)
+
+        # phase 0 – first ever shot: pure dominant pigment
+        if n == 0:
+            if not self.target_color:
+                return self._get_random()
+            r,g,b = self.target_color
+            dom = np.argmax([r,g,b])
+            pure = np.zeros(3); pure[dom] = 3.0
+            return self._array_to_ratios(pure)
+
+        # phase 1 – GP only (black-box)
+        if n == 1:
+            return self._gp_next(force=True)
+
+        # phase 2 – rough scale calibration + GP blend
+        if n == 2:
+            self._rough_scale_calibration()
+            w_cal = self._inverse_weights()
+            w_gp  = self._gp_next(force=True)
+            if w_cal is None:
+                return w_gp
+            blend = {c:0.7*w_cal[c]+0.3*w_gp[c] for c in w_cal}
+            return self._normalize(blend)
+
+        # phase ≥3 – full NNLS inverse; optional GP refinement
+        self._fit_full_calibration()
+        w_cal = self._inverse_weights()
+        if w_cal is None:
+            return self._gp_next()  # should not happen
+
+        # check predicted error
+        A_pred = self._ratios_to_array(w_cal) @ self.P_est
+        rgb_lin = np.power(10, -A_pred)
+        rgb_pred = tuple((np.power(rgb_lin,1/2.2)*255).astype(int))
+        err = euclidean(rgb_pred, self.target_color)
+
+        if err <= self.epsilon_rgb:
+            logger.info("✅ deterministic inverse good enough (err=%.1f)", err)
+            return w_cal
+
+        logger.info("♻️  inverse err %.1f > %.1f → GP fine-tune", err, self.epsilon_rgb)
+        return self._gp_next(initial=w_cal)
             
     def get_statistics(self) -> Dict:
         """Get optimization statistics"""
