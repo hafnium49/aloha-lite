@@ -1,6 +1,6 @@
 {
   "name": "dispensing_yellow_to_beaker",
-  "description": "Robot configuration for dispensing yellow solution to beaker - left arm updated with current joint readings (j1-j5), preserving original gripper position (j6)",
+  "description": "Robot configuration for dispensing yellow solution to beaker - left and right arms updated with current joint readings (j1-j5), preserving original gripper positions (j6)",
   "source": {
     "dataset": "Hafnium49/example_dataset",
     "episode": 0,
@@ -37,11 +37,11 @@
       "id": 2,
       "device_id": "5A68009540",
       "joints": {
-        "j1": 0.038359,
-        "j2": -0.761040,
-        "j3": 0.994262,
-        "j4": -0.115077,
-        "j5": -1.439225,
+        "j1": 0.018412,
+        "j2": -0.573849,
+        "j3": 0.903735,
+        "j4": -0.262375,
+        "j5": -1.446897,
         "j6": 0.8577046394348145
       },
       "joint_names": [
@@ -58,11 +58,11 @@
   "usage": {
     "phosphobot_api": {
       "left_arm": "POST /robot/3/joints/write with body: [0.372848, -0.606070, 0.392795, 0.190260, 3.860438, 0.53]",
-      "right_arm": "POST /robot/2/joints/write with body: [0.038359, -0.761040, 0.994262, -0.115077, -1.439225, 0.8577046394348145]"
+      "right_arm": "POST /robot/2/joints/write with body: [0.018412, -0.573849, 0.903735, -0.262375, -1.446897, 0.8577046394348145]"
     },
     "python_example": {
       "description": "Example usage with phosphobot SkillClient",
-      "code": "left_arm.move_j([0.372848, -0.606070, 0.392795, 0.190260, 3.860438, 0.53])\nright_arm.move_j([0.038359, -0.761040, 0.994262, -0.115077, -1.439225, 0.8577046394348145])"
+      "code": "left_arm.move_j([0.372848, -0.606070, 0.392795, 0.190260, 3.860438, 0.53])\nright_arm.move_j([0.018412, -0.573849, 0.903735, -0.262375, -1.446897, 0.8577046394348145])"
     }
   }
 }
