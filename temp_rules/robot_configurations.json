@@ -636,18 +636,18 @@
         "context": "left_arm_position_during_yellow_dispensing",
         "related_configuration": "dispensing_yellow_to_beaker"
       },
-      "timestamp": "2025-07-18",
+      "timestamp": "2025-07-29",
       "configuration": {
         "left_arm": {
           "name": "SO-101 Left Arm",
           "id": 3,
           "device_id": "5A68011258",
           "joints": {
-            "j1": 0.449566,
-            "j2": -1.054102,
-            "j3": 1.090927,
-            "j4": 0.081321,
-            "j5": -1.693928,
+            "j1": 0.695063,
+            "j2": -0.431154,
+            "j3": 1.063308,
+            "j4": -0.664376,
+            "j5": -1.681654,
             "j6": 0.53
           },
           "joint_names": [
@@ -663,11 +663,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "left_arm": "POST /robot/3/joints/write with body: [0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.53]"
+          "left_arm": "POST /robot/3/joints/write with body: [0.695063, -0.431154, 1.063308, -0.664376, -1.681654, 0.53]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "left_arm.move_j([0.449566, -1.054102, 1.090927, 0.081321, -1.693928, 0.53])"
+          "code": "left_arm.move_j([0.695063, -0.431154, 1.063308, -0.664376, -1.681654, 0.53])"
         }
       }
     },
