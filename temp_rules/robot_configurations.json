@@ -589,23 +589,21 @@
       "name": "left_arm_standoff_with_beaker",
       "description": "Left arm standoff position with beaker - updated joints j1-j5 from current robot position, right arm stays in current position",
       "source": {
-        "dataset": "Hafnium49/example_dataset",
-        "episode": 2,
-        "timestamp": 1.6,
-        "frame_index": 48,
-        "extraction_method": "time_based",
-        "modification": "left_arm_j1_to_j5_updated_from_current_robot_position"
+        "dataset": "current_robot_state",
+        "extraction_method": "real_time_capture",
+        "context": "left_arm_position_during_beaker_standoff",
+        "modification": "left_arm_j1_to_j5_updated_from_current_robot_position_j6_preserved"
       },
-      "timestamp": "2025-07-16",
+      "timestamp": "2025-07-29",
       "configuration": {
         "left_arm": {
           "name": "SO-101 Left Arm",
           "joints": {
-            "j1": 0.4726,
-            "j2": 0.3851,
-            "j3": 0.9467,
-            "j4": -1.4469,
-            "j5": -1.4991
+            "j1": 0.707338,
+            "j2": 0.541627,
+            "j3": 1.163041,
+            "j4": -1.686257,
+            "j5": -1.611073
           },
           "joint_names": [
             "shoulder_pan",
@@ -621,7 +619,7 @@
       "usage": {
         "description": "This partial configuration only specifies j1-j5 for the left arm. j6 will maintain its current value, and the right arm stays in current position.",
         "phosphobot_api": {
-          "left_arm": "POST /joints/write with j1-j5 from ready_to_pick_beaker merged with current j6"
+          "left_arm": "POST /joints/write with j1-j5 from current position merged with current j6"
         },
         "python_example": {
           "description": "Example usage with enhanced execute_rules.py",
