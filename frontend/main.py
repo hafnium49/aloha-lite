@@ -126,9 +126,17 @@ class ColorOptimizer:
         from scipy.optimize import lsq_linear
         W = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])   # (n,3)
         A = np.stack([self._rgb_to_absorb(h["measured_rgb"]) for h in self.history])  # (n,3)
-        res = lsq_linear(W, A, bounds=(0, np.inf))
-        self.P_est = res.x.reshape(3,3)
-        logger.info("🧮 full calibration solved ‖res‖=%.4f", res.cost)
+        
+        # Solve for each RGB channel separately since lsq_linear expects 1D output
+        P_est = np.zeros((3, 3))
+        total_cost = 0
+        for i in range(3):  # For each RGB channel
+            res = lsq_linear(W, A[:, i], bounds=(0, np.inf))
+            P_est[:, i] = res.x
+            total_cost += res.cost
+        
+        self.P_est = P_est
+        logger.info("🧮 full calibration solved ‖res‖=%.4f", total_cost)
 
     def _inverse_weights(self) -> Optional[Dict[str,float]]:
         """Deterministic inverse mix using current P_est."""
@@ -136,7 +144,7 @@ class ColorOptimizer:
         if not ML_AVAILABLE: return None
         from scipy.optimize import lsq_linear
         A_tgt = self._rgb_to_absorb(self.target_color)
-        res   = lsq_linear(self.P_est, A_tgt, bounds=(0,8))
+        res   = lsq_linear(self.P_est.T, A_tgt, bounds=(0,8))  # Note: P_est.T since we solved by columns
         return self._normalize(self._array_to_ratios(res.x))
 
     # ---------- Gaussian-process helper --------------------------------------
@@ -220,7 +228,7 @@ class ColorOptimizer:
             return self._gp_next()  # should not happen
 
         # check predicted error
-        A_pred = self._ratios_to_array(w_cal) @ self.P_est
+        A_pred = self.P_est.T @ self._ratios_to_array(w_cal)  # Note: P_est.T since we solved by columns
         rgb_lin = np.power(10, -A_pred)
         rgb_pred = tuple((np.power(rgb_lin,1/2.2)*255).astype(int))
         err = euclidean(rgb_pred, self.target_color)
@@ -231,6 +239,29 @@ class ColorOptimizer:
 
         logger.info("♻️  inverse err %.1f > %.1f → GP fine-tune", err, self.epsilon_rgb)
         return self._gp_next(initial=w_cal)
+            
+    def _is_optimization_stuck(self) -> bool:
+        """Check if recent recommendations are too similar (indicating convergence/stagnation)"""
+        if len(self.history) < 3:
+            return False
+            
+        # Check last 3 recommendations for similarity
+        recent_ratios = [h['ratios'] for h in self.history[-3:]]
+        
+        # Calculate variance in ratios
+        for color in ['red', 'yellow', 'blue']:
+            values = [r[color] for r in recent_ratios]
+            variance = np.var(values) if ML_AVAILABLE else sum((x - sum(values)/len(values))**2 for x in values) / len(values)
+            if variance > 0.01:  # If any color has significant variance, not stuck
+                return False
+                
+        # Also check if distances aren't improving
+        recent_distances = [h['distance_to_target'] for h in self.history[-3:]]
+        improvement = max(recent_distances) - min(recent_distances)
+        relative_improvement = improvement / (max(recent_distances) + 1e-6)
+        
+        is_stuck = relative_improvement < 0.05  # Less than 5% improvement range
+        return is_stuck
             
     def get_statistics(self) -> Dict:
         """Get optimization statistics"""

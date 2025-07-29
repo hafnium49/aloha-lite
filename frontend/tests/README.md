@@ -1,11 +1,12 @@
 # Frontend Tests
 
-This directory contains test files and utilities for testing the frontend integration with the robot service.
+This directory contains test files and utilities for testing the frontend integration with the robot service and the four-phase color optimization system.
 
 ## 📁 Files Overview
 
 ### Core Test Files
 
+- **`test_optimization.py`** - Tests the four-phase color optimization algorithm (NEW)
 - **`mock_robot_service.py`** - Mock robot service that simulates API endpoints for testing
 - **`integration_test_server.py`** - Full integration test server that serves frontend and proxies to mock service
 - **`simple_test.py`** - Simple test runner for basic frontend validation
@@ -15,6 +16,7 @@ This directory contains test files and utilities for testing the frontend integr
 
 - **`serve_frontend.py`** - Basic HTTP server for serving frontend files with CORS support
 - **`validate_integration.py`** - Validation script to check if integration code is properly implemented
+- **`run_tests.py`** - Test runner that executes all tests in the directory (NEW)
 
 ### Documentation
 
@@ -23,7 +25,35 @@ This directory contains test files and utilities for testing the frontend integr
 
 ## 🚀 Quick Start
 
-### Option 1: Full Integration Test (Recommended)
+### Option 1: Run All Tests (Recommended)
+
+```bash
+cd /home/hafnium/aloha-lite/frontend
+python run_tests.py
+```
+
+This will run:
+- Four-phase color optimization tests
+- Integration simulation tests
+- All other available tests
+
+### Option 2: Run Specific Tests
+
+#### Color Optimization Tests
+```bash
+cd /home/hafnium/aloha-lite/frontend
+python tests/test_optimization.py
+```
+
+Tests the four-phase optimization algorithm:
+- Phase 0: Pure dominant pigment strategy
+- Phase 1: GP/Bayesian optimization only  
+- Phase 2: Rough calibration + GP blend (70/30)
+- Phase ≥3: Full NNLS calibration + optional GP refinement
+
+#### Integration Tests
+
+### Option 3: Full Integration Test
 
 1. Start the mock robot service:
    ```bash
@@ -40,7 +70,7 @@ This directory contains test files and utilities for testing the frontend integr
 
 4. Test beaker analysis by clicking any color button
 
-### Option 2: Simple Test
+### Option 4: Simple Test
 
 ```bash
 cd /home/hafnium/aloha-lite/frontend/tests
