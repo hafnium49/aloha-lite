@@ -469,7 +469,6 @@ img {
           <div class="color-ratio">
             <span style="color:#dc3545">推奨赤:</span>
             <span id="rec-red-value">1.0</span>
-            <button onclick="applyRecommendation()">推奨値を適用</button>
           </div>
           <div class="color-ratio">
             <span style="color:#ffc107">推奨黄:</span>
@@ -480,7 +479,10 @@ img {
             <span id="rec-blue-value">1.0</span>
           </div>
         </div>
-        <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
+          <button onclick="applyRecommendation()">推奨値を適用</button>
+        </div>
       </div>
 
       <div id="optimization-stats" style="display:none">
