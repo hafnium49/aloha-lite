@@ -32,7 +32,7 @@ class TestGroundTruthCalibrator(unittest.TestCase):
         
         # Create expected directory structure
         (Path(self.test_dir) / "temp_rules").mkdir(exist_ok=True)
-        (Path(self.test_dir) / "ground_truth_calibration").mkdir(exist_ok=True)
+        (Path(self.test_dir) / "frontend" / "ground_truth_calibration").mkdir(exist_ok=True, parents=True)
         
     def tearDown(self):
         """Clean up test fixtures"""

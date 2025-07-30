@@ -272,7 +272,7 @@ def create_test_data_files(test_dir: Path):
     # Create sample ground truth files for testing
     sample_data = MockDataGenerator.generate_realistic_colors()
     
-    gt_dir = test_dir / "ground_truth_calibration"
+    gt_dir = test_dir / "frontend" / "ground_truth_calibration"
     gt_dir.mkdir(parents=True, exist_ok=True)
     
     for solution, color in sample_data.items():

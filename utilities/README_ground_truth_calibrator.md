@@ -1,6 +1,13 @@
 # Ground Truth Calibration Utility
 
-This utility helps prepare ground-truth calibration instances for the ColorOptimizer by automating the process of:
+This utility h## Output Files
+
+The utility creates the following files in `frontend/ground_truth_calibration/` directory:
+
+- `red_solution_ground_truth.json` - Red solution calibration data
+- `yellow_solution_ground_truth.json` - Yellow solution calibration data  
+- `blue_solution_ground_truth.json` - Blue solution calibration data
+- `calibration_summary.json` - Summary of all calibrationspare ground-truth calibration instances for the ColorOptimizer by automating the process of:
 1. Running calibration sequences for red, yellow, and blue solutions
 2. Converting measured color metrics to ColorOptimizer format  
 3. Calibrating solutions and saving ground truth data
@@ -46,11 +53,11 @@ The utility accepts color measurements in multiple formats:
 - `201, 236, 38`
 
 ### Step 3: Save Ground Truth Data
-Calibration data is saved in JSON format to `ground_truth_calibration/` directory.
+Calibration data is saved in JSON format to `frontend/ground_truth_calibration/` directory.
 
 ## Output Files
 
-The utility creates the following files in `ground_truth_calibration/`:
+The utility creates the following files in `frontend/ground_truth_calibration/`:
 
 - `red_solution_ground_truth.json` - Red solution calibration data
 - `yellow_solution_ground_truth.json` - Yellow solution calibration data  
@@ -138,7 +145,7 @@ python utilities/ground_truth_calibrator.py --all --base-dir /path/to/project
 
 ## Integration with ColorOptimizer
 
-The generated ground truth data can be used to initialize the ColorOptimizer's BottleModel with known calibration values, providing a baseline for the dual-state calibration architecture.
+The generated ground truth data can be used to initialize the ColorOptimizer's BottleModel with known calibration values, providing a baseline for the dual-state calibration architecture. The files are saved directly in the `frontend/ground_truth_calibration/` directory for immediate access by the frontend ColorOptimizer system.
 
 ## Error Handling
 

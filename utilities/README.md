@@ -208,7 +208,7 @@ pip install pandas tabulate
 ### With Configuration System
 - **Sequential Sequences**: Calibration uses `temp_rules/sequential_sequences.json`
 - **Robot Configs**: Validation works with robot configuration files
-- **Ground Truth**: Calibration outputs to `ground_truth_calibration/`
+- **Ground Truth**: Calibration outputs to `frontend/ground_truth_calibration/`
 
 ## 🎯 Best Practices
 

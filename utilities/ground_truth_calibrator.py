@@ -43,7 +43,7 @@ class GroundTruthCalibrator:
             
         self.utilities_dir = self.base_dir / "utilities"
         self.temp_rules_dir = self.base_dir / "temp_rules"
-        self.ground_truth_dir = self.base_dir / "ground_truth_calibration"
+        self.ground_truth_dir = self.base_dir / "frontend" / "ground_truth_calibration"
         
         # Ensure ground truth directory exists
         self.ground_truth_dir.mkdir(exist_ok=True, parents=True)
