@@ -160,4 +160,3 @@ sam2_*
 
 *.backup
 temp_rules/archive/
-frontend/ground_truth_calibration/

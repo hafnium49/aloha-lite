@@ -1,0 +1,15 @@
+{
+  "solution": "blue",
+  "color_measurement": {
+    "rgb": [
+      95,
+      155,
+      185
+    ],
+    "hex": "#5f9bb9",
+    "format": "RGB(95, 155, 185)"
+  },
+  "calibration_sequence": "calibration_blue_solution",
+  "timestamp": "2025-07-30T18:07:46.707319",
+  "description": "Blue solution calibration (with red base)"
+}

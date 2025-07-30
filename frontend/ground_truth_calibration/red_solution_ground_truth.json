@@ -1,0 +1,15 @@
+{
+  "solution": "red",
+  "color_measurement": {
+    "rgb": [
+      220,
+      85,
+      45
+    ],
+    "hex": "#dc552d",
+    "format": "RGB(220, 85, 45)"
+  },
+  "calibration_sequence": "calibration_red_solution",
+  "timestamp": "2025-07-30T17:50:49.968078",
+  "description": "Red solution calibration"
+}

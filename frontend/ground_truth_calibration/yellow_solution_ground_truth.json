@@ -1,0 +1,15 @@
+{
+  "solution": "yellow",
+  "color_measurement": {
+    "rgb": [
+      245,
+      235,
+      65
+    ],
+    "hex": "#f5eb41",
+    "format": "RGB(245, 235, 65)"
+  },
+  "calibration_sequence": "calibration_yellow_solution",
+  "timestamp": "2025-07-30T17:57:56.303458",
+  "description": "Yellow solution calibration"
+}
