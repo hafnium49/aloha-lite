@@ -84,14 +84,16 @@ class GroundTruthCalibrator:
         print(f"\n=== Step 1: Running {description} ===")
         print(f"Executing sequence: {sequence_name}")
         
-        # Change to base directory to run sequential_execute.py
+        # Change to robot_service directory to run sequential_execute.py
         original_dir = os.getcwd()
+        robot_service_dir = self.base_dir / "robot_service"
         try:
-            os.chdir(self.base_dir)
+            os.chdir(robot_service_dir)
             
             # Run the calibration sequence
             cmd = ["python", "sequential_execute.py", sequence_name, "--smooth"]
             print(f"Command: {' '.join(cmd)}")
+            print(f"Working directory: {robot_service_dir}")
             
             result = subprocess.run(cmd, capture_output=True, text=True)
             
@@ -286,7 +288,7 @@ class GroundTruthCalibrator:
                 return False
         else:
             print(f"\n=== Step 1: Manual sequence execution ===")
-            print(f"Please run: python sequential_execute.py {self.solutions[solution]['sequence']} --smooth")
+            print(f"Please run: cd robot_service && python sequential_execute.py {self.solutions[solution]['sequence']} --smooth")
             input("Press Enter after the sequence completes...")
         
         # Step 2: Get color measurement
