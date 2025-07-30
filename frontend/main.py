@@ -335,47 +335,6 @@ class ColorOptimizer:
                 'title': 'Color Optimization Progress in CAM02-UCS a′b′ plane' if COLOR_SCIENCE_AVAILABLE else 'Color Optimization Progress in CIELAB a*b* plane'
             }
         }
-
-    def get_color_space_data(self) -> Dict:
-        """Get color space data for perceptual plotting"""
-        if not self.target_color or len(self.history) == 0:
-            return {
-                'available': False,
-                'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
-                'target': None,
-                'trail': []
-            }
-        
-        # Convert target color
-        target_lab = self._rgb_to_cam02ucs(self.target_color)
-        
-        # Convert history
-        trail_data = []
-        for measurement in self.history:
-            rgb = measurement['measured_rgb']
-            lab = self._rgb_to_cam02ucs(rgb)
-            trail_data.append({
-                'lab': lab,
-                'rgb': rgb,
-                'ratios': measurement['ratios'],
-                'distance': measurement['distance_to_target'],
-                'timestamp': measurement['timestamp']
-            })
-        
-        return {
-            'available': True,
-            'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
-            'target': {
-                'lab': target_lab,
-                'rgb': self.target_color
-            },
-            'trail': trail_data,
-            'axis_labels': {
-                'x': "a'" if COLOR_SCIENCE_AVAILABLE else 'a*',
-                'y': "b'" if COLOR_SCIENCE_AVAILABLE else 'b*',
-                'title': 'Color Optimization Progress in CAM02-UCS a′b′ plane' if COLOR_SCIENCE_AVAILABLE else 'Color Optimization Progress in CIELAB a*b* plane'
-            }
-        }
             
     def _is_optimization_stuck(self) -> bool:
         """Check if recent recommendations are too similar (indicating convergence/stagnation)"""
