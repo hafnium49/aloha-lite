@@ -313,7 +313,6 @@
       "configurations": [
         "left_arm_serving_standoff",
         "left_arm_standoff_with_beaker",
-        "right_arm_standoff_yellow",
         "left_arm_standoff_blue",
         "dispensing_blue_to_beaker",
         "squeeze washing bottle for 10 seconds",
