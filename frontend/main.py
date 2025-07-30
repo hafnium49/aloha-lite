@@ -216,23 +216,29 @@ def load_ground_truth_calibration():
     Returns a 3x3 numpy array representing the true pigment absorbance matrix.
     """
     ground_truth_dir = Path(__file__).parent / "ground_truth_calibration"
-    
+
     try:
-        # Try to load calibration summary first (contains the derived matrix)
+        # Try to load calibration summary first.  It may contain either a direct
+        # calibration matrix or RGB measurements for each solution.
         summary_file = ground_truth_dir / "calibration_summary.json"
+        summary_rgb = {}
         if summary_file.exists():
             with open(summary_file, 'r') as f:
                 summary_data = json.load(f)
-            
-            # Extract the calibration matrix if available
-            if "calibration_matrix" in summary_data["calibration_summary"]:
+
+            if "calibration_matrix" in summary_data.get("calibration_summary", {}):
                 matrix_data = summary_data["calibration_summary"]["calibration_matrix"]["matrix"]
                 P_true = np.array(matrix_data)
                 logger.info("🎯 Loaded ground truth matrix from calibration summary")
                 logger.info("📊 Matrix shape: %s, mean absorbance: %.3f", P_true.shape, P_true.mean())
                 return P_true
-        
-        # Fallback: construct matrix from individual solution files
+
+            solutions_block = summary_data.get("calibration_summary", {}).get("solutions", {})
+            for colour in ("red", "yellow", "blue"):
+                if colour in solutions_block and "rgb" in solutions_block[colour]:
+                    summary_rgb[colour] = solutions_block[colour]["rgb"]
+
+        # Next try individual solution files which may contain coefficients or RGB values
         solutions = ["red", "yellow", "blue"]
         absorbance_coefficients = []
         rgb_colors = []
@@ -242,33 +248,40 @@ def load_ground_truth_calibration():
             if solution_file.exists():
                 with open(solution_file, 'r') as f:
                     solution_data = json.load(f)
-                
-                # Extract calibration parameters
-                abs_coeff = solution_data.get("calibration_parameters", {}).get("absorbance_coefficient", 0.5)
-                rgb = solution_data.get("color_measurement", {}).get("rgb", [128, 128, 128])
-                
+
+                abs_coeff = solution_data.get("calibration_parameters", {}).get("absorbance_coefficient")
+                rgb = solution_data.get("color_measurement", {}).get("rgb")
+
                 absorbance_coefficients.append(abs_coeff)
                 rgb_colors.append(rgb)
-                
-                logger.info("📊 Loaded %s solution: RGB%s, abs_coeff=%.3f", 
+
+                logger.info("📊 Loaded %s solution: RGB%s, abs_coeff=%s",
                            solution, rgb, abs_coeff)
             else:
                 logger.warning("⚠️  Missing ground truth file: %s", solution_file)
-                # Use fallback values
-                absorbance_coefficients.append(0.5)
-                rgb_colors.append([128, 128, 128])
+                absorbance_coefficients.append(None)
+                rgb_colors.append(None)
         
-        # Construct calibration matrix from loaded data
-        if len(absorbance_coefficients) == 3:
-            # Create a realistic 3x3 matrix based on the loaded coefficients
-            # Main diagonal represents primary pigment strengths
+        # Priority 1: use absorbance coefficients if all are available
+        if all(c is not None for c in absorbance_coefficients):
             P_true = np.array([
-                [absorbance_coefficients[0], 0.1, 0.08],  # Red pigment
-                [0.15, absorbance_coefficients[1], 0.1],   # Yellow pigment  
-                [0.12, 0.15, absorbance_coefficients[2]]   # Blue pigment
+                [absorbance_coefficients[0], 0.1, 0.08],
+                [0.15, absorbance_coefficients[1], 0.1],
+                [0.12, 0.15, absorbance_coefficients[2]]
             ])
-            
             logger.info("🔧 Constructed ground truth matrix from individual files")
+            logger.info("📊 Matrix:\n%s", P_true)
+            return P_true
+
+        # Priority 2: compute matrix from RGB measurements
+        rgb_source = summary_rgb if len(summary_rgb) == 3 else {
+            c: rgb_colors[i] for i, c in enumerate(solutions) if rgb_colors[i] is not None
+        }
+        if len(rgb_source) == 3:
+            P_true = np.vstack([
+                ColorOptimizer._rgb_to_absorb(rgb_source[c]) for c in ("red", "yellow", "blue")
+            ])
+            logger.info("🔧 Constructed ground truth matrix from RGB measurements")
             logger.info("📊 Matrix:\n%s", P_true)
             return P_true
             
