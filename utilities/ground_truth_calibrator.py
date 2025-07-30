@@ -217,34 +217,7 @@ class GroundTruthCalibrator:
         """
         print(f"\n=== Step 3: Calibrate {solution} solution and save ground truth ===")
         
-        # Define solution-specific parameters
-        solution_params = {
-            "red": {
-                "absorbance_coefficient": 0.85,
-                "concentration_factor": 1.2,
-                "dominant_wavelength": "630nm",
-                "purity": 0.92,
-                "squeeze_time": "10 seconds"
-            },
-            "yellow": {
-                "absorbance_coefficient": 0.72,
-                "concentration_factor": 1.1,
-                "dominant_wavelength": "580nm",
-                "purity": 0.93,
-                "squeeze_time": "10 seconds"
-            },
-            "blue": {
-                "absorbance_coefficient": 0.78,
-                "concentration_factor": 1.15,
-                "dominant_wavelength": "470nm",
-                "purity": 0.87,
-                "squeeze_time": "10 seconds (after 1.5s red base)"
-            }
-        }
-        
-        params = solution_params[solution]
-        
-        # Create comprehensive ground truth data structure (identical to existing format)
+        # Create simplified ground truth data structure with only obtainable information
         ground_truth_data = {
             "solution": solution,
             "color_measurement": {
@@ -254,32 +227,8 @@ class GroundTruthCalibrator:
             },
             "calibration_sequence": self.solutions[solution]["sequence"],
             "timestamp": datetime.now().isoformat(),
-            "description": self.solutions[solution]["description"],
-            "notes": {
-                "squeeze_time": params["squeeze_time"],
-                "stir_time": "10 seconds",
-                "analysis_wait": "3 seconds",
-                "ambient_temperature": "23.2°C",
-                "lighting_conditions": "standard lab lighting",
-                "beaker_volume": "250ml"
-            },
-            "calibration_parameters": {
-                "absorbance_coefficient": params["absorbance_coefficient"],
-                "concentration_factor": params["concentration_factor"],
-                "dominant_wavelength": params["dominant_wavelength"],
-                "purity": params["purity"]
-            },
-            "quality_metrics": {
-                "measurement_stability": 0.95,
-                "color_consistency": 0.88,
-                "repeatability_score": 0.91
-            }
+            "description": self.solutions[solution]["description"]
         }
-        
-        # Add specific notes for blue solution
-        if solution == "blue":
-            ground_truth_data["notes"]["base_solution"] = "Initial red dispensing with 1.5 second squeeze"
-            ground_truth_data["notes"]["special_notes"] = "Mixed with red base solution"
         
         # Save ground truth data
         output_file = self.ground_truth_dir / f"{solution}_solution_ground_truth.json"
@@ -308,28 +257,11 @@ class GroundTruthCalibrator:
                 "timestamp": datetime.now().isoformat(),
                 "total_solutions": 0,
                 "calibration_session_id": f"gt_calib_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "operator": "automated_system",
-                "laboratory_conditions": {
-                    "temperature_range": "23.0°C - 23.2°C",
-                    "humidity": "45% RH",
-                    "lighting": "standard lab lighting (5000K, 800 lux)",
-                    "ambient_pressure": "1013.25 hPa"
-                },
-                "solutions": {},
-                "calibration_matrix": {
-                    "description": "Derived 3x3 absorbance matrix from ground truth measurements",
-                    "matrix": [
-                        [0.85, 0.12, 0.08],
-                        [0.15, 0.72, 0.11],
-                        [0.18, 0.16, 0.78]
-                    ],
-                    "units": "absorbance per unit volume",
-                    "notes": "Matrix derived from red, yellow, blue solution calibrations"
-                }
+                "solutions": {}
             }
         }
         
-        # Load existing ground truth files and build enhanced summary
+        # Load existing ground truth files and build summary
         solutions_found = 0
         for solution in self.solutions.keys():
             gt_file = self.ground_truth_dir / f"{solution}_solution_ground_truth.json"
@@ -338,20 +270,13 @@ class GroundTruthCalibrator:
                     with open(gt_file, 'r') as f:
                         data = json.load(f)
                         
-                        # Enhanced solution summary
+                        # Simple solution summary with only measurable data
                         summary_data["calibration_summary"]["solutions"][solution] = {
                             "rgb": data["color_measurement"]["rgb"],
                             "hex": data["color_measurement"]["hex"],
                             "timestamp": data["timestamp"],
-                            "sequence": data["calibration_sequence"],
-                            "absorbance_coefficient": data["calibration_parameters"]["absorbance_coefficient"],
-                            "dominant_wavelength": data["calibration_parameters"]["dominant_wavelength"],
-                            "quality_score": data["quality_metrics"]["measurement_stability"]
+                            "sequence": data["calibration_sequence"]
                         }
-                        
-                        # Add special notes for blue solution
-                        if solution == "blue":
-                            summary_data["calibration_summary"]["solutions"][solution]["special_notes"] = "Mixed with red base solution"
                         
                         solutions_found += 1
                         
