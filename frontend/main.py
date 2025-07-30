@@ -399,58 +399,6 @@ class ColorOptimizer:
         
         is_stuck = relative_improvement < 0.05  # Less than 5% improvement range
         return is_stuck
-            
-    def get_statistics(self) -> Dict:
-        """Get optimization statistics"""
-        if len(self.history) == 0:
-            return {
-                'total_attempts': 0,
-                'best_distance': None,
-                'average_distance': None,
-                'improvement_trend': [],
-                'convergence_status': 'no_data'
-            }
-            
-        distances = [h['distance_to_target'] for h in self.history]
-        
-        # Calculate convergence metrics
-        convergence_status = 'exploring'
-        if len(distances) >= 5:
-            recent_improvement = (max(distances[-5:]) - min(distances[-5:])) / (max(distances[-5:]) + 1e-6)
-            if recent_improvement < 0.05:
-                convergence_status = 'converged' if self._is_optimization_stuck() else 'converging'
-            elif len(distances) >= 10:
-                overall_improvement = (max(distances[:5]) - min(distances[-5:])) / (max(distances[:5]) + 1e-6)
-                if overall_improvement > 0.3:
-                    convergence_status = 'improving'
-        
-        # Calculate ratio diversity (how much we're exploring)
-        ratio_diversity = 0.0
-        if len(self.history) >= 2:
-            recent_ratios = [h['ratios'] for h in self.history[-5:]] if len(self.history) >= 5 else [h['ratios'] for h in self.history]
-            color_variances = []
-            for color in ['red', 'yellow', 'blue']:
-                values = [r[color] for r in recent_ratios]
-                if ML_AVAILABLE:
-                    variance = np.var(values)
-                else:
-                    mean_val = sum(values) / len(values)
-                    variance = sum((x - mean_val)**2 for x in values) / len(values)
-                color_variances.append(variance)
-            ratio_diversity = sum(color_variances) / len(color_variances)
-        
-        return {
-            'total_attempts': len(self.history),
-            'best_distance': min(distances),
-            'average_distance': np.mean(distances) if ML_AVAILABLE else sum(distances) / len(distances),
-            'current_distance': distances[-1],
-            'improvement_trend': distances,
-            'target_rgb': self.target_color,
-            'convergence_status': convergence_status,
-            'ratio_diversity': ratio_diversity,
-            'recent_improvement': (distances[0] - distances[-1]) / (distances[0] + 1e-6) if len(distances) > 1 else 0,
-            'optimization_efficiency': len([d for d in distances if d < distances[0] * 0.8]) / len(distances) if len(distances) > 1 else 0
-        }
 
 def generate_random_target_color() -> Tuple[int, int, int]:
     """Generate a random target color that's achievable with RGB pigments"""
