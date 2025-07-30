@@ -212,14 +212,14 @@ class BottleModel(ColorOptimizer):
 
 # --- create a random but plausible 3×3 absorbance matrix for the session ---
 np.random.seed(42)
-_P_TRUE = np.abs(np.random.normal(loc=0.7, scale=0.2, size=(3,3)))
+_P_TRUE = np.abs(np.random.normal(loc=0.3, scale=0.15, size=(3,3)))  # Lower absorbance for brighter colors
 bottle_model = BottleModel(_P_TRUE)          # hidden ground truth
 
 # ╔══════════════════════════════════════╗
 # ║     Target-colour helper functions     ║
 # ╚══════════════════════════════════════╝
 def _sample_reachable_rgb(P_est: np.ndarray,
-                          max_total: float = 6.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
+                          max_total: float = 4.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
     """Return (rgb8, weights) inside the reachable gamut of P_est."""
     w = np.random.dirichlet(np.ones(3)) * max_total
     A = w @ P_est

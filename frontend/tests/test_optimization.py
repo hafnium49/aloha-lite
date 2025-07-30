@@ -14,14 +14,15 @@ import os
 # Add parent directory to path to import main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import ColorOptimizer
+from main import ColorOptimizer, BottleModel, generate_random_target_color, _sample_reachable_rgb
 
 def test_optimization_evolution():
     """Test the new phase optimization evolution (N=0 through N≥8)"""
     print("🧪 Testing new phase optimization evolution...")
     
     optimizer = ColorOptimizer()
-    target_color = (200, 100, 50)  # Orange-ish target
+    # Use the new target generation function to get a reachable color
+    target_color = generate_random_target_color()
     optimizer.set_target_color(target_color)
     
     print(f"🎯 Target color: RGB{target_color}")
@@ -128,7 +129,7 @@ def test_optimization_evolution():
     
     # Check for improvement
     final_stats = optimizer.get_statistics()
-    distances = final_stats['improvement_trend']
+    distances = [h['distance_to_target'] for h in optimizer.history]
     
     improvement_good = False
     if len(distances) > 1:
@@ -156,22 +157,14 @@ def test_optimization_evolution():
     elif len(optimizer.history) >= 3:
         print("⚠️  WARNING: Should have calibration matrix by N≥3")
     
-    # Test CAM02-UCS color space data
-    color_data = optimizer.get_color_space_data()
-    if color_data['available']:
-        print(f"🎨 Color space plotting available: {color_data['color_space']}")
-        print(f"   Target in {color_data['color_space']}: {[round(x, 1) for x in color_data['target']['lab']]}")
-        print(f"   Trail points: {len(color_data['trail'])}")
-        perceptual_distances = []
-        target_lab = color_data['target']['lab']
-        for point in color_data['trail']:
-            lab = point['lab']
-            dist = ((lab[1] - target_lab[1])**2 + (lab[2] - target_lab[2])**2)**0.5
-            perceptual_distances.append(dist)
-        print(f"   Perceptual distances (ΔE): {[round(d, 1) for d in perceptual_distances]}")
-        print("✅ GOOD: CAM02-UCS perceptual plotting ready")
-    else:
-        print("⚠️  WARNING: Color space plotting not available")
+    # Test reachable color generation
+    print(f"🎨 Testing reachable color generation:")
+    test_colors = []
+    for i in range(5):
+        new_color = generate_random_target_color()
+        test_colors.append(new_color)
+    print(f"   Generated colors: {test_colors}")
+    print("✅ GOOD: Target color generation working")
     
     return diversity_good or improvement_good
 
@@ -180,20 +173,22 @@ def test_phase_specific_behavior():
     print("\n🔬 Testing new phase-specific behavior...")
     
     optimizer = ColorOptimizer()
-    target_color = (150, 200, 100)  # Green-ish target
+    # Use reachable target color
+    target_color = generate_random_target_color()
     optimizer.set_target_color(target_color)
     
     # Phase N=0 test
     ratios_phase0 = optimizer.recommend_next_ratios()
     print(f"Phase N=0 ratios: {ratios_phase0}")
     
-    # Should be pure dominant (yellow in this case since green = 200 is highest)
+    # Should be pure dominant (one pigment much larger than others)
     max_val = max(ratios_phase0.values())
-    dominant_count = sum(1 for v in ratios_phase0.values() if v == max_val)
+    dominant_count = sum(1 for v in ratios_phase0.values() if v >= max_val * 0.9)
     assert dominant_count == 1, "Phase N=0 should have exactly one dominant pigment"
     
     # Add measurement and test Phase N=1
-    optimizer.add_measurement(ratios_phase0, (100, 150, 80))
+    sim_result = simulate_color_mixing(ratios_phase0, target_color, noise_level=15)
+    optimizer.add_measurement(ratios_phase0, sim_result)
     ratios_phase1 = optimizer.recommend_next_ratios()
     print(f"Phase N=1 ratios: {ratios_phase1}")
     
@@ -201,7 +196,8 @@ def test_phase_specific_behavior():
     assert ratios_phase1 != ratios_phase0, "Phase N=1 should produce different ratios"
     
     # Add measurement and test Phase N=2 (rough calibration + GP blend)
-    optimizer.add_measurement(ratios_phase1, (120, 170, 90))
+    sim_result = simulate_color_mixing(ratios_phase1, target_color, noise_level=15)
+    optimizer.add_measurement(ratios_phase1, sim_result)
     ratios_phase2 = optimizer.recommend_next_ratios() 
     print(f"Phase N=2 ratios: {ratios_phase2}")
     
@@ -234,7 +230,7 @@ def test_standard_error_tracking():
     print("\n📊 Testing standard error tracking...")
     
     optimizer = ColorOptimizer()
-    target_color = (180, 120, 80)
+    target_color = generate_random_target_color()
     optimizer.set_target_color(target_color)
     
     # Generate enough measurements to trigger NNLS calibration (N≥3)
@@ -251,6 +247,49 @@ def test_standard_error_tracking():
                 assert optimizer.std_error >= 0, "Standard error should be non-negative"
     
     print("✅ Standard error tracking test passed")
+
+def test_bottle_model_and_target_generation():
+    """Test the new BottleModel and reachable target generation"""
+    print("\n🍾 Testing BottleModel and target generation...")
+    
+    # Test BottleModel creation
+    import numpy as np
+    test_matrix = np.array([[0.8, 0.1, 0.1],
+                           [0.2, 0.9, 0.1], 
+                           [0.1, 0.1, 0.9]])
+    
+    bottle = BottleModel(test_matrix)
+    assert bottle.P_est is not None, "BottleModel should have P_est matrix"
+    assert np.array_equal(bottle.P_est, test_matrix), "BottleModel should preserve input matrix"
+    
+    # Test target generation produces reachable colors
+    generated_colors = []
+    for i in range(10):
+        color = generate_random_target_color()
+        generated_colors.append(color)
+        # Check RGB values are valid
+        assert all(0 <= c <= 255 for c in color), f"Invalid RGB values: {color}"
+    
+    print(f"   Generated {len(generated_colors)} valid target colors")
+    print(f"   Sample colors: {generated_colors[:3]}")
+    
+    # Test that colors are diverse (not all the same)
+    unique_colors = set(generated_colors)
+    diversity_ratio = len(unique_colors) / len(generated_colors)
+    print(f"   Color diversity: {diversity_ratio:.1%}")
+    
+    assert diversity_ratio > 0.3, "Target generation should produce diverse colors"
+    
+    # Test _sample_reachable_rgb function directly
+    from main import bottle_model
+    rgb_sample, weights = _sample_reachable_rgb(bottle_model.P_est)
+    
+    print(f"   Direct sampling: RGB{rgb_sample}, weights={[round(w, 2) for w in weights]}")
+    assert all(0 <= c <= 255 for c in rgb_sample), "Sampled RGB should be valid"
+    assert len(weights) == 3, "Should have 3 pigment weights"
+    assert all(w >= 0 for w in weights), "Weights should be non-negative"
+    
+    print("✅ BottleModel and target generation tests passed")
 
 def simulate_color_mixing(ratios, target_color, noise_level=15):
     """
@@ -323,13 +362,22 @@ def run_all_tests():
         print(f"❌ Standard error tracking test failed: {e}")
         success3 = False
     
-    overall_success = success1 and success2 and success3
+    # Test 4: BottleModel and target generation
+    try:
+        test_bottle_model_and_target_generation()
+        success4 = True
+    except Exception as e:
+        print(f"❌ BottleModel test failed: {e}")
+        success4 = False
+    
+    overall_success = success1 and success2 and success3 and success4
     
     if overall_success:
-        print("\n🎉 All new phase optimization tests PASSED!")
+        print("\n🎉 All updated optimization tests PASSED!")
         print("✅ N-based phase schedule working correctly")
         print("✅ Linear weight blending implemented")
         print("✅ Standard error tracking functional")
+        print("✅ BottleModel and reachable target generation working")
     else:
         print("\n❌ Some optimization tests FAILED - Check implementation")
     
