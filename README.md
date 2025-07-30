@@ -183,6 +183,7 @@ aloha-lite/
 │   ├── trajectory_executor.py  # Advanced trajectory execution
 │   └── joint_reader_examples.py # Joint reading examples
 ├── frontend/              # Web interface and service proxy (FastAPI port 3000)
+├── mcp_server/                # MCP control server for Anthropic Claude desktop
 ├── vision_bridge/         # Image processing service (FastAPI port 5000)
 ├── phosphobot/           # Robot control system (git subtree)
 ├── aloha-lite-demo2rule/ # Dataset processing tools
@@ -368,6 +369,7 @@ Once started you can access:
 - `http://localhost:8080/` – web front-end for robot operations
 - `http://localhost:8080/robot/docs` – Robot Service Swagger UI  
 - `http://localhost:9001/` – MinIO Console
+- `http://localhost:8080/mcp/health` – MCP server health check
 - Phosphobot dashboard: Manage separately as needed
 - `http://localhost:8080/robot/docs` – Robot Service Swagger UI
 - `http://localhost:9001/metrics` – Robot Service Prometheus metrics
@@ -649,6 +651,7 @@ aloha-lite/
 ├── push_subtree.py               # Automated subtree push (python)
 ├── frontend/                     # Web interface
 ├── robot_service/                # FastAPI robot control
+├── mcp_server/                # MCP control server for Anthropic Claude desktop
 ├── vision_bridge/                # Image processing and computer vision service
 │                                  # - FastAPI service (port 5000) 
 │                                  # - Beaker analysis with AI-powered color detection
@@ -697,6 +700,11 @@ aloha-lite/
 - `GET /status` - Check status of all backend services
 - `POST /robot/*` - Proxy to robot service (eliminates CORS issues)
 - `POST /vision/*` - Proxy to vision service (eliminates CORS issues)
+
+### MCP Server (Port 8900)
+- `GET /health` - MCP server health check
+- `WS  /ws` - WebSocket command channel
+
 
 ### Web Interface Access
 - **Main Interface**: http://localhost:3000 (Primary user interface)
