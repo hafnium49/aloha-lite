@@ -51,26 +51,193 @@ VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
 
 class ColorOptimizer:
     """
-    Hybrid pigment optimiser with 4-phase logic:
-      0 samples  → pure dominant pigment
-      1 sample   → GP only
-      2 samples  → rough scale-only calibration ⊕ GP (70/30 blend)
-      ≥3 samples → full NNLS calibration; GP refines only if error > ε
+    Phase schedule  (N = len(history) BEFORE recommending the next mix)
+
+      N = 0 : pure dominant-channel squirt               (baseline)
+      N = 1 : Bayesian GP only                           (black-box)
+      N = 2 : rough 3-scalar calibration  ⊕  GP          (60 % cal / 40 % GP)
+      3 ≤ N ≤ 7 :   full 9-parameter NNLS calibration  ⊕  GP
+                   – weight on calibration rises linearly
+                   – GP weight falls to zero by N = 8
+      N ≥ 8 : deterministic NNLS calibration ONLY
+               – σ_resid (standard error) calculated on every call
     """
 
-    # ---------- initialisation ------------------------------------------------
+    # ───────────── initialisation ─────────────
     def __init__(self):
         self.history: List[Dict] = []
         self.target_color: Optional[Tuple[int, int, int]] = None
-
-        # calibration / modelling state
-        self.P_est   : Optional[np.ndarray] = None      # (3,3) absorbance matrix
+        self.P_est: Optional[np.ndarray] = None   # (3,3) absorbance matrix
+        self.std_error: Optional[float] = None
         self.gp_model: Optional[GaussianProcessRegressor] = None
+        self.epsilon_rgb = 10.0                   # not used until N ≥ 8
 
-        # hyper-parameters
-        self.epsilon_rgb = 10.0   # acceptable Euclidean RGB error
+    # ───────────── low-level helpers ──────────
+    @staticmethod
+    def _lin_rgb(rgb):  # sRGB→linear
+        x = np.asarray(rgb)/255.0
+        return np.power(x, 2.2).clip(1e-4, 1)
 
-    # ---------- color space conversion helpers --------------------------------
+    @classmethod
+    def _rgb_to_absorb(cls, rgb):
+        return -np.log10(cls._lin_rgb(rgb))
+
+    def _ratios_to_array(self, r):  # dict→np[3]
+        return np.array([r.get('red',0), r.get('yellow',0), r.get('blue',0)])
+
+    def _array_to_ratios(self, a):
+        return {'red':float(a[0]), 'yellow':float(a[1]), 'blue':float(a[2])}
+
+    def _normalize(self, d):
+        s = sum(d.values()) or 1.0
+        f = 3.0/s
+        return {k:max(0.1, v*f) for k,v in d.items()}
+
+    # ───────────── public API ────────────────
+    def set_target_color(self, rgb):
+        self.target_color = rgb
+        logger.info(f"🎯 target RGB{rgb}")
+
+    def add_measurement(self, ratios, measured_rgb):
+        d = euclidean(measured_rgb, self.target_color) if self.target_color else 0
+        self.history.append({
+            "timestamp": datetime.now().isoformat(),
+            "ratios": ratios.copy(),
+            "measured_rgb": measured_rgb,
+            "distance_to_target": d
+        })
+        logger.info("📊 logged #%d  Δ≈%.2f", len(self.history), d)
+
+    # ───────────── calibration blocks ────────
+    def _rough_scale_calibration(self):
+        """Fit 3 scale factors α_r,y,b with fixed hue basis."""
+        if len(self.history) < 2:
+            return
+        P_hue = np.array([[0.8,0.1,0.1],
+                          [0.2,0.9,0.1],
+                          [0.1,0.1,0.9]])
+        W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
+        A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])
+        L = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1,3)
+        alpha, *_ = np.linalg.lstsq(L, A.reshape(-1), rcond=None)
+        self.P_est = np.diag(alpha.clip(1e-6)) @ P_hue
+        logger.info("🔧 rough α = %s", alpha.round(3))
+
+    def _fit_full_calibration(self):
+        """Least-squares fit of full 3×3 pigment matrix; works for any N≥3."""
+        if len(self.history) < 3 or not ML_AVAILABLE:
+            return
+        W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
+        A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])
+        P = np.zeros((3,3))
+        for ch in range(3):
+            res = lsq_linear(W, A[:,ch], bounds=(0, np.inf))
+            P[:,ch] = res.x
+        self.P_est = P
+        resid = A - W @ P
+        self.std_error = float(np.sqrt(np.mean(resid**2)))
+        logger.info("🧮 NNLS fit  σ_resid=%.4f", self.std_error)
+
+    def _inverse_weights(self):
+        if self.P_est is None or not ML_AVAILABLE:
+            return None
+        res = lsq_linear(self.P_est.T,
+                         self._rgb_to_absorb(self.target_color),
+                         bounds=(0,8))
+        return self._normalize(self._array_to_ratios(res.x))
+
+    # ───────────── Gaussian-process helper ───
+    def _gp_next(self, seed=None):
+        if not ML_AVAILABLE:
+            return self._get_random()
+        X = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
+        y = np.array([h['distance_to_target'] for h in self.history])
+        X += np.random.normal(0,1e-6,X.shape)
+        ker = ConstantKernel(1.0,(1e-3,1e3))*RBF(1.0,(1e-2,1e2))
+        gp  = GaussianProcessRegressor(kernel=ker, alpha=1e-4,
+                                       normalize_y=True, n_restarts_optimizer=3)
+        gp.fit(X,y); self.gp_model = gp
+        f_best = y.min()
+        def acq(xx):
+            m,s = gp.predict(xx.reshape(1,-1), return_std=True)
+            xi  = 0.1; z = (f_best-m-xi)/(s+1e-9)
+            return -(f_best-m-xi)*norm.cdf(z) - s*norm.pdf(z)
+        starts = [np.random.uniform(0.1,5,(3,)) for _ in range(6)]
+        if seed is not None:
+            starts.append(self._ratios_to_array(seed))
+        best_x,best_v = None,np.inf
+        for s0 in starts:
+            res = minimize(acq, s0, method='L-BFGS-B', bounds=[(0.05,8)]*3)
+            if res.success and res.fun < best_v:
+                best_v,best_x = res.fun,res.x
+        return self._normalize(self._array_to_ratios(best_x if best_x is not None else starts[0]))
+
+    # ───────────── boilerplate generators ────
+    def _get_random(self):
+        return self._normalize({c:random.uniform(0.1,3.0) for c in ('red','yellow','blue')})
+
+    def _get_initial(self):
+        r,g,b = self.target_color
+        return self._normalize({'red':(r/255)*2+0.1,
+                                'yellow':(g/255)*2+0.1,
+                                'blue':(b/255)*2+0.1})
+
+    # ───────────── main phase logic ──────────
+    def recommend_next_ratios(self):
+        N = len(self.history)
+
+        # Phase 0
+        if N == 0:
+            r,g,b = self.target_color; dom = np.argmax([r,g,b])
+            pure = np.zeros(3); pure[dom] = 3.0
+            return self._array_to_ratios(pure)
+
+        # Phase 1
+        if N == 1:
+            return self._gp_next()
+
+        # Phase 2
+        if N == 2:
+            self._rough_scale_calibration()
+            w_cal = self._inverse_weights()
+            w_gp  = self._gp_next()
+            if w_cal is None:
+                return w_gp
+            return self._normalize({c:0.6*w_cal[c]+0.4*w_gp[c] for c in w_cal})
+
+        # Phase 3-7 : blended NNLS + GP
+        if 3 <= N <= 7:
+            self._fit_full_calibration()
+            w_cal = self._inverse_weights()
+            w_gp  = self._gp_next(seed=w_cal)
+            if w_cal is None:
+                return w_gp
+            w_cal_weight = (N-1)/8.0          # 0.25 → 0.75 as N=3→7
+            w_gp_weight  = 1.0 - w_cal_weight
+            return self._normalize({c:w_cal_weight*w_cal[c]+w_gp_weight*w_gp[c]
+                                    for c in w_cal})
+
+        # Phase ≥8 : calibration only
+        self._fit_full_calibration()
+        res = self._inverse_weights()
+        return res if res else self._get_random()
+
+    # ───────────── quick stats for UI ────────
+    def get_statistics(self):
+        d = [h['distance_to_target'] for h in self.history]
+        return {"total_attempts": len(self.history),
+                "best_distance":  min(d) if d else None,
+                "std_error_absorb": self.std_error,
+                "current_distance": d[-1] if d else None,
+                "average_distance": sum(d) / len(d) if d else None,
+                "improvement_trend": d,
+                "target_rgb": self.target_color,
+                "convergence_status": "exploring",
+                "ratio_diversity": 0.0,
+                "recent_improvement": (d[0] - d[-1]) / (d[0] + 1e-6) if len(d) > 1 else 0,
+                "optimization_efficiency": len([dist for dist in d if dist < d[0] * 0.8]) / len(d) if len(d) > 1 else 0}
+
+    # ───────────── color space conversion helpers ────────
     @staticmethod
     def _rgb_to_cam02ucs(rgb: Tuple[int, int, int]) -> Tuple[float, float, float]:
         """Convert sRGB (0-255) to CAM02-UCS J' a' b' coordinates"""
@@ -127,186 +294,47 @@ class ColorOptimizer:
         b = 200 * (fy - fz)
         
         return (L, a, b)
-    @staticmethod
-    def _lin_rgb(rgb: Tuple[int, int, int]) -> np.ndarray:
-        """sRGB (0-255) → linear RGB (0-1)"""
-        arr = np.asarray(rgb, dtype=np.float64)/255.0
-        return np.power(arr, 2.2).clip(1e-4, 1.0)  # avoid log(0)
 
-    @staticmethod
-    def _rgb_to_absorb(rgb: Tuple[int, int, int]) -> np.ndarray:
-        """Approx. Beer-Lambert absorbance from sRGB tuple"""
-        return -np.log10(ColorOptimizer._lin_rgb(rgb))
-
-    def _ratios_to_array(self, r: Dict[str, float]) -> np.ndarray:
-        return np.array([r.get('red',0), r.get('yellow',0), r.get('blue',0)])
-
-    def _array_to_ratios(self, a: np.ndarray) -> Dict[str,float]:
-        return {'red': float(a[0]), 'yellow': float(a[1]), 'blue': float(a[2])}
-
-    def _normalize(self, ratios: Dict[str,float]) -> Dict[str,float]:
-        s = sum(ratios.values()) or 1.0
-        f = 3.0/s
-        return {k: max(0.1, v*f) for k,v in ratios.items()}
-
-    # ---------- public API ----------------------------------------------------
-    def set_target_color(self, rgb: Tuple[int,int,int]):
-        self.target_color = rgb
-        logger.info(f"🎯 New target RGB{rgb}")
-
-    def add_measurement(self, ratios: Dict[str,float], measured_rgb: Tuple[int,int,int]):
-        dist = euclidean(measured_rgb, self.target_color) if self.target_color else 0
-        self.history.append({
-            "timestamp": datetime.now().isoformat(),
-            "ratios":    ratios.copy(),
-            "measured_rgb": measured_rgb,
-            "distance_to_target": dist
-        })
-        logger.info(f"📊 logged measurement #{len(self.history)}  dist={dist:.2f}")
-
-    # ---------- calibration routines -----------------------------------------
-    def _rough_scale_calibration(self):
-        """Estimate 3 scalar strengths α_r,y,b assuming fixed canonical hues."""
-        if len(self.history) < 2:
-            return
-        # canonical absorbances (very coarse!)
-        P_hue = np.array([[0.8,0.1,0.1],
-                          [0.2,0.9,0.1],
-                          [0.1,0.1,0.9]])
-        W = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])   # (n,3)
-        A = np.stack([self._rgb_to_absorb(h["measured_rgb"]) for h in self.history])  # (n,3)
-
-        left  = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1,3)
-        right = A.reshape(-1)
-        alpha, *_ = np.linalg.lstsq(left, right, rcond=None)
-        self.P_est = np.diag(alpha.clip(1e-6))*P_hue
-        logger.info("🔧 rough α-estimate = %s", alpha.round(3))
-
-    def _fit_full_calibration(self):
-        """NNLS fit of full 3×3 pigment matrix once ≥3 data-points exist."""
-        if len(self.history) < 3:
-            return
-        if not ML_AVAILABLE:
-            return
-        from scipy.optimize import lsq_linear
-        W = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])   # (n,3)
-        A = np.stack([self._rgb_to_absorb(h["measured_rgb"]) for h in self.history])  # (n,3)
+    def get_color_space_data(self) -> Dict:
+        """Get color space data for perceptual plotting"""
+        if not self.target_color or len(self.history) == 0:
+            return {
+                'available': False,
+                'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
+                'target': None,
+                'trail': []
+            }
         
-        # Solve for each RGB channel separately since lsq_linear expects 1D output
-        P_est = np.zeros((3, 3))
-        total_cost = 0
-        for i in range(3):  # For each RGB channel
-            res = lsq_linear(W, A[:, i], bounds=(0, np.inf))
-            P_est[:, i] = res.x
-            total_cost += res.cost
+        # Convert target color
+        target_lab = self._rgb_to_cam02ucs(self.target_color)
         
-        self.P_est = P_est
-        logger.info("🧮 full calibration solved ‖res‖=%.4f", total_cost)
-
-    def _inverse_weights(self) -> Optional[Dict[str,float]]:
-        """Deterministic inverse mix using current P_est."""
-        if self.P_est is None: return None
-        if not ML_AVAILABLE: return None
-        from scipy.optimize import lsq_linear
-        A_tgt = self._rgb_to_absorb(self.target_color)
-        res   = lsq_linear(self.P_est.T, A_tgt, bounds=(0,8))  # Note: P_est.T since we solved by columns
-        return self._normalize(self._array_to_ratios(res.x))
-
-    # ---------- Gaussian-process helper --------------------------------------
-    def _gp_next(self, force=False, initial: Optional[Dict[str,float]]=None) -> Dict[str,float]:
-        """Single GP recommendation (slightly simplified)."""
-        if not ML_AVAILABLE:
-            return self._get_random()
-        if len(self.history) < 2 and not force:
-            return self._get_initial()
-
-        X = np.stack([self._ratios_to_array(h["ratios"]) for h in self.history])
-        y = np.array([h["distance_to_target"] for h in self.history])
-        X += np.random.normal(0,1e-6,X.shape)
-
-        ker = ConstantKernel(1.0,(1e-3,1e3))*RBF(1.0,(1e-2,1e2))
-        self.gp_model = GaussianProcessRegressor(kernel=ker, alpha=1e-4,
-                                                 normalize_y=True, n_restarts_optimizer=3)
-        self.gp_model.fit(X,y)
-        f_best = y.min()
-
-        def acq(x):
-            m,s = self.gp_model.predict(x.reshape(1,-1), return_std=True)
-            xi  = 0.1
-            imp = f_best - m - xi
-            z   = imp/(s+1e-9)
-            return -(imp*norm.cdf(z) + s*norm.pdf(z))[0]
-
-        # start points
-        starts = [np.random.uniform(0.1,5,(3,)) for _ in range(6)]
-        if initial is not None:
-            starts.append(self._ratios_to_array(initial))
-
-        best_x,best_v = None, np.inf
-        for x0 in starts:
-            res = minimize(acq, x0, method='L-BFGS-B', bounds=[(0.05,8)]*3)
-            if res.success and res.fun < best_v:
-                best_v,best_x = res.fun,res.x
-        return self._normalize(self._array_to_ratios(best_x if best_x is not None else starts[0]))
-
-    # ---------- ratio generators ---------------------------------------------
-    def _get_random(self) -> Dict[str,float]:
-        return self._normalize({c: random.uniform(0.1,3.0) for c in ('red','yellow','blue')})
-
-    def _get_initial(self) -> Dict[str,float]:
-        if not self.target_color: return self._get_random()
-        r,g,b = self.target_color
-        ratios = {'red':(r/255)*2+0.1, 'yellow':(g/255)*2+0.1, 'blue':(b/255)*2+0.1}
-        return self._normalize(ratios)
-
-    # ---------- MAIN decision logic ------------------------------------------
-    def recommend_next_ratios(self) -> Dict[str,float]:
-        n = len(self.history)
-
-        # phase 0 – first ever shot: pure dominant pigment
-        if n == 0:
-            if not self.target_color:
-                return self._get_random()
-            r,g,b = self.target_color
-            dom = np.argmax([r,g,b])
-            pure = np.zeros(3); pure[dom] = 3.0
-            return self._array_to_ratios(pure)
-
-        # phase 1 – GP only (black-box)
-        if n == 1:
-            return self._gp_next(force=True)
-
-        # phase 2 – rough scale calibration + GP blend
-        if n == 2:
-            self._rough_scale_calibration()
-            w_cal = self._inverse_weights()
-            w_gp  = self._gp_next(force=True)
-            if w_cal is None:
-                return w_gp
-            blend = {c:0.7*w_cal[c]+0.3*w_gp[c] for c in w_cal}
-            return self._normalize(blend)
-
-        # phase ≥3 – full NNLS inverse; optional GP refinement
-        self._fit_full_calibration()
-        w_cal = self._inverse_weights()
-        if w_cal is None:
-            return self._gp_next()  # should not happen
-
-        # check predicted error
-        A_pred = self.P_est.T @ self._ratios_to_array(w_cal)  # Note: P_est.T since we solved by columns
-        rgb_lin = np.power(10, -A_pred)
-        rgb_pred = tuple((np.power(rgb_lin,1/2.2)*255).astype(int))
-        err = euclidean(rgb_pred, self.target_color)
-
-        if err <= self.epsilon_rgb:
-            logger.info("✅ deterministic inverse good enough (err=%.1f)", err)
-            return w_cal
-        else:
-            # Error too high, blend with GP suggestion
-            logger.info(f"⚠️  deterministic inverse error={err:.1f} > {self.epsilon_rgb}, refining with GP")
-            w_gp = self._gp_next()
-            blend = {c: 0.5*w_cal[c] + 0.5*w_gp[c] for c in w_cal}
-            return self._normalize(blend)
+        # Convert history
+        trail_data = []
+        for measurement in self.history:
+            rgb = measurement['measured_rgb']
+            lab = self._rgb_to_cam02ucs(rgb)
+            trail_data.append({
+                'lab': lab,
+                'rgb': rgb,
+                'ratios': measurement['ratios'],
+                'distance': measurement['distance_to_target'],
+                'timestamp': measurement['timestamp']
+            })
+        
+        return {
+            'available': True,
+            'color_space': 'CAM02-UCS' if COLOR_SCIENCE_AVAILABLE else 'CIELAB',
+            'target': {
+                'lab': target_lab,
+                'rgb': self.target_color
+            },
+            'trail': trail_data,
+            'axis_labels': {
+                'x': "a'" if COLOR_SCIENCE_AVAILABLE else 'a*',
+                'y': "b'" if COLOR_SCIENCE_AVAILABLE else 'b*',
+                'title': 'Color Optimization Progress in CAM02-UCS a′b′ plane' if COLOR_SCIENCE_AVAILABLE else 'Color Optimization Progress in CIELAB a*b* plane'
+            }
+        }
 
     def get_color_space_data(self) -> Dict:
         """Get color space data for perceptual plotting"""
