@@ -1,6 +1,10 @@
-# Frontend Tests
+# Frontend Ground Truth Calibration Tests
 
-This directory contains test files and utilities for testing the frontend integration with the robot service and the four-phase color optimization system.
+This directory contains comprehensive tests for the ground truth calibration integration in `frontend/main.py`.
+
+## 🧪 Test Overview
+
+The tests validate that the frontend correctly loads and uses ground truth calibration data from the JSON files in `frontend/ground_truth_calibration/` to initialize the `BottleModel` with realistic calibration values.
 
 ## 📁 Files Overview
 
