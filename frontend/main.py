@@ -210,10 +210,82 @@ class BottleModel(ColorOptimizer):
         super().__init__()
         self.P_est = P_true.copy()   # never changes
 
-# --- create a random but plausible 3×3 absorbance matrix for the session ---
-np.random.seed(42)
-_P_TRUE = np.abs(np.random.normal(loc=0.3, scale=0.15, size=(3,3)))  # Lower absorbance for brighter colors
-bottle_model = BottleModel(_P_TRUE)          # hidden ground truth
+def load_ground_truth_calibration():
+    """
+    Load ground truth calibration data from JSON files and construct the calibration matrix.
+    Returns a 3x3 numpy array representing the true pigment absorbance matrix.
+    """
+    ground_truth_dir = Path(__file__).parent / "ground_truth_calibration"
+    
+    try:
+        # Try to load calibration summary first (contains the derived matrix)
+        summary_file = ground_truth_dir / "calibration_summary.json"
+        if summary_file.exists():
+            with open(summary_file, 'r') as f:
+                summary_data = json.load(f)
+            
+            # Extract the calibration matrix if available
+            if "calibration_matrix" in summary_data["calibration_summary"]:
+                matrix_data = summary_data["calibration_summary"]["calibration_matrix"]["matrix"]
+                P_true = np.array(matrix_data)
+                logger.info("🎯 Loaded ground truth matrix from calibration summary")
+                logger.info("📊 Matrix shape: %s, mean absorbance: %.3f", P_true.shape, P_true.mean())
+                return P_true
+        
+        # Fallback: construct matrix from individual solution files
+        solutions = ["red", "yellow", "blue"]
+        absorbance_coefficients = []
+        rgb_colors = []
+        
+        for solution in solutions:
+            solution_file = ground_truth_dir / f"{solution}_solution_ground_truth.json"
+            if solution_file.exists():
+                with open(solution_file, 'r') as f:
+                    solution_data = json.load(f)
+                
+                # Extract calibration parameters
+                abs_coeff = solution_data.get("calibration_parameters", {}).get("absorbance_coefficient", 0.5)
+                rgb = solution_data.get("color_measurement", {}).get("rgb", [128, 128, 128])
+                
+                absorbance_coefficients.append(abs_coeff)
+                rgb_colors.append(rgb)
+                
+                logger.info("📊 Loaded %s solution: RGB%s, abs_coeff=%.3f", 
+                           solution, rgb, abs_coeff)
+            else:
+                logger.warning("⚠️  Missing ground truth file: %s", solution_file)
+                # Use fallback values
+                absorbance_coefficients.append(0.5)
+                rgb_colors.append([128, 128, 128])
+        
+        # Construct calibration matrix from loaded data
+        if len(absorbance_coefficients) == 3:
+            # Create a realistic 3x3 matrix based on the loaded coefficients
+            # Main diagonal represents primary pigment strengths
+            P_true = np.array([
+                [absorbance_coefficients[0], 0.1, 0.08],  # Red pigment
+                [0.15, absorbance_coefficients[1], 0.1],   # Yellow pigment  
+                [0.12, 0.15, absorbance_coefficients[2]]   # Blue pigment
+            ])
+            
+            logger.info("🔧 Constructed ground truth matrix from individual files")
+            logger.info("📊 Matrix:\n%s", P_true)
+            return P_true
+            
+    except Exception as e:
+        logger.warning("⚠️  Error loading ground truth calibration: %s", e)
+        logger.info("🔄 Falling back to random matrix generation")
+    
+    # Final fallback: generate random matrix (original behavior)
+    np.random.seed(42)
+    P_fallback = np.abs(np.random.normal(loc=0.3, scale=0.15, size=(3,3)))
+    logger.info("🎲 Using random fallback matrix")
+    return P_fallback
+
+# --- Load ground truth calibration and create bottle model ---
+from pathlib import Path
+_P_TRUE = load_ground_truth_calibration()
+bottle_model = BottleModel(_P_TRUE)
 
 # ╔══════════════════════════════════════╗
 # ║     Target-colour helper functions     ║
