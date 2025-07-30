@@ -250,13 +250,103 @@
         "smooth": true,
         "description": "Execute complete laboratory procedure with multi-color solution preparation and AI-powered beaker color analysis"
       }
+    },
+    "calibration_red_solution": {
+      "name": "calibration_red_solution",
+      "description": "Calibration sequence for red solution in washing bottle - dispense, squeeze for extended time, stir, and analyze",
+      "configurations": [
+        "left_arm_serving_standoff",
+        "left_arm_standoff_with_beaker",
+        "right_arm_standoff_yellow",
+        "dispensing_red_to_beaker",
+        "squeeze washing bottle for 10 seconds",
+        "right_arm_standoff_yellow",
+        "right_arm_standoff",
+        "left_arm_standoff_with_beaker",
+        "left_arm_standoff_yellow",
+        "left_arm_stirer_standoff",
+        "left_arm_stirring",
+        "await 10 seconds",
+        "analyze beaker color",
+        "await 3 seconds",
+        "left_arm_stirer_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Ground-truth calibration procedure for red solution with extended squeeze time for accurate measurement"
+      }
+    },
+    "calibration_yellow_solution": {
+      "name": "calibration_yellow_solution",
+      "description": "Calibration sequence for yellow solution - dispense, squeeze for extended time, stir, and analyze",
+      "configurations": [
+        "left_arm_serving_standoff",
+        "left_arm_standoff_with_beaker",
+        "left_arm_standoff_yellow",
+        "right_arm_standoff_yellow",
+        "dispensing_yellow_to_beaker",
+        "squeeze washing bottle for 10 seconds",
+        "right_arm_standoff_yellow",
+        "right_arm_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_stirer_standoff",
+        "left_arm_stirring",
+        "await 10 seconds",
+        "analyze beaker color",
+        "await 3 seconds",
+        "left_arm_stirer_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Ground-truth calibration procedure for yellow solution with extended squeeze time for accurate measurement"
+      }
+    },
+    "calibration_blue_solution": {
+      "name": "calibration_blue_solution",
+      "description": "Calibration sequence for blue solution - includes initial red dispensing, then blue with extended squeeze time, stir, and analyze",
+      "configurations": [
+        "left_arm_serving_standoff",
+        "left_arm_standoff_with_beaker",
+        "right_arm_standoff_yellow",
+        "dispensing_red_to_beaker",
+        "squeeze washing bottle for 1.5 seconds",
+        "right_arm_standoff_yellow",
+        "left_arm_standoff_blue",
+        "dispensing_blue_to_beaker",
+        "squeeze washing bottle for 10 seconds",
+        "right_arm_standoff",
+        "left_arm_standoff_blue",
+        "left_arm_standoff_yellow",
+        "left_arm_stirer_standoff",
+        "left_arm_stirring",
+        "await 10 seconds",
+        "analyze beaker color",
+        "await 3 seconds",
+        "left_arm_stirer_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Ground-truth calibration procedure for blue solution with initial red base and extended squeeze time for accurate measurement"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 17,
+    "total_sequences": 20,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
@@ -266,7 +356,10 @@
       "advanced_squeeze_example": "python3 sequential_execute.py multi_color_dispensing_with_squeeze",
       "timed_procedure_example": "python3 sequential_execute.py timed_laboratory_procedure --smooth",
       "camera_demo_example": "python3 sequential_execute.py camera_demo_sequence --smooth",
-      "beaker_analysis_example": "python3 sequential_execute.py beaker_analysis_demo_sequence --smooth"
+      "beaker_analysis_example": "python3 sequential_execute.py beaker_analysis_demo_sequence --smooth",
+      "calibration_red_example": "python3 sequential_execute.py calibration_red_solution --smooth",
+      "calibration_yellow_example": "python3 sequential_execute.py calibration_yellow_solution --smooth",
+      "calibration_blue_example": "python3 sequential_execute.py calibration_blue_solution --smooth"
     }
   }
 }
