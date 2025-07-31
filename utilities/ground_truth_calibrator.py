@@ -3,7 +3,7 @@
 Ground Truth Calibration Utility for ColorOptimizer
 
 This utility helps prepare ground-truth calibration instances by:
-1. Running calibration sequences for red, yellow, and blue solutions
+1. Running calibration sequences for red, yellow, blue, and white (background) solutions
 2. Converting measured color metrics to ColorOptimizer format
 3. Calibrating solutions and saving ground truth data
 
@@ -11,6 +11,7 @@ Usage:
     python ground_truth_calibrator.py --solution red
     python ground_truth_calibrator.py --solution yellow  
     python ground_truth_calibrator.py --solution blue
+    python ground_truth_calibrator.py --solution white
     python ground_truth_calibrator.py --all
 """
 
@@ -61,6 +62,10 @@ class GroundTruthCalibrator:
             "blue": {
                 "sequence": "calibration_blue_solution",
                 "description": "Blue solution calibration (with red base)"
+            },
+            "white": {
+                "sequence": "calibration_white_background",
+                "description": "White / background (solvent) calibration"
             }
         }
     
@@ -78,6 +83,11 @@ class GroundTruthCalibrator:
             print(f"Error: Unknown solution '{solution}'. Valid options: {list(self.solutions.keys())}")
             return False
             
+        # White/background uses a specific hardware sequence
+        if solution == "white":
+            print(f"\n=== Step 1: Running white background calibration ===")
+            print("White background calibration requires hardware sequence to prepare clean beaker.")
+        
         sequence_name = self.solutions[solution]["sequence"]
         description = self.solutions[solution]["description"]
         
@@ -186,8 +196,20 @@ class GroundTruthCalibrator:
         print("  - #c9ec26") 
         print("  - 201, 236, 38")
         
+        # Provide default for white background
+        default_white = "RGB(255, 255, 255)" if solution == "white" else None
+        
         while True:
-            user_input = input(f"\nEnter {solution} solution color measurement: ").strip()
+            prompt = f"\nEnter {solution} solution color measurement"
+            if default_white:
+                prompt += f" [{default_white}]"
+            prompt += ": "
+            user_input = input(prompt).strip()
+            
+            # Use default for white if no input provided
+            if not user_input and default_white:
+                user_input = default_white
+                print(f"Using default: {default_white}")
             
             if not user_input:
                 print("Empty input. Please try again.")
@@ -229,6 +251,12 @@ class GroundTruthCalibrator:
             "timestamp": datetime.now().isoformat(),
             "description": self.solutions[solution]["description"]
         }
+        
+        # Add absorbance coefficient for white solution (zero absorbance for pure white)
+        if solution == "white":
+            ground_truth_data["calibration_parameters"] = {
+                "absorbance_coefficient": 0.0
+            }
         
         # Save ground truth data
         output_file = self.ground_truth_dir / f"{solution}_solution_ground_truth.json"
@@ -342,7 +370,7 @@ class GroundTruthCalibrator:
         print("Starting calibration for all solutions...")
         
         results = {}
-        for solution in ["red", "yellow", "blue"]:
+        for solution in self.solutions.keys():
             print(f"\n\nStarting calibration for {solution} solution...")
             results[solution] = self.calibrate_solution(solution, auto_run)
             
@@ -383,6 +411,7 @@ Examples:
   python ground_truth_calibrator.py --solution red
   python ground_truth_calibrator.py --solution yellow
   python ground_truth_calibrator.py --solution blue
+  python ground_truth_calibrator.py --solution white
   python ground_truth_calibrator.py --all
   python ground_truth_calibrator.py --all --no-auto-run
         """
@@ -390,7 +419,7 @@ Examples:
     
     parser.add_argument(
         "--solution",
-        choices=["red", "yellow", "blue"],
+        choices=["red", "yellow", "blue", "white"],
         help="Calibrate a specific solution"
     )
     
