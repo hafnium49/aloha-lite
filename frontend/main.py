@@ -285,10 +285,18 @@ def load_ground_truth_calibration():
             c: rgb_colors[i] for i, c in enumerate(solutions) if rgb_colors[i] is not None
         }
         if len(rgb_source) == 3:
-            P_true = np.vstack([
-                ColorOptimizer._rgb_to_absorb(rgb_source[c]) for c in ("red", "yellow", "blue")
-            ])
-            logger.info("🔧 Constructed ground truth matrix from RGB measurements")
+            # Ground truth calibration uses single solutions at total volume 3.0
+            # For w = [3.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
+            # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
+            # But we also need the matrix to represent the correct mixing behavior.
+            # The correct approach: P_est[i,j] represents the j-th RGB component absorbance per unit of i-th color
+            P_true = np.array([
+                ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
+                ColorOptimizer._rgb_to_absorb(rgb_source["yellow"]) / 3.0, # Row 1: yellow color's absorbance per unit volume  
+                ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 3.0    # Row 2: blue color's absorbance per unit volume
+            ])  # Shape: (3,3) where rows are colors, columns are RGB channels
+            
+            logger.info("🔧 Constructed ground truth matrix from RGB measurements (normalized for volume 3.0)")
             logger.info("📊 Matrix:\n%s", P_true)
             return P_true
             
