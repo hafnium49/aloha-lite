@@ -1,0 +1,19 @@
+{
+  "solution": "white",
+  "color_measurement": {
+    "rgb": [
+      255,
+      255,
+      255
+    ],
+    "hex": "#ffffff",
+    "format": "RGB(255, 255, 255)"
+  },
+  "calibration_sequence": "calibration_white_solution",
+  "timestamp": "2025-08-01T12:00:00.000000",
+  "description": "White solvent calibration - pure solvent with no pigment absorption",
+  "calibration_parameters": {
+    "absorbance_coefficient": 0.0,
+    "notes": "White solvent should have zero absorbance across all RGB channels"
+  }
+}
