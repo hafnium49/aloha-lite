@@ -135,11 +135,26 @@ class ColorOptimizer:
                           [0.2, 0.9, 0.1],       # yellow
                           [0.1, 0.1, 0.9],       # blue
                           [0.0, 0.0, 0.0]])      # white
-        W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
-        A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])
-        L = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1, 3)
-        alpha, *_ = np.linalg.lstsq(L, A.reshape(-1), rcond=None)
-        self.P_est = np.diag(alpha.clip(1e-6)) @ P_hue
+        W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])  # (n_history, 4)
+        A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])  # (n_history, 3)
+        
+        # For rough calibration, we solve for a single scale factor per RGB channel
+        # We want: A ≈ W @ (alpha * P_hue) where alpha is a 3-element vector
+        # This means we need to solve: A.flatten() ≈ (W @ P_hue @ diag(alpha)).flatten()
+        
+        # Compute W @ P_hue to get (n_history, 3) matrix
+        WP = W @ P_hue  # (n_history, 3)
+        
+        # For each RGB channel, solve for the scaling factor
+        alpha = np.zeros(3)
+        for ch in range(3):
+            if np.sum(WP[:, ch]**2) > 1e-12:  # Avoid division by zero
+                alpha[ch] = np.sum(WP[:, ch] * A[:, ch]) / np.sum(WP[:, ch]**2)
+            else:
+                alpha[ch] = 1.0
+        
+        alpha = alpha.clip(1e-6)  # Ensure positive values
+        self.P_est = P_hue * alpha[np.newaxis, :]  # Broadcast scaling
 
     def _fit_full_calibration(self):
         if len(self.history) < 3 or not ML_AVAILABLE:

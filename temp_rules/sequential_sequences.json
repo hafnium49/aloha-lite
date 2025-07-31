@@ -307,6 +307,29 @@
         "description": "Ground-truth calibration procedure for yellow solution with extended squeeze time for accurate measurement"
       }
     },
+    "calibration_white_background": {
+      "name": "calibration_white_background",
+      "description": "Calibration sequence for white background - captures baseline white reference for color analysis calibration",
+      "configurations": [
+        "left_arm_serving_standoff",
+        "left_arm_standoff_with_beaker",
+        "left_arm_standoff_yellow",
+        "left_arm_stirer_standoff",
+        "left_arm_stirring",
+        "await 10 seconds",
+        "analyze beaker color",
+        "await 3 seconds",
+        "left_arm_stirer_standoff",
+        "left_arm_standoff_yellow",
+        "left_arm_standoff_with_beaker",
+        "left_arm_serving_standoff",
+        "left_arm_serving_beaker"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Ground-truth calibration procedure for blue solution with initial red base and extended squeeze time for accurate measurement"
+      }
+    },
     "calibration_blue_solution": {
       "name": "calibration_blue_solution",
       "description": "Calibration sequence for blue solution - includes initial red dispensing, then blue with extended squeeze time, stir, and analyze",

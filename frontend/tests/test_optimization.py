@@ -2,15 +2,18 @@
 """
 Test script to verify new phase-based color optimization improvements
 Tests the updated ColorOptimizer with N-based phase schedule:
-- N=0: Pure dominant-channel squirt
+- N=0: Heuristic single-shot (dominant pigment guess)
 - N=1: Bayesian GP only  
-- N=2: Rough 3-scalar calibration ⊕ GP (60/40)
-- N=3-7: Full NNLS calibration ⊕ GP (linear weight blending)
-- N≥8: Deterministic NNLS calibration only
+- N=2: Rough α-calibration + GP (60/40)
+- N=3-11: Full NNLS (12-param) + GP - weights shift from GP→calib
+- N≥12: NNLS only
+
+Updated for 4-pigment system including white solvent.
 """
 
 import sys
 import os
+import numpy as np  # Add numpy import
 # Add parent directory to path to import main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -31,7 +34,7 @@ def test_optimization_evolution():
     recommendations = []
     phases = []
     
-    for iteration in range(12):  # Test through phase ≥8
+    for iteration in range(15):  # Test through phase ≥12
         # Get recommendation
         ratios = optimizer.recommend_next_ratios()
         recommendations.append(ratios)
@@ -42,17 +45,17 @@ def test_optimization_evolution():
         
         print(f"\n--- Iteration {iteration + 1} (N={N}) ---")
         if N == 0:
-            print("📍 Phase N=0: Pure dominant-channel squirt")
+            print("📍 Phase N=0: Heuristic single-shot (dominant pigment guess)")
         elif N == 1:
             print("🔍 Phase N=1: Bayesian GP only")
         elif N == 2:
-            print("⚖️  Phase N=2: Rough 3-scalar calibration ⊕ GP (60% cal / 40% GP)")
-        elif 3 <= N <= 7:
-            cal_weight = (N-1)/8.0
+            print("⚖️  Phase N=2: Rough α-calibration + GP (60% cal / 40% GP)")
+        elif 3 <= N <= 11:
+            cal_weight = 0.25 + 0.60 * (N - 3) / 8.0
             gp_weight = 1.0 - cal_weight
-            print(f"🧮 Phase N={N}: Full NNLS calibration ⊕ GP ({cal_weight:.2f} cal / {gp_weight:.2f} GP)")
+            print(f"🧮 Phase N={N}: Full NNLS (12-param) + GP ({cal_weight:.2f} cal / {gp_weight:.2f} GP)")
         else:
-            print(f"🎯 Phase N≥8: Deterministic NNLS calibration ONLY")
+            print(f"🎯 Phase N≥12: NNLS only")
             
         print(f"📋 Recommended ratios: {ratios}")
         
@@ -100,15 +103,15 @@ def test_optimization_evolution():
     if len(recommendations) >= 3:
         print("✅ Phase N=2: Rough calibration + GP blend implemented")
     
-    # Phase 3-7: Should show gradual weight shift
-    blended_phases = [i for i, n in enumerate(phases) if 3 <= n <= 7]
+    # Phase 3-11: Should show gradual weight shift
+    blended_phases = [i for i, n in enumerate(phases) if 3 <= n <= 11]
     if blended_phases:
-        print(f"✅ Phase N=3-7: Blended NNLS + GP phases: {len(blended_phases)} iterations")
+        print(f"✅ Phase N=3-11: Blended NNLS + GP phases: {len(blended_phases)} iterations")
     
-    # Phase ≥8: Should be calibration only
-    pure_calibration_phases = [i for i, n in enumerate(phases) if n >= 8]
+    # Phase ≥12: Should be calibration only
+    pure_calibration_phases = [i for i, n in enumerate(phases) if n >= 12]
     if pure_calibration_phases:
-        print(f"✅ Phase N≥8: Pure calibration phases: {len(pure_calibration_phases)} iterations")
+        print(f"✅ Phase N≥12: Pure calibration phases: {len(pure_calibration_phases)} iterations")
     
     # Check for evolution (recommendations should not be identical)
     unique_recommendations = []
@@ -148,7 +151,20 @@ def test_optimization_evolution():
     # Check calibration matrix development
     if hasattr(optimizer, 'P_est') and optimizer.P_est is not None:
         print(f"🧮 Calibration matrix developed: {optimizer.P_est.shape}")
-        print("✅ GOOD: Successfully developed pigment calibration model")
+        if optimizer.P_est.shape == (4, 3):  # Updated for 4-pigment system
+            print("✅ GOOD: Calibration matrix has correct shape (4,3) for 4-pigment system")
+        else:
+            print(f"⚠️  WARNING: Unexpected matrix shape {optimizer.P_est.shape}")
+        
+        # Check white row (should be near zero for white solvent)
+        if optimizer.P_est.shape[0] >= 4:
+            white_row = optimizer.P_est[3, :]
+            white_absorbance = np.mean(np.abs(white_row))
+            print(f"🤍 White pigment absorbance: {white_absorbance:.4f} (should be low)")
+            if white_absorbance < 0.1:
+                print("✅ GOOD: White pigment has low absorbance as expected")
+            else:
+                print("⚠️  WARNING: White pigment has high absorbance")
         
         # Check standard error tracking
         if hasattr(optimizer, 'std_error') and optimizer.std_error is not None:
@@ -294,21 +310,23 @@ def test_bottle_model_and_target_generation():
 def simulate_color_mixing(ratios, target_color, noise_level=15):
     """
     Simulate color mixing result with Beer-Lambert-like behavior
+    Updated for 4-pigment system including white solvent
     More realistic simulation aligned with the new optimizer's physics model
     """
     import random
     import numpy as np
     
-    # Simulate pigment absorbance model (similar to what optimizer learns)
+    # Simulate pigment absorbance model for 4 pigments (similar to what optimizer learns)
     # These are rough approximations of real pigment behavior
     P_true = np.array([
         [0.7, 0.1, 0.05],  # Red pigment: high red absorption, low others
         [0.2, 0.8, 0.1],   # Yellow pigment: medium red, high green, low blue absorption
-        [0.05, 0.2, 0.9]   # Blue pigment: low red/green, high blue absorption
+        [0.05, 0.2, 0.9],  # Blue pigment: low red/green, high blue absorption
+        [0.0, 0.0, 0.0]    # White solvent: no absorption (ideally)
     ])
     
-    # Convert ratios to weights
-    weights = np.array([ratios['red'], ratios['yellow'], ratios['blue']])
+    # Convert ratios to weights (4 components now)
+    weights = np.array([ratios['red'], ratios['yellow'], ratios['blue'], ratios.get('white', 0.0)])
     
     # Calculate absorbance using Beer-Lambert law
     absorbance = weights @ P_true

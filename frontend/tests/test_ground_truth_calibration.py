@@ -29,17 +29,18 @@ class TestGroundTruthCalibration(unittest.TestCase):
         self.ground_truth_dir = Path(self.temp_dir) / "ground_truth_calibration"
         self.ground_truth_dir.mkdir()
         
-        # Sample calibration summary data
+        # Sample calibration summary data (updated for 4x3 matrix)
         self.valid_summary_data = {
             "calibration_summary": {
                 "timestamp": "2025-07-30T14:36:00.123456",
                 "total_solutions": 3,
                 "calibration_matrix": {
-                    "description": "Derived 3x3 absorbance matrix",
+                    "description": "Derived 4x3 absorbance matrix including white solvent",
                     "matrix": [
                         [0.85, 0.12, 0.08],
                         [0.15, 0.72, 0.11],
-                        [0.18, 0.16, 0.78]
+                        [0.18, 0.16, 0.78],
+                        [0.00, 0.00, 0.00]  # White solvent row
                     ],
                     "units": "absorbance per unit volume"
                 }
@@ -128,12 +129,13 @@ class TestGroundTruthCalibration(unittest.TestCase):
             
             result = load_ground_truth_calibration()
             
-            # Verify matrix shape and values
-            self.assertEqual(result.shape, (3, 3))
+            # Verify matrix shape and values (updated for 4x3 matrix)
+            self.assertEqual(result.shape, (4, 3))
             expected_matrix = np.array([
                 [0.85, 0.12, 0.08],
                 [0.15, 0.72, 0.11],
-                [0.18, 0.16, 0.78]
+                [0.18, 0.16, 0.78],
+                [0.00, 0.00, 0.00]  # White solvent row
             ])
             np.testing.assert_array_equal(result, expected_matrix)
             
