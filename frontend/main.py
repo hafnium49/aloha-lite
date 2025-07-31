@@ -481,7 +481,8 @@ async def robot_health():
     """Check robot service health."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{ROBOT_SERVICE_URL}/health", timeout=5.0)
+            # Use the robot/procedure/info endpoint as a health check since /health doesn't exist
+            response = await client.get(f"{ROBOT_SERVICE_URL}/robot/procedure/info", timeout=5.0)
         return {"robot_service": "connected", "status_code": response.status_code}
     except Exception as e:
         return {"robot_service": "disconnected", "error": str(e)}
