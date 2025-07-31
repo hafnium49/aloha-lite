@@ -450,7 +450,7 @@ async def api_reset():
 @app.api_route("/robot/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_robot_service(request: Request, path: str):
     """Proxy requests to the robot service."""
-    url = f"{ROBOT_SERVICE_URL}/{path}"
+    url = f"{ROBOT_SERVICE_URL}/robot/{path}"
     logger.info(f"🤖 Proxying {request.method} request to: {url}")
 
     # Forward query parameters
