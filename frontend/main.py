@@ -174,9 +174,21 @@ class ColorOptimizer:
             return self._get_random()
             
         if N == 0:
-            r,g,b = self.target_color; dom = np.argmax([r,g,b])
-            pure = np.zeros(3); pure[dom] = 3.0
-            return self._array_to_ratios(pure)
+            # Instead of pure dominant color, use a smarter initial guess
+            # Convert target RGB to absorbance and estimate ratios
+            target_absorb = self._rgb_to_absorb(self.target_color)
+            
+            # Use a rough heuristic based on color characteristics
+            r, g, b = self.target_color
+            
+            # Estimate ratios based on color appearance
+            red_ratio = max(0.1, (r - g - b + 255) / 255.0 * 2.0)
+            yellow_ratio = max(0.1, (r + g - 2*b + 255) / 255.0 * 1.5) 
+            blue_ratio = max(0.1, (b - r - g + 255) / 255.0 * 2.0)
+            
+            # Create initial guess and normalize
+            initial_guess = {'red': red_ratio, 'yellow': yellow_ratio, 'blue': blue_ratio}
+            return self._normalize(initial_guess)
 
         if N == 1:
             return self._gp_next()
