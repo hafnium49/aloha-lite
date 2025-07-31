@@ -127,6 +127,12 @@ cd /home/hafnium/aloha-lite/frontend
 python -m uvicorn main:app --host 0.0.0.0 --port 3000
 ```
 
+**MCP Server (Port 8900):**
+```bash
+cd /home/hafnium/aloha-lite/mcp_server
+python -m uvicorn main:app --host 0.0.0.0 --port 8900
+```
+
 **Access the System:**
 - **Web Interface**: http://localhost:3000 (Main color mixing and beaker analysis interface with SAM 2 integration)
 - **Robot Service API**: http://localhost:8000/docs (Direct robot control API)

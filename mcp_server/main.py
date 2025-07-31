@@ -58,6 +58,8 @@ async def handle_command(cmd: dict):
             logger.error(f"Error contacting frontend: {e}")
             return {"status": "error", "message": str(e)}
 
-if __name__ == "__main__":
+
+# Uvicorn entry point is ``mcp_server.main:app``
+if __name__ == "__main__":  # pragma: no cover - convenience for manual runs
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8900)
+    uvicorn.run("mcp_server.main:app", host="0.0.0.0", port=8900)
