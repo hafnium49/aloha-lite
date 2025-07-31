@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-Test script for the new space mask algorithm via API endpoints.
-Creates a simple test image and tests all three algorithms against the running server.
+Test script for the new space mask algorithm - API endpoint version.
+Tests the running vision-bridge server instead of importing functions directly.
 """
-import os, sys
+import requests
 import numpy as np
 import cv2
-import requests
-import json
+import io
 import base64
 from pathlib import Path
 
-# Configuration
-API_BASE_URL = "http://localhost:8000"  # Adjust if server runs on different port
+# Server configuration
+SERVER_URL = "http://localhost:5000"
+ANALYZE_ENDPOINT = f"{SERVER_URL}/analyze-beaker"
+TIMEOUT = 30
 
 def create_test_image():
     """Create a simple test image with a colored center region."""
@@ -59,7 +60,7 @@ def call_analyze_beaker_api(img, algorithm="space_mask", n_clusters=5, roi=None)
         })
     
     try:
-        response = requests.post(f"{API_BASE_URL}/analyze-beaker", files=files, params=params, timeout=30)
+        response = requests.post(ANALYZE_ENDPOINT, files=files, params=params, timeout=TIMEOUT)
         response.raise_for_status()
         return True, response.json()
     except requests.exceptions.RequestException as e:
@@ -196,7 +197,7 @@ def test_server_connectivity():
     print("=" * 40)
     
     try:
-        response = requests.get(f"{API_BASE_URL}/docs", timeout=5)
+        response = requests.get(f"{SERVER_URL}/docs", timeout=5)
         if response.status_code == 200:
             print("✓ Server is running and accessible")
             return True
@@ -205,7 +206,7 @@ def test_server_connectivity():
             return False
     except requests.exceptions.RequestException as e:
         print(f"✗ Cannot connect to server: {e}")
-        print(f"  Make sure the server is running on {API_BASE_URL}")
+        print(f"  Make sure the server is running on {SERVER_URL}")
         return False
 
 def main():
