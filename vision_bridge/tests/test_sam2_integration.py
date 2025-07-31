@@ -74,9 +74,16 @@ class TestSAM2Integration(unittest.TestCase):
             self.assertTrue(color_hex.startswith('#'), "Color hex should start with #")
             
             # Verify analysis data structure
-            required_keys = ['beaker_circle', 'clusters', 'dominant_cluster_index', 'total_pixels_analyzed', 'sam_mask_preview']
+            required_keys = ['beaker_circle', 'clusters', 'dominant_cluster_index', 'total_pixels_analyzed', 'sam_mask_preview', 'mask_strategy']
             for key in required_keys:
                 self.assertIn(key, analysis_data, f"Analysis data should contain {key}")
+            
+            # Verify mask strategy is valid
+            valid_strategies = ['circle_only', 'sam_interior', 'sam_inverted']
+            self.assertIn(analysis_data['mask_strategy'], valid_strategies, f"Mask strategy should be one of {valid_strategies}")
+            
+            print(f"✅ Analysis successful: {color_hex}")
+            print(f"   Mask strategy: {analysis_data['mask_strategy']}")
             
             # Verify beaker circle data
             circle = analysis_data['beaker_circle']
@@ -177,10 +184,24 @@ class TestSAM2Integration(unittest.TestCase):
                 sam_mask = analysis_data['sam_mask_preview']
                 self.assertIsInstance(sam_mask, np.ndarray, "Should have mask even without SAM")
                 
+                # Verify that mask strategy is circle_only when SAM is not available
+                self.assertEqual(analysis_data['mask_strategy'], 'circle_only', "Should use circle_only strategy when SAM not available")
+                print(f"   ✅ Mask strategy correctly set to: {analysis_data['mask_strategy']}")
+                
             except Exception as e:
                 self.fail(f"Fallback behavior failed: {e}")
         else:
             print("   SAM 2 is available - fallback not needed")
+            
+            # Test that we get a valid mask strategy when SAM is available
+            from beaker_analysis import extract_solution_color
+            try:
+                _, _, analysis_data = extract_solution_color(self.sample_image)
+                valid_strategies = ['circle_only', 'sam_interior', 'sam_inverted']
+                self.assertIn(analysis_data['mask_strategy'], valid_strategies, "Should use valid strategy when SAM available")
+                print(f"   ✅ SAM-2 mask strategy: {analysis_data['mask_strategy']}")
+            except Exception as e:
+                self.fail(f"SAM analysis failed: {e}")
             self.assertTrue(True, "SAM 2 available, fallback test not applicable")
 
 def run_sam2_integration_tests():

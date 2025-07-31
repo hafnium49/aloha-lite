@@ -59,8 +59,12 @@ class TestBeakerAnalysis:
         assert all(0 <= c <= 255 for c in dominant_color)
         
         # Check analysis data structure
-        required_keys = ['beaker_circle', 'clusters', 'dominant_cluster_index', 'total_pixels_analyzed']
+        required_keys = ['beaker_circle', 'clusters', 'dominant_cluster_index', 'total_pixels_analyzed', 'mask_strategy']
         assert all(key in analysis_data for key in required_keys)
+        
+        # Check mask strategy is valid
+        valid_strategies = ['circle_only', 'sam_interior', 'sam_inverted']
+        assert analysis_data['mask_strategy'] in valid_strategies
         
         # Check beaker circle data
         circle = analysis_data['beaker_circle']
@@ -70,6 +74,7 @@ class TestBeakerAnalysis:
         
         print(f"✅ Detected beaker at ({circle['x']}, {circle['y']}) with radius {circle['radius']}")
         print(f"✅ Dominant color: RGB{tuple(dominant_color)} ({color_hex})")
+        print(f"✅ Mask strategy used: {analysis_data['mask_strategy']}")
     
     def test_extract_solution_color_clusters(self, sample_image):
         """Test cluster analysis in extract_solution_color."""
@@ -161,6 +166,56 @@ class TestBeakerAnalysis:
         
         print(f"✅ Synthetic beaker test: detected color {color_hex} at ({circle['x']}, {circle['y']})")
 
+    def test_mask_strategy_tracking(self, sample_image):
+        """Test that mask strategy is properly tracked and reported."""
+        dominant_color, color_hex, analysis_data = extract_solution_color(sample_image)
+        
+        # Check that mask_strategy is present and valid
+        assert 'mask_strategy' in analysis_data
+        valid_strategies = ['circle_only', 'sam_interior', 'sam_inverted']
+        assert analysis_data['mask_strategy'] in valid_strategies
+        
+        # Check that sam_mask_preview is present
+        assert 'sam_mask_preview' in analysis_data
+        assert analysis_data['sam_mask_preview'] is not None
+        
+        # Check mask preview is valid numpy array
+        mask_preview = analysis_data['sam_mask_preview']
+        assert isinstance(mask_preview, np.ndarray)
+        assert mask_preview.dtype == np.uint8
+        assert len(mask_preview.shape) == 2  # Should be 2D mask
+        
+        strategy = analysis_data['mask_strategy']
+        print(f"✅ Mask strategy test: used '{strategy}' strategy")
+        print(f"✅ Mask preview shape: {mask_preview.shape}")
+        
+        # If SAM-2 is not available, should default to circle_only
+        import main
+        if main.SAM_PREDICTOR is None:
+            assert strategy == 'circle_only'
+            print("✅ SAM-2 not available - correctly using circle_only strategy")
+        else:
+            print(f"✅ SAM-2 available - strategy chosen based on mask analysis: {strategy}")
+
+    def test_visualization_with_mask_strategy(self, sample_image):
+        """Test that visualization properly displays mask strategy information."""
+        dominant_color, color_hex, analysis_data = extract_solution_color(sample_image)
+        viz_img = create_visualization_image(sample_image, analysis_data)
+        
+        # Check visualization image properties
+        assert viz_img.shape == sample_image.shape
+        assert viz_img.dtype == sample_image.dtype
+        
+        # Visualization should be different from original (has annotations)
+        assert not np.array_equal(viz_img, sample_image)
+        
+        # Check that mask strategy is included in analysis_data for visualization
+        assert 'mask_strategy' in analysis_data
+        strategy = analysis_data['mask_strategy']
+        
+        print(f"✅ Visualization test with mask strategy: {strategy}")
+        print("✅ Created visualization image with mask strategy overlay successfully")
+
     def test_center_weighted_detection(self):
         """Test that the improved algorithm prefers center-located beakers."""
         # Create an image with multiple circles - one large off-center, one smaller centered
@@ -223,7 +278,46 @@ class TestBeakerAnalysis:
                 else:
                     print(f"⚠️  Adaptive parameters for {width}x{height}: radius {detected_radius} (expected ~{radius}) - within acceptable range for small images")
                 
+                
             except ValueError as e:
+                print(f"⚠️  Size {width}x{height}: {e}")
+                # Small images might not detect properly, which is acceptable
+
+    def test_sam_mask_interpretation_logic(self):
+        """Test the SAM-2 mask interpretation logic with synthetic scenarios."""
+        # Create a synthetic image with a clear beaker
+        img = np.ones((200, 200, 3), dtype=np.uint8) * 30  # Dark background
+        center_x, center_y = 100, 100
+        radius = 60
+        
+        # Draw colored solution inside beaker
+        cv2.circle(img, (center_x, center_y), radius, (0, 0, 200), -1)  # Red solution
+        # Draw beaker rim
+        cv2.circle(img, (center_x, center_y), radius + 8, (120, 120, 120), 8)  # Gray rim
+        
+        dominant_color, color_hex, analysis_data = extract_solution_color(img)
+        
+        # Test should work regardless of whether SAM-2 is available
+        strategy = analysis_data['mask_strategy']
+        assert strategy in ['circle_only', 'sam_interior', 'sam_inverted']
+        
+        # The algorithm should detect the red solution
+        assert dominant_color[0] > 100  # Should have significant red component
+        
+        # Circle detection should be reasonably accurate
+        circle = analysis_data['beaker_circle']
+        center_distance = ((circle['x'] - center_x)**2 + (circle['y'] - center_y)**2)**0.5
+        assert center_distance < 20, f"Circle detection not accurate: got ({circle['x']}, {circle['y']}), expected (~{center_x}, ~{center_y})"
+        
+        print(f"✅ SAM mask interpretation test: strategy={strategy}, color={color_hex}")
+        print(f"   Circle accuracy: detected ({circle['x']}, {circle['y']}), expected ({center_x}, {center_y})")
+        
+        # Test with different synthetic scenarios if SAM-2 is available
+        import main
+        if main.SAM_PREDICTOR is not None:
+            print("✅ SAM-2 is available - mask interpretation logic will be tested in real scenarios")
+        else:
+            print("✅ SAM-2 not available - using circle_only strategy as expected")
                 print(f"⚠️  Size {width}x{height}: {e}")
                 # Small images might not detect properly, which is acceptable
 
@@ -260,6 +354,12 @@ def test_api_endpoint():
             circle = data['beaker_circle']
             assert all(key in circle for key in ['x', 'y', 'radius'])
             
+            # Check analysis stats include mask_strategy
+            stats = data['analysis_stats']
+            assert 'mask_strategy' in stats
+            valid_strategies = ['circle_only', 'sam_interior', 'sam_inverted']
+            assert stats['mask_strategy'] in valid_strategies
+            
             # Check visualization image is base64 encoded
             viz_img = data['visualization_image']
             assert isinstance(viz_img, str)
@@ -268,6 +368,7 @@ def test_api_endpoint():
             print(f"✅ API endpoint test successful: {dominant['hex']}")
             print(f"   Beaker at ({circle['x']}, {circle['y']}) radius {circle['radius']}")
             print(f"   Found {len(data['clusters'])} clusters")
+            print(f"   Mask strategy: {stats['mask_strategy']}")
         else:
             print(f"⚠️  API endpoint not available (status {response.status_code})")
             
