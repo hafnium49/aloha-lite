@@ -179,16 +179,151 @@ def filter_most_circular_component(sam_mask, circle_x, circle_y, circle_radius):
         return sam_mask
 
 
-def extract_solution_color(image_data, n_clusters=5):
+def extract_solution_color(image_data, n_clusters=5, algorithm="space_mask", roi=None):
     """
-    Automatically detect the beaker in the image and return the dominant solution color.
-    Uses Hough Circles to locate the beaker and KMeans clustering to identify
-    the most saturated cluster inside the beaker.
+    Extract the dominant solution color from a beaker image using different algorithms.
+    
+    Args:
+        image_data: numpy array of the image (BGR format from cv2)
+        n_clusters: number of clusters for KMeans (used by hough_circle algorithm)
+        algorithm: detection algorithm ("space_mask", "hough_circle", "sam2")
+            - "space_mask": Simple fixed ROI-based detection (default, fastest)
+            - "hough_circle": Hough Circle Transform + KMeans clustering
+            - "sam2": Hough Circle + SAM 2 refinement + KMeans clustering
+        roi: tuple (top, bottom, left, right) for space_mask algorithm.
+             If None, uses center-based ROI covering ~1% of image area.
 
+    Returns:
+        tuple: (dominant_color_rgb, dominant_color_hex, analysis_data)
+    """
+    
+    if algorithm == "space_mask":
+        return _extract_solution_color_space_mask(image_data, roi)
+    elif algorithm == "hough_circle":
+        return _extract_solution_color_hough_circle(image_data, n_clusters, use_sam=False)
+    elif algorithm == "sam2":
+        return _extract_solution_color_hough_circle(image_data, n_clusters, use_sam=True)
+    else:
+        raise ValueError(f"Unknown algorithm: {algorithm}. Use 'space_mask', 'hough_circle', or 'sam2'")
+
+
+def _extract_solution_color_space_mask(image_data, roi=None):
+    """
+    Simple space mask algorithm: extract color from a fixed ROI patch.
+    Fastest method, good for controlled setups where beaker position is consistent.
+    
+    Args:
+        image_data: numpy array of the image (BGR format from cv2)
+        roi: tuple (top, bottom, left, right) in pixels. If None, auto-calculate center ROI.
+        
+    Returns:
+        tuple: (dominant_color_rgb, dominant_color_hex, analysis_data)
+    """
+    h, w = image_data.shape[:2]
+    
+    # Auto-calculate ROI if not provided (center area, ~1% of image)
+    if roi is None:
+        roi_size = int(min(w, h) * 0.1)  # 10% of smaller dimension for ROI size
+        center_x, center_y = w // 2, h // 2
+        half_size = roi_size // 2
+        roi = (
+            max(0, center_y - half_size),           # top
+            min(h, center_y + half_size),           # bottom  
+            max(0, center_x - half_size),           # left
+            min(w, center_x + half_size)            # right
+        )
+    
+    top, bottom, left, right = roi
+    
+    # Extract ROI patch
+    roi_patch = image_data[top:bottom, left:right]
+    if roi_patch.size == 0:
+        raise ValueError("Invalid ROI: patch is empty")
+    
+    # Convert to HSV for better color analysis
+    hsv_patch = cv2.cvtColor(roi_patch, cv2.COLOR_BGR2HSV)
+    rgb_patch = cv2.cvtColor(roi_patch, cv2.COLOR_BGR2RGB)
+    
+    # Filter for vibrant pixels (avoid shadows/highlights)
+    sat_threshold, val_threshold = 50, 50
+    vibrant_mask = (hsv_patch[..., 1] > sat_threshold) & (hsv_patch[..., 2] > val_threshold)
+    
+    if vibrant_mask.sum() == 0:
+        # Fallback: use all pixels if no vibrant ones found
+        vibrant_pixels_hsv = hsv_patch.reshape(-1, 3)
+        vibrant_pixels_rgb = rgb_patch.reshape(-1, 3)
+        logger.warning("No vibrant pixels found in ROI, using all pixels")
+    else:
+        vibrant_pixels_hsv = hsv_patch[vibrant_mask]
+        vibrant_pixels_rgb = rgb_patch[vibrant_mask]
+    
+    # Calculate dominant color using median of vibrant pixels
+    if len(vibrant_pixels_hsv) > 0:
+        median_hsv = np.median(vibrant_pixels_hsv, axis=0).astype(np.uint8)
+        median_rgb = np.median(vibrant_pixels_rgb, axis=0).astype(np.uint8)
+        
+        # Convert median HSV back to RGB for consistency
+        dominant_hsv = median_hsv.reshape(1, 1, 3)
+        dominant_rgb_from_hsv = cv2.cvtColor(dominant_hsv, cv2.COLOR_HSV2RGB)[0, 0]
+        
+        # Use the RGB median as the final result (more direct)
+        dominant_color_rgb = median_rgb
+    else:
+        # Ultimate fallback: use mean color of entire patch
+        dominant_color_rgb = np.mean(rgb_patch.reshape(-1, 3), axis=0).astype(np.uint8)
+        logger.warning("No valid pixels found, using patch mean color")
+    
+    dominant_color_hex = colors.to_hex(dominant_color_rgb / 255)
+    
+    # Classify hue for additional info
+    def classify_hue(h_cv):
+        if h_cv < 15 or h_cv > 165:   return "red"
+        if 15 <= h_cv < 45:           return "yellow"  
+        if 90 <= h_cv < 135:          return "blue"
+        return "other"
+    
+    hue_value = float(median_hsv[0]) if len(vibrant_pixels_hsv) > 0 else 0
+    color_label = classify_hue(hue_value)
+    
+    # Prepare analysis data
+    analysis_data = {
+        'algorithm': 'space_mask',
+        'roi': {'top': top, 'bottom': bottom, 'left': left, 'right': right},
+        'roi_size': (bottom - top, right - left),
+        'vibrant_pixels_count': int(vibrant_mask.sum()) if vibrant_mask.sum() > 0 else len(vibrant_pixels_rgb),
+        'total_roi_pixels': int((bottom - top) * (right - left)),
+        'color_label': color_label,
+        'dominant_hsv': [int(x) for x in median_hsv] if len(vibrant_pixels_hsv) > 0 else [0, 0, 0],
+        'clusters': [{
+            'index': 0,
+            'color_rgb': dominant_color_rgb,
+            'pixel_count': len(vibrant_pixels_rgb),
+            'avg_saturation': float(median_hsv[1]) if len(vibrant_pixels_hsv) > 0 else 0,
+            'avg_value': float(median_hsv[2]) if len(vibrant_pixels_hsv) > 0 else 0,
+            'score': 1.0
+        }],
+        'dominant_cluster_index': 0,
+        'total_pixels_analyzed': len(vibrant_pixels_rgb)
+    }
+    
+    # Create mask preview for visualization
+    mask_preview = np.zeros((h, w), dtype=np.uint8)
+    mask_preview[top:bottom, left:right] = 255
+    analysis_data['sam_mask_preview'] = mask_preview
+    
+    return dominant_color_rgb, dominant_color_hex, analysis_data
+
+
+def _extract_solution_color_hough_circle(image_data, n_clusters=5, use_sam=False):
+    """
+    Original Hough Circle + KMeans algorithm with optional SAM 2 refinement.
+    More sophisticated but slower than space_mask approach.
+    
     Args:
         image_data: numpy array of the image (BGR format from cv2)
         n_clusters: number of clusters for KMeans
-
+        use_sam: whether to use SAM 2 for mask refinement
+        
     Returns:
         tuple: (dominant_color_rgb, dominant_color_hex, analysis_data)
     """
@@ -266,7 +401,7 @@ def extract_solution_color(image_data, n_clusters=5):
     # B.  Optional SAM‑2 refinement (box‑prompted by the detected circle)
     # ───────────────────────────────────────────────────────────────────
     mask_strategy = "circle_only"  # Track what masking strategy was used
-    if SAM_PREDICTOR is not None:
+    if use_sam and SAM_PREDICTOR is not None:
         try:
             SAM_PREDICTOR.set_image(image_rgb)          # SAM expects RGB
             x0, y0 = max(0, x - r), max(0, y - r)
@@ -369,7 +504,9 @@ def extract_solution_color(image_data, n_clusters=5):
     dominant_color_hex = colors.to_hex(dominant_color / 255)
 
     # Prepare analysis data for visualization
+    algorithm_name = "hough_circle" if not use_sam else "sam2"
     analysis_data = {
+        'algorithm': algorithm_name,
         'beaker_circle': {'x': int(x), 'y': int(y), 'radius': int(r)},
         'clusters': cluster_info,
         'dominant_cluster_index': dominant_cluster['index'],
@@ -385,7 +522,7 @@ def extract_solution_color(image_data, n_clusters=5):
 
 def create_visualization_image(image_data, analysis_data):
     """
-    Create a visualization image showing the detected beaker and color analysis.
+    Create a visualization image showing the detected region and color analysis.
     
     Args:
         image_data: original image (BGR format)
@@ -396,33 +533,56 @@ def create_visualization_image(image_data, analysis_data):
     """
     viz_img = image_data.copy()
     
-    # A. Draw the detected beaker circle
-    circle = analysis_data['beaker_circle']
-    cv2.circle(viz_img, (circle['x'], circle['y']), circle['radius'], (0, 255, 0), 3)
+    algorithm = analysis_data.get('algorithm', 'unknown')
     
-    # Draw center point
-    cv2.circle(viz_img, (circle['x'], circle['y']), 5, (0, 255, 0), -1)
-
-    # B.  If a SAM mask was returned, overlay it with color coding based on strategy
-    if analysis_data.get("sam_mask_preview") is not None:
-        mask_strategy = analysis_data.get('mask_strategy', 'unknown')
+    if algorithm == 'space_mask':
+        # A. Draw the ROI rectangle for space mask algorithm
+        roi = analysis_data['roi']
+        cv2.rectangle(viz_img, (roi['left'], roi['top']), (roi['right'], roi['bottom']), (0, 255, 255), 3)  # Yellow rectangle
         
-        # Choose overlay color based on masking strategy
-        if mask_strategy == "sam_interior":
-            overlay_color = np.array([0, 255, 255], dtype=np.uint8)  # Yellow - solution interior
-            sam_alpha = 0.25
-        elif mask_strategy == "sam_inverted":
-            overlay_color = np.array([255, 0, 255], dtype=np.uint8)  # Magenta - inverted beaker structure
-            sam_alpha = 0.35
-        else:
-            overlay_color = np.array([0, 255, 0], dtype=np.uint8)    # Green - circle only
-            sam_alpha = 0.20
+        # Draw center point of ROI
+        center_x = (roi['left'] + roi['right']) // 2
+        center_y = (roi['top'] + roi['bottom']) // 2
+        cv2.circle(viz_img, (center_x, center_y), 5, (0, 255, 255), -1)
+        
+        # Add overlay for ROI area
+        overlay_color = np.array([0, 255, 255], dtype=np.uint8)  # Yellow for space mask
+        sam_alpha = 0.25
+        
+        mask_bool = analysis_data.get("sam_mask_preview", np.zeros_like(image_data[:,:,0])) > 0
+        if mask_bool.any():
+            viz_img[mask_bool] = cv2.addWeighted(viz_img, 1-sam_alpha,
+                                                 np.full_like(viz_img, overlay_color), sam_alpha, 0)[mask_bool]
+        
+    else:
+        # A. Draw the detected beaker circle for Hough Circle and SAM2 algorithms
+        circle = analysis_data.get('beaker_circle', {})
+        if circle:
+            cv2.circle(viz_img, (circle['x'], circle['y']), circle['radius'], (0, 255, 0), 3)
             
-        mask_bool = analysis_data["sam_mask_preview"] > 0
-        viz_img[mask_bool] = cv2.addWeighted(viz_img, 1-sam_alpha,
-                                             np.full_like(viz_img, overlay_color), sam_alpha, 0)[mask_bool]
+            # Draw center point
+            cv2.circle(viz_img, (circle['x'], circle['y']), 5, (0, 255, 0), -1)
+
+        # B.  If a SAM mask was returned, overlay it with color coding based on strategy
+        if analysis_data.get("sam_mask_preview") is not None:
+            mask_strategy = analysis_data.get('mask_strategy', 'unknown')
+            
+            # Choose overlay color based on masking strategy
+            if mask_strategy == "sam_interior":
+                overlay_color = np.array([0, 255, 255], dtype=np.uint8)  # Yellow - solution interior
+                sam_alpha = 0.25
+            elif mask_strategy == "sam_inverted":
+                overlay_color = np.array([255, 0, 255], dtype=np.uint8)  # Magenta - inverted beaker structure
+                sam_alpha = 0.35
+            else:
+                overlay_color = np.array([0, 255, 0], dtype=np.uint8)    # Green - circle only
+                sam_alpha = 0.20
+                
+            mask_bool = analysis_data["sam_mask_preview"] > 0
+            viz_img[mask_bool] = cv2.addWeighted(viz_img, 1-sam_alpha,
+                                                 np.full_like(viz_img, overlay_color), sam_alpha, 0)[mask_bool]
     
-    # Add text with dominant color info and mask strategy
+    # Add text with dominant color info and algorithm type
     dominant_cluster = next(c for c in analysis_data['clusters'] 
                           if c['index'] == analysis_data['dominant_cluster_index'])
     
@@ -432,10 +592,20 @@ def create_visualization_image(image_data, analysis_data):
     saturation_text = f"Saturation: {dominant_cluster['avg_saturation']:.1f}"
     cv2.putText(viz_img, saturation_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
-    # Add mask strategy information
-    mask_strategy = analysis_data.get('mask_strategy', 'unknown')
-    strategy_text = f"Mask: {mask_strategy}"
-    cv2.putText(viz_img, strategy_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    # Add algorithm information
+    algorithm_text = f"Algorithm: {algorithm}"
+    cv2.putText(viz_img, algorithm_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    # Add mask strategy information for Hough Circle and SAM2
+    if algorithm in ['hough_circle', 'sam2']:
+        mask_strategy = analysis_data.get('mask_strategy', 'unknown')
+        strategy_text = f"Mask: {mask_strategy}"
+        cv2.putText(viz_img, strategy_text, (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    elif algorithm == 'space_mask':
+        # Add ROI info for space mask
+        roi = analysis_data['roi']
+        roi_text = f"ROI: {roi['right']-roi['left']}x{roi['bottom']-roi['top']}"
+        cv2.putText(viz_img, roi_text, (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
     return viz_img
 
@@ -614,20 +784,37 @@ async def circle_colour(file: UploadFile = File(...)):
 # ---------------------------------------------------------------------------
 # NEW: Enhanced beaker solution color detection endpoint
 # ---------------------------------------------------------------------------
+class BeakerAnalysisRequest(BaseModel):
+    algorithm: str = "space_mask"  # "space_mask", "hough_circle", or "sam2"
+    n_clusters: int = 5  # For hough_circle and sam2 algorithms
+    roi: tuple = None    # (top, bottom, left, right) for space_mask algorithm
+
 @app.post("/analyze-beaker")
-async def analyze_beaker(file: UploadFile = File(...)):
+async def analyze_beaker(
+    file: UploadFile = File(...),
+    algorithm: str = "space_mask",
+    n_clusters: int = 5,
+    roi_top: int = None,
+    roi_bottom: int = None, 
+    roi_left: int = None,
+    roi_right: int = None
+):
     """
-    Advanced beaker analysis using Hough Circle Transform and K-Means clustering
-    to automatically detect the beaker and extract the dominant solution color.
+    Advanced beaker analysis with multiple algorithm options.
+    
+    Algorithms:
+    - "space_mask" (default): Fast ROI-based analysis, good for controlled setups
+    - "hough_circle": Hough Circle Transform + K-Means clustering  
+    - "sam2": Hough Circle + SAM 2 refinement + K-Means clustering
+    
+    Query Parameters:
+    - algorithm: Detection algorithm ("space_mask", "hough_circle", "sam2")
+    - n_clusters: Number of clusters for K-Means (hough_circle/sam2 only)
+    - roi_top, roi_bottom, roi_left, roi_right: Custom ROI for space_mask
     
     Response JSON:
     {
-        "dominant_color": {
-            "rgb": [r, g, b],
-            "hex": "#RRGGBB"
-        },
-        "beaker_circle": {"x": x, "y": y, "radius": r},
-        "clusters": [...],
+        "dominant_color": {"rgb": [r, g, b], "hex": "#RRGGBB"},
         "analysis_stats": {...},
         "visualization_image": "base64_encoded_image"
     }
@@ -640,8 +827,18 @@ async def analyze_beaker(file: UploadFile = File(...)):
         if img is None:
             raise HTTPException(400, "Invalid image format")
 
-        # Perform enhanced beaker color analysis
-        dominant_color_rgb, dominant_color_hex, analysis_data = extract_solution_color(img)
+        # Prepare ROI if provided for space_mask algorithm
+        roi = None
+        if algorithm == "space_mask" and all(x is not None for x in [roi_top, roi_bottom, roi_left, roi_right]):
+            roi = (roi_top, roi_bottom, roi_left, roi_right)
+
+        # Perform beaker color analysis with selected algorithm
+        dominant_color_rgb, dominant_color_hex, analysis_data = extract_solution_color(
+            img, 
+            n_clusters=n_clusters, 
+            algorithm=algorithm, 
+            roi=roi
+        )
         
         # Create visualization
         viz_img = create_visualization_image(img, analysis_data)
@@ -661,35 +858,51 @@ async def analyze_beaker(file: UploadFile = File(...)):
                 "index": int(cluster['index'])
             })
         
+        # Build response based on algorithm
         response = {
             "dominant_color": {
                 "rgb": [int(dominant_color_rgb[0]), int(dominant_color_rgb[1]), int(dominant_color_rgb[2])],
                 "hex": dominant_color_hex
             },
-            "beaker_circle": {
-                "x": int(analysis_data['beaker_circle']['x']),
-                "y": int(analysis_data['beaker_circle']['y']),
-                "radius": int(analysis_data['beaker_circle']['radius'])
-            },
             "clusters": clusters_json,
             "analysis_stats": {
+                "algorithm": analysis_data['algorithm'],
                 "total_pixels_analyzed": int(analysis_data['total_pixels_analyzed']),
                 "num_clusters": len(analysis_data['clusters']),
-                "dominant_cluster_index": int(analysis_data['dominant_cluster_index']),
-                "mask_strategy": analysis_data.get('mask_strategy', 'unknown')
+                "dominant_cluster_index": int(analysis_data['dominant_cluster_index'])
             },
             "visualization_image": viz_base64
         }
         
+        # Add algorithm-specific data
+        if algorithm == "space_mask":
+            response["roi"] = {
+                "top": int(analysis_data['roi']['top']),
+                "bottom": int(analysis_data['roi']['bottom']),
+                "left": int(analysis_data['roi']['left']),
+                "right": int(analysis_data['roi']['right'])
+            }
+            response["analysis_stats"]["roi_size"] = analysis_data['roi_size']
+            response["analysis_stats"]["vibrant_pixels_count"] = int(analysis_data['vibrant_pixels_count'])
+            response["analysis_stats"]["color_label"] = analysis_data['color_label']
+        else:
+            # Hough circle and SAM2 algorithms
+            response["beaker_circle"] = {
+                "x": int(analysis_data['beaker_circle']['x']),
+                "y": int(analysis_data['beaker_circle']['y']),
+                "radius": int(analysis_data['beaker_circle']['radius'])
+            }
+            response["analysis_stats"]["mask_strategy"] = analysis_data.get('mask_strategy', 'unknown')
+        
         CIRCLE_OK.inc()
-        logger.info(f"Beaker analysis successful: {dominant_color_hex}")
+        logger.info(f"Beaker analysis successful ({algorithm}): {dominant_color_hex}")
         return response
 
     except ValueError as e:
         CIRCLE_ERR.inc()
-        logger.warning(f"Beaker analysis failed: {e}")
+        logger.warning(f"Beaker analysis failed ({algorithm}): {e}")
         raise HTTPException(422, str(e))
     except Exception as e:
         CIRCLE_ERR.inc()
-        logger.error(f"Error in beaker analysis: {e}")
+        logger.error(f"Error in beaker analysis ({algorithm}): {e}")
         raise HTTPException(500, f"Beaker analysis error: {str(e)}")
