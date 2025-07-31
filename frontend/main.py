@@ -443,7 +443,70 @@ async def api_reset():
     color_optimizer.history.clear(); color_optimizer.gp_model=None
     return {"status":"success","message":"history reset"}
 
-# --- health & proxy endpoints unchanged (omitted for brevity) --------------
+# ╔══════════════════════════════════════╗
+# ║        Robot & Vision Proxy Endpoints        ║
+# ╚══════════════════════════════════════╝
+
+@app.post("/robot/dispense")
+async def robot_dispense(req: Request):
+    """Proxy endpoint for robot dispensing commands."""
+    try:
+        data = await req.json()
+        logger.info("🤖 Forwarding dispense request to robot service: %s", data)
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{ROBOT_SERVICE_URL}/dispense",
+                json=data,
+                timeout=30.0
+            )
+            
+        if response.status_code == 200:
+            result = response.json()
+            logger.info("✅ Robot dispense successful: %s", result)
+            return result
+        else:
+            logger.error("❌ Robot dispense failed: %d %s", response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+            
+    except httpx.RequestError as e:
+        logger.error("🔌 Robot service connection error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Robot service unavailable: {e}")
+    except Exception as e:
+        logger.error("⚠️ Robot dispense error: %s", e)
+        raise HTTPException(status_code=500, detail=f"Dispense failed: {e}")
+
+@app.get("/robot/health")
+async def robot_health():
+    """Check robot service health."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{ROBOT_SERVICE_URL}/health", timeout=5.0)
+        return {"robot_service": "connected", "status_code": response.status_code}
+    except Exception as e:
+        return {"robot_service": "disconnected", "error": str(e)}
+
+@app.post("/vision/analyze")
+async def vision_analyze(req: Request):
+    """Proxy endpoint for vision analysis."""
+    try:
+        data = await req.json()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{VISION_SERVICE_URL}/analyze", json=data, timeout=30.0)
+        return response.json() if response.status_code == 200 else {"error": response.text}
+    except Exception as e:
+        logger.error("🔌 Vision service error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Vision service unavailable: {e}")
+
+@app.get("/vision/health")
+async def vision_health():
+    """Check vision service health."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{VISION_SERVICE_URL}/health", timeout=5.0)
+        return {"vision_service": "connected", "status_code": response.status_code}
+    except Exception as e:
+        return {"vision_service": "disconnected", "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
