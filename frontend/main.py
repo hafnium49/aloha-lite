@@ -311,9 +311,27 @@ bottle_model = BottleModel(_P_TRUE)
 # ║     Target-colour helper functions     ║
 # ╚══════════════════════════════════════╝
 def _sample_reachable_rgb(P_est: np.ndarray,
-                          max_total: float = 4.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
-    """Return (rgb8, weights) inside the reachable gamut of P_est."""
-    w = np.random.dirichlet(np.ones(3)) * max_total
+                          max_total: float = 3.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
+    """Return (rgb8, weights) inside the reachable gamut of P_est.
+    
+    Generates normalized color ratios that sum to max_total (default 3.0)
+    to match the ColorOptimizer's normalization scheme and ground truth calibration.
+    """
+    # Generate random ratios using exponential distribution to avoid uniform bias
+    raw_ratios = np.random.exponential(1.0, 3)
+    
+    # Create ratio dictionary and normalize using the same method as ColorOptimizer
+    ratio_dict = {'red': raw_ratios[0], 'yellow': raw_ratios[1], 'blue': raw_ratios[2]}
+    
+    # Apply ColorOptimizer._normalize() logic exactly
+    s = sum(ratio_dict.values()) or 1.0
+    f = max_total / s
+    normalized_dict = {k: max(0.1, v * f) for k, v in ratio_dict.items()}
+    
+    # Convert back to array for matrix operations
+    w = np.array([normalized_dict['red'], normalized_dict['yellow'], normalized_dict['blue']])
+    
+    # Calculate absorbance and convert to RGB
     A = w @ P_est
     rgb_lin = 10 ** (-A)
     rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
@@ -322,10 +340,11 @@ def _sample_reachable_rgb(P_est: np.ndarray,
 def generate_random_target_color() -> Tuple[int,int,int]:
     """
     Draw a target colour guaranteed reachable by the current bottle model.
+    Uses normalized ratios that sum to 3.0 to match ground truth calibration conditions.
     While no model exists (very first run only), fall back to a safe palette.
     """
     if bottle_model.P_est is not None:
-        rgb, _ = _sample_reachable_rgb(bottle_model.P_est)
+        rgb, _ = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
         return rgb
 
     # fallback (should never be used after first start)
