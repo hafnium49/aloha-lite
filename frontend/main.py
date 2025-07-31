@@ -316,7 +316,7 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     w = np.random.dirichlet(np.ones(3)) * max_total
     A = w @ P_est
     rgb_lin = 10 ** (-A)
-    rgb8 = tuple((rgb_lin ** (1/2.2) * 255).clip(0,255).astype(int))
+    rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
     return rgb8, w
 
 def generate_random_target_color() -> Tuple[int,int,int]:
@@ -367,17 +367,21 @@ async def root():
 async def api_target():
     rgb = generate_random_target_color()
     color_optimizer.set_target_color(rgb)
+    # Ensure RGB values are native Python integers for JSON serialization
+    rgb_clean = tuple(int(x) for x in rgb)
     return {"status":"success",
-            "target_rgb":rgb,
-            "target_hex":f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"}
+            "target_rgb":rgb_clean,
+            "target_hex":f"#{rgb_clean[0]:02x}{rgb_clean[1]:02x}{rgb_clean[2]:02x}"}
 
 @app.post("/api/target-color")
 async def api_set_target(req:Request):
     data = await req.json()
     rgb = tuple(data.get("rgb",[255,0,0]))
     color_optimizer.set_target_color(rgb)
-    return {"status":"success","target_rgb":rgb,
-            "target_hex":f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"}
+    # Ensure RGB values are native Python integers for JSON serialization
+    rgb_clean = tuple(int(x) for x in rgb)
+    return {"status":"success","target_rgb":rgb_clean,
+            "target_hex":f"#{rgb_clean[0]:02x}{rgb_clean[1]:02x}{rgb_clean[2]:02x}"}
 
 @app.post("/api/recommend-ratios")
 async def api_recommend(req:Request):
