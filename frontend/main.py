@@ -326,7 +326,7 @@ def load_ground_truth_calibration():
                     summary_rgb[colour] = solutions_block[colour]["rgb"]
 
         # Next try individual solution files which may contain coefficients or RGB values
-        solutions = ["red", "yellow", "blue"]
+        solutions = ["red", "yellow", "blue", "white"]  # Include white solution
         absorbance_coefficients = []
         rgb_colors = []
         
@@ -349,32 +349,54 @@ def load_ground_truth_calibration():
                 absorbance_coefficients.append(None)
                 rgb_colors.append(None)
         
-        # Priority 1: use absorbance coefficients if all are available
-        if all(c is not None for c in absorbance_coefficients):
+        # Priority 1: use absorbance coefficients if all colored pigments are available
+        # (white is optional and defaults to 0.0 if not provided)
+        colored_coeffs = absorbance_coefficients[:3]  # red, yellow, blue
+        white_coeff = absorbance_coefficients[3] if len(absorbance_coefficients) > 3 else None
+        
+        if all(c is not None for c in colored_coeffs):
+            # Use white coefficient if available, otherwise default to 0.0
+            white_absorbance = white_coeff if white_coeff is not None else 0.0
+            
             P_true = np.array([
                 [absorbance_coefficients[0], 0.1, 0.08],
                 [0.15, absorbance_coefficients[1], 0.1],
                 [0.12, 0.15, absorbance_coefficients[2]],
-                [0.0, 0.0, 0.0]                          # white solvent (no absorbance)
+                [white_absorbance, white_absorbance, white_absorbance]  # white solvent
             ])
             logger.info("🔧 Constructed ground truth matrix from individual files")
+            if white_coeff is not None:
+                logger.info("✅ Using white solution calibration: abs_coeff=%s", white_coeff)
+            else:
+                logger.info("📝 White solution not found, using default zero absorbance")
             logger.info("📊 Matrix:\n%s", P_true)
             return P_true
 
-        # Priority 2: compute matrix from RGB measurements
-        rgb_source = summary_rgb if len(summary_rgb) == 3 else {
-            c: rgb_colors[i] for i, c in enumerate(solutions) if rgb_colors[i] is not None
+        # Priority 2: compute matrix from RGB measurements (including white if available)
+        rgb_source = summary_rgb if len(summary_rgb) >= 3 else {
+            c: rgb_colors[i] for i, c in enumerate(solutions[:3]) if rgb_colors[i] is not None
         }
+        white_rgb = rgb_colors[3] if len(rgb_colors) > 3 and rgb_colors[3] is not None else None
+        
         if len(rgb_source) == 3:
             # Ground truth calibration uses single solutions at total volume 3.0
             # For w = [3.0, 0.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
             # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
-            # The matrix now includes white pigment as the 4th row (ideally zero absorbance)
+            # The matrix now includes white pigment as the 4th row
+            
+            # Calculate white row: use white solution data if available, otherwise default to zero
+            if white_rgb is not None:
+                white_absorbance_row = ColorOptimizer._rgb_to_absorb(white_rgb) / 3.0
+                logger.info("✅ Using white solution RGB measurement: RGB%s", white_rgb)
+            else:
+                white_absorbance_row = np.array([0.0, 0.0, 0.0])  # Default: no absorbance
+                logger.info("📝 White solution RGB not found, using default zero absorbance")
+            
             P_true = np.array([
                 ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
                 ColorOptimizer._rgb_to_absorb(rgb_source["yellow"]) / 3.0, # Row 1: yellow color's absorbance per unit volume  
                 ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 3.0,   # Row 2: blue color's absorbance per unit volume
-                np.array([0.0, 0.0, 0.0])                                 # Row 3: white solvent (no absorbance)
+                white_absorbance_row                                       # Row 3: white solvent absorbance
             ])  # Shape: (4,3) where rows are pigments (including white), columns are RGB channels
             
             logger.info("🔧 Constructed ground truth matrix from RGB measurements (normalized for volume 3.0)")
