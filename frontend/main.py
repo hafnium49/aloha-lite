@@ -384,13 +384,14 @@ def load_ground_truth_calibration():
             # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
             # The matrix now includes white pigment as the 4th row
             
-            # Calculate white row: use white solution data if available, otherwise default to zero
+            # Calculate white row: use white solution data if available, otherwise use RGB(255,255,255)
             if white_rgb is not None:
                 white_absorbance_row = ColorOptimizer._rgb_to_absorb(white_rgb) / 3.0
                 logger.info("✅ Using white solution RGB measurement: RGB%s", white_rgb)
             else:
-                white_absorbance_row = np.array([0.0, 0.0, 0.0])  # Default: no absorbance
-                logger.info("📝 White solution RGB not found, using default zero absorbance")
+                # Use RGB(255,255,255) as default white reference (pure white, no absorbance)
+                white_absorbance_row = ColorOptimizer._rgb_to_absorb((255, 255, 255)) / 3.0
+                logger.info("📝 White solution file not found, using RGB(255,255,255) as white reference")
             
             P_true = np.array([
                 ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
