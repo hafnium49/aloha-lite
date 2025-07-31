@@ -91,6 +91,94 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Enhanced beaker color detection algorithm
 # ---------------------------------------------------------------------------
+def filter_most_circular_component(sam_mask, circle_x, circle_y, circle_radius):
+    """
+    Filter SAM mask to keep only the most circular connected component 
+    that overlaps significantly with the Hough-detected circle.
+    
+    Args:
+        sam_mask: Binary mask from SAM-2 (uint8)
+        circle_x, circle_y, circle_radius: Hough circle parameters
+        
+    Returns:
+        numpy array: Filtered mask containing only the most circular component
+    """
+    # Find all connected components in the SAM mask
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(sam_mask, connectivity=8)
+    
+    if num_labels <= 1:  # Only background
+        return sam_mask
+    
+    best_component = None
+    best_score = -1
+    
+    # Evaluate each connected component (skip background label 0)
+    for i in range(1, num_labels):
+        component_mask = (labels == i).astype(np.uint8) * 255
+        
+        # Calculate overlap with Hough circle
+        circle_mask = np.zeros_like(sam_mask)
+        cv2.circle(circle_mask, (circle_x, circle_y), circle_radius, 255, -1)
+        overlap = cv2.bitwise_and(component_mask, circle_mask)
+        overlap_ratio = np.sum(overlap > 0) / max(np.sum(component_mask > 0), 1)
+        
+        # Skip components with very little overlap with the Hough circle
+        if overlap_ratio < 0.3:  # Must overlap at least 30% with circle
+            continue
+            
+        # Calculate circularity score using contours
+        contours, _ = cv2.findContours(component_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+            
+        # Use the largest contour for this component
+        contour = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(contour)
+        
+        if area < 100:  # Skip very small components
+            continue
+            
+        perimeter = cv2.arcLength(contour, True)
+        if perimeter == 0:
+            continue
+            
+        # Circularity: 4π × area / perimeter²
+        # Perfect circle = 1.0, lower values = less circular
+        circularity = (4 * np.pi * area) / (perimeter * perimeter)
+        
+        # Distance from component centroid to Hough circle center
+        comp_centroid = centroids[i]
+        distance_to_center = np.sqrt((comp_centroid[0] - circle_x)**2 + (comp_centroid[1] - circle_y)**2)
+        distance_score = max(0, 1.0 - distance_to_center / circle_radius)  # Closer to center = higher score
+        
+        # Size score: prefer components that are reasonably sized relative to the circle
+        expected_area = np.pi * (circle_radius * 0.8)**2  # Expected area is ~80% of circle
+        size_ratio = min(area / expected_area, expected_area / area)  # Ratio closer to 1.0 is better
+        size_score = max(0, size_ratio)
+        
+        # Combined score: 40% circularity, 30% overlap, 20% distance, 10% size
+        combined_score = (0.4 * circularity + 0.3 * overlap_ratio + 
+                         0.2 * distance_score + 0.1 * size_score)
+        
+        logger.debug(f"Component {i}: circularity={circularity:.3f}, overlap={overlap_ratio:.3f}, "
+                    f"distance_score={distance_score:.3f}, size_score={size_score:.3f}, "
+                    f"combined_score={combined_score:.3f}")
+        
+        if combined_score > best_score:
+            best_score = combined_score
+            best_component = i
+    
+    # Return mask with only the best component
+    if best_component is not None:
+        filtered_mask = (labels == best_component).astype(np.uint8) * 255
+        logger.debug(f"Selected component {best_component} with score {best_score:.3f}")
+        return filtered_mask
+    else:
+        # If no good component found, return the original mask
+        logger.debug("No suitable circular component found, using original SAM mask")
+        return sam_mask
+
+
 def extract_solution_color(image_data, n_clusters=5):
     """
     Automatically detect the beaker in the image and return the dominant solution color.
@@ -189,28 +277,31 @@ def extract_solution_color(image_data, n_clusters=5):
                 multimask_output=False)
             sam_mask = masks[0].astype(np.uint8) * 255   # H×W uint8
             
-            # Analyze SAM mask to determine if it represents solution or beaker structure
-            # Count overlap between SAM mask and circle center area
+            # Filter SAM mask to keep only the most circular component that overlaps with Hough circle
+            sam_filtered = filter_most_circular_component(sam_mask, x, y, r)
+            
+            # Analyze filtered SAM mask to determine if it represents solution or beaker structure
+            # Count overlap between filtered SAM mask and circle center area
             center_radius = r // 3  # Inner 1/3 of the circle
             center_mask = np.zeros_like(gray, dtype=np.uint8)
             cv2.circle(center_mask, (x, y), center_radius, 255, thickness=-1)
             
-            # Calculate what percentage of the center area is covered by SAM mask
-            center_overlap = cv2.bitwise_and(center_mask, sam_mask)
+            # Calculate what percentage of the center area is covered by filtered SAM mask
+            center_overlap = cv2.bitwise_and(center_mask, sam_filtered)
             center_coverage = np.sum(center_overlap > 0) / np.sum(center_mask > 0)
             
             logger.debug(f"SAM mask IoU≈{scores[0]:.3f}, center coverage≈{center_coverage:.3f}")
             
-            # If SAM covers most of the center, it likely represents the solution interior
-            # If SAM covers little of the center, it likely represents the beaker walls/structure
+            # If filtered SAM covers most of the center, it likely represents the solution interior
+            # If filtered SAM covers little of the center, it likely represents the beaker walls/structure
             if center_coverage > 0.5:
                 # SAM represents solution interior - use intersection with circle
-                mask = cv2.bitwise_and(circle_mask, sam_mask)
+                mask = cv2.bitwise_and(circle_mask, sam_filtered)
                 mask_strategy = "sam_interior"
-                logger.debug("Using SAM mask as solution interior")
+                logger.debug("Using filtered SAM mask as solution interior")
             else:
                 # SAM represents beaker structure - use circle minus SAM (inverted SAM within circle)
-                sam_inverted = cv2.bitwise_not(sam_mask)
+                sam_inverted = cv2.bitwise_not(sam_filtered)
                 mask = cv2.bitwise_and(circle_mask, sam_inverted)
                 
                 # Fallback: if inverted SAM gives us too little area, use circle only
@@ -222,7 +313,7 @@ def extract_solution_color(image_data, n_clusters=5):
                     mask_strategy = "circle_only"
                 else:
                     mask_strategy = "sam_inverted"
-                    logger.debug("Using inverted SAM mask (beaker structure detected)")
+                    logger.debug("Using inverted filtered SAM mask (beaker structure detected)")
                     
         except Exception as e:
             # Fail‑soft: revert to circle‑only mask
