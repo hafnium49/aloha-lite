@@ -1,13 +1,13 @@
 {
   "robot_arms": {
     "left_arm": {
-      "robot_id": 0,
+      "robot_id": 2,
       "device_id": "5A68011529",
       "name": "SO-101 Left Arm",
       "description": "Left arm robot configuration"
     },
     "right_arm": {
-      "robot_id": 1,
+      "robot_id": 3,
       "device_id": "5A68009540", 
       "name": "SO-101 Right Arm",
       "description": "Right arm robot configuration"

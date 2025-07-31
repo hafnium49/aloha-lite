@@ -17,6 +17,7 @@ This version keeps TWO separate calibration states:
 import os, json, random, logging, httpx
 from datetime import datetime
 from typing import List, Tuple, Dict, Optional
+from contextlib import asynccontextmanager
 
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
@@ -166,6 +167,12 @@ class ColorOptimizer:
     # ---------- main decision ----------
     def recommend_next_ratios(self):
         N = len(self.history)
+        
+        # Handle case where no target color is set
+        if self.target_color is None:
+            logger.warning("⚠️  No target color set, using random ratios")
+            return self._get_random()
+            
         if N == 0:
             r,g,b = self.target_color; dom = np.argmax([r,g,b])
             pure = np.zeros(3); pure[dom] = 3.0
@@ -330,9 +337,19 @@ def generate_random_target_color() -> Tuple[int,int,int]:
 # ╚══════════════════════════════════════╝
 color_optimizer = ColorOptimizer()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    rgb0 = generate_random_target_color()
+    color_optimizer.set_target_color(rgb0)
+    logger.info("🎯 Initial target RGB%s", rgb0)
+    yield
+    # Shutdown (nothing needed)
+
 app = FastAPI(title="Aloha-Lite Frontend",
               description="Web interface for robot control and colour mixing",
-              version="1.0.0")
+              version="1.0.0",
+              lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware,
                    allow_origins=["*"], allow_headers=["*"],
