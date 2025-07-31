@@ -5,7 +5,8 @@ A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced
 ## Features
 
 - 🤖 **ML-Enhanced Color Mixing**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
-- 🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
+- � **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
+- �🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
 - 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition
 - 🤖 **Robot Control**: Direct interface to robot dispensing and positioning operations
 - 🧪 **Beaker Analysis**: Upload and analyze beaker images with AI-powered color detection
@@ -49,6 +50,20 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
                        │  (Port 5000)    │
                        └─────────────────┘
 
+Ground Truth Integration:
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ Robot Sequence  │───▶│ Color           │───▶│ Ground Truth    │
+│ Execution       │    │ Measurement     │    │ JSON Files      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+        │                      │                      │
+        ▼                      ▼                      ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ Calibration     │    │ RGB/Hex Data    │    │ Frontend        │
+│ Utility         │    │ Collection      │    │ Integration     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+                       └─────────────────┘
+
 ML Pipeline:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ Target Color    │───▶│ Bayesian        │───▶│ ML              │
@@ -72,6 +87,12 @@ ML Pipeline:
 ### ML Optimization Endpoints
 - `GET /api/target-color` - Generate random target color for optimization challenge
 - `POST /api/recommend-ratios` - Get ML-powered color ratio recommendations using Bayesian optimization
+
+### Ground Truth Calibration
+- **Calibration Matrix Loading**: Automatically loads real-world calibration data from robot experiments
+- **RGB-based Calibration**: Constructs calibration matrices from measured RGB values of pure solutions
+- **Fallback Mechanisms**: Graceful handling when ground truth data is unavailable
+- **Test Integration**: Comprehensive test suite validates ground truth integration functionality
 
 ### Proxy Endpoints
 - `POST /robot/dispense` - Proxy to robot service for color mixing operations
@@ -130,12 +151,21 @@ ML Pipeline:
 
 ```
 frontend/
-├── main.py              # FastAPI server with ML optimization and proxy functionality  
-├── index.html           # Modern responsive web interface with ML integration
-├── requirements.txt     # Python dependencies (includes scikit-learn, scipy)
-├── README.md           # This file
-├── Dockerfile          # Container configuration
-└── tests/              # Frontend tests
+├── main.py                    # FastAPI server with ML optimization and proxy functionality  
+├── index.html                 # Modern responsive web interface with ML integration
+├── requirements.txt           # Python dependencies (includes scikit-learn, scipy)
+├── README.md                 # This file
+├── Dockerfile                # Container configuration
+├── ground_truth_calibration/ # Ground truth calibration data from robot experiments
+│   ├── red_solution_ground_truth.json
+│   ├── yellow_solution_ground_truth.json
+│   ├── blue_solution_ground_truth.json
+│   └── calibration_summary.json
+└── tests/                    # Frontend tests and validation
+    ├── test_ground_truth_simple.py
+    ├── run_comprehensive_tests.py
+    ├── validate_frontend_integration.py
+    └── run_all_tests.py
 ```
 
 ## Dependencies
@@ -161,6 +191,19 @@ pip install -r requirements.txt
 ```bash
 # Start with auto-reload
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
+```
+
+### Testing Ground Truth Integration
+```bash
+# Run comprehensive ground truth tests
+cd /home/hafnium/aloha-lite/frontend/tests
+python run_all_tests.py
+
+# Run simple functionality tests
+python test_ground_truth_simple.py
+
+# Validate complete integration
+python validate_frontend_integration.py
 ```
 
 ### Configuration
@@ -220,12 +263,35 @@ export VISION_SERVICE_URL="http://your-vision-service:5000"
 ### Error Handling
 - **Service Unavailable**: Clear error messages when backend services are down
 - **ML Model Errors**: Graceful fallback when Bayesian optimization fails
+- **Ground Truth Loading**: Robust handling of missing or malformed calibration files
+- **Target Color Initialization**: Safe fallbacks when target color is not set (fixed TypeError)
+- **JSON Serialization**: Proper conversion of numpy types to native Python types (fixed ValueError)
 - **Timeout Handling**: Graceful handling of long-running operations
 - **Network Errors**: Retry mechanisms and user-friendly error displays
 - **Validation**: Client-side validation for color ratios and ML inputs
 - **Color Space Errors**: Robust handling of color conversion edge cases
 
 ## Machine Learning Components
+
+### Ground Truth Calibration System
+The frontend integrates with a ground truth calibration system that uses real robot-generated data:
+
+```python
+def load_ground_truth_calibration():
+    """
+    Load ground truth calibration data from JSON files and construct the calibration matrix.
+    Returns a 3x3 numpy array representing the true pigment absorbance matrix.
+    """
+    # Priority 1: Load pre-computed calibration matrix
+    # Priority 2: Construct matrix from RGB measurements  
+    # Priority 3: Fallback to random matrix
+```
+
+#### Calibration Data Structure
+- **Individual Solution Files**: `{color}_solution_ground_truth.json` with RGB measurements and metadata
+- **Calibration Summary**: `calibration_summary.json` with session information and optional pre-computed matrices
+- **RGB-to-Absorbance Conversion**: Uses `ColorOptimizer._rgb_to_absorb()` for matrix construction
+- **Robust Loading**: Handles missing files, malformed JSON, and validation errors gracefully
 
 ### ColorOptimizer Class
 The core ML engine that powers intelligent color recommendations:
@@ -272,6 +338,18 @@ class ColorOptimizer:
 ## Troubleshooting
 
 ### Common Issues
+
+**TypeError: cannot unpack non-iterable NoneType object**
+```
+TypeError: cannot unpack non-iterable NoneType object
+```
+**Solution**: This was fixed in recent updates. The ColorOptimizer now properly handles cases where no target color is set by providing safe fallbacks and proper initialization.
+
+**JSON Serialization Errors (numpy.int64)**
+```
+ValueError: 'numpy.int64' object is not iterable
+```
+**Solution**: Fixed by converting numpy integers to native Python integers in RGB generation. The API endpoints now properly serialize all numeric values to JSON.
 
 **Frontend Not Loading**
 ```
@@ -340,6 +418,17 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 6. Verify responsive design across different screen sizes
 
 ## Changelog
+
+### v2.1 - Ground Truth Integration & Bug Fixes (July 2025)
+- **NEW**: Ground truth calibration system integration with robot-generated data
+- **NEW**: `load_ground_truth_calibration()` function loads real calibration matrices from JSON files
+- **NEW**: Comprehensive test framework with 16 test cases for ground truth integration
+- **FIXED**: TypeError when target color is None - added proper null checks and fallbacks
+- **FIXED**: JSON serialization errors with numpy.int64 objects - converted to native Python integers
+- **ADDED**: Robust error handling and logging for ground truth calibration loading
+- **ENHANCED**: Application startup with proper target color initialization using lifespan context manager
+- **ADDED**: `frontend/ground_truth_calibration/` directory with real robot-generated calibration data
+- **IMPROVED**: ColorOptimizer safety with graceful handling of uninitialized states
 
 ### v2.0 - ML-Enhanced Color Mixing (July 2025)
 - **NEW**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
