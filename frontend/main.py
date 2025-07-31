@@ -50,164 +50,203 @@ logger = logging.getLogger(__name__)
 ROBOT_SERVICE_URL  = os.getenv("ROBOT_SERVICE_URL",  "http://localhost:8000")
 VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
 
+# ── NEW GLOBALS (add near the other module‑level constants) ──────────
+PIGMENTS = ("red", "yellow", "blue", "white")   # 4 liquids; white = solvent
+N_PIG    = len(PIGMENTS)
+
 # ╔══════════════════════════════════════╗
-# ║          C O L O R  O P T I M I S E R          ║  (UNCHANGED LOGIC)
+# ║          C O L O R  O P T I M I S E R          ║  (UPDATED)
 # ╚══════════════════════════════════════╝
 class ColorOptimizer:
     """
     Hybrid optimiser with 4 phases.
     Phase schedule  (N = len(history) *before* proposing a mix)
-      0   : pure dominant pigment
-      1   : GP only
-      2   : rough α-calibration  +  GP  (0.6 / 0.4)
-      3-7 : full 9-parameter NNLS  +  GP   (calib weight ↑, GP ↓)
-      ≥8  : NNLS only
+      0     : heuristic single‑shot (dominant pigment guess)
+      1     : GP only
+      2     : rough α‑calibration  +  GP  (0.6 / 0.4)
+      3‑11  : full NNLS (12‑param) +  GP   – weights shift from GP→calib
+      ≥12   : NNLS only
+    The model matrix P ∈ ℝ^(4×3) now includes a 4th "white" row
+    (ideally all zeros – no absorbance).
     """
+
     # ---------- init ----------
     def __init__(self):
         self.history: List[Dict] = []
-        self.target_color: Optional[Tuple[int,int,int]] = None
-        self.P_est: Optional[np.ndarray] = None      # (3,3) absorbance/volume
+        self.target_color: Optional[Tuple[int, int, int]] = None
+        self.P_est: Optional[np.ndarray] = None    # (4,3) absorbance/volume
         self.std_error: Optional[float] = None
         self.gp_model: Optional[GaussianProcessRegressor] = None
-        self.epsilon_rgb = 10.0                      # only used for info
+        self.epsilon_rgb = 10.0                   # diagnostic only
 
-    # ---------- low-level helpers ----------
+    # ---------- low‑level helpers ----------
     @staticmethod
     def _lin_rgb(rgb):
-        arr = np.asarray(rgb)/255.0
+        arr = np.asarray(rgb) / 255.0
         return np.power(arr, 2.2).clip(1e-4, 1)
 
     @classmethod
     def _rgb_to_absorb(cls, rgb):
         return -np.log10(cls._lin_rgb(rgb))
 
-    def _ratios_to_array(self, d):       # dict→[r,y,b]
-        return np.array([d.get('red',0), d.get('yellow',0), d.get('blue',0)])
+    # dict ⇆ ndarray conversions (4 components)
+    def _ratios_to_array(self, d):
+        return np.array([d.get(k, 0.0) for k in PIGMENTS])
 
     def _array_to_ratios(self, a):
-        return {'red':float(a[0]), 'yellow':float(a[1]), 'blue':float(a[2])}
+        return {k: float(a[i]) for i, k in enumerate(PIGMENTS)}
 
-    def _normalize(self, d):
-        s = sum(d.values()) or 1.0
-        f = 3.0/s
-        return {k:max(0.1,v*f) for k,v in d.items()}
+    # volume‐normalisation: coloured liquids are rescaled to ≤ max_total;
+    # leftover volume is assigned to "white" (never <0.1 mL)
+    def _normalize(self, d, *, max_total: float = 3.0):
+        coloured = {k: v for k, v in d.items() if k != "white"}
+        s = sum(coloured.values()) or 1.0
+        f = min(1.0, max_total / s)
+        out = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
+        out["white"] = max_total - sum(out.values())
+        if out["white"] < 0.1:                     # enforce minimum solvent
+            deficit = 0.1 - out["white"]
+            scale = (sum(out.values()) - deficit) / sum(out.values())
+            for k in ('red', 'yellow', 'blue'):
+                out[k] *= scale
+            out["white"] = 0.1
+        return out
 
-    # ---------- public methods ----------
+    # ---------- public API ----------
     def set_target_color(self, rgb):
         self.target_color = rgb
         logger.info("🎯 New target colour RGB%s", rgb)
 
     def add_measurement(self, ratios, measured_rgb):
         d = euclidean(measured_rgb, self.target_color) if self.target_color else 0
-        self.history.append({"timestamp":datetime.now().isoformat(),
-                             "ratios":ratios.copy(),
-                             "measured_rgb":measured_rgb,
-                             "distance_to_target":d})
+        self.history.append({
+            "timestamp": datetime.now().isoformat(),
+            "ratios": ratios.copy(),
+            "measured_rgb": measured_rgb,
+            "distance_to_target": d
+        })
         logger.info("📊 Logged trial #%d  dist≈%.2f", len(self.history), d)
 
     # ---------- calibration ----------
     def _rough_scale_calibration(self):
-        if len(self.history) < 2: return
-        P_hue = np.array([[0.8,0.1,0.1],
-                          [0.2,0.9,0.1],
-                          [0.1,0.1,0.9]])
+        if len(self.history) < 2:
+            return
+        P_hue = np.array([[0.8, 0.1, 0.1],       # red
+                          [0.2, 0.9, 0.1],       # yellow
+                          [0.1, 0.1, 0.9],       # blue
+                          [0.0, 0.0, 0.0]])      # white
         W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
         A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])
-        L = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1,3)
+        L = np.einsum('nk,kj->nkj', W, P_hue).reshape(-1, 3)
         alpha, *_ = np.linalg.lstsq(L, A.reshape(-1), rcond=None)
         self.P_est = np.diag(alpha.clip(1e-6)) @ P_hue
 
     def _fit_full_calibration(self):
-        if len(self.history) < 3 or not ML_AVAILABLE: return
+        if len(self.history) < 3 or not ML_AVAILABLE:
+            return
         W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
         A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])
-        P = np.zeros((3,3))
+        P = np.zeros((N_PIG, 3))
         for ch in range(3):
-            res = lsq_linear(W, A[:,ch], bounds=(0,np.inf))
-            P[:,ch] = res.x
+            res = lsq_linear(W, A[:, ch], bounds=(0, np.inf))
+            P[:, ch] = res.x
         self.P_est = P
         resid = A - W @ P
-        self.std_error = float(np.sqrt(np.mean(resid**2)))
+        self.std_error = float(np.sqrt(np.mean(resid ** 2)))
 
     def _inverse_weights(self):
         if self.P_est is None or not ML_AVAILABLE:
             return None
         res = lsq_linear(self.P_est.T,
                          self._rgb_to_absorb(self.target_color),
-                         bounds=(0,8))
+                         bounds=(0, 8))
         return self._normalize(self._array_to_ratios(res.x))
 
     # ---------- GP helper ----------
     def _gp_next(self, seed=None):
-        if not ML_AVAILABLE: return self._get_random()
+        if not ML_AVAILABLE:
+            return self._get_random()
         X = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])
         y = np.array([h['distance_to_target'] for h in self.history])
-        X += np.random.normal(0,1e-6,X.shape)
-        gp = GaussianProcessRegressor(ConstantKernel(1.0,(1e-3,1e3))*RBF(1.0,(1e-2,1e2)),
-                                      alpha=1e-4, normalize_y=True, n_restarts_optimizer=3)
-        gp.fit(X,y); self.gp_model = gp; f_best = y.min()
+        X += np.random.normal(0, 1e-6, X.shape)
+        gp = GaussianProcessRegressor(
+            ConstantKernel(1.0, (1e-3, 1e3)) * RBF(1.0, (1e-2, 1e2)),
+            alpha=1e-4, normalize_y=True, n_restarts_optimizer=3)
+        gp.fit(X, y)
+        self.gp_model = gp
+        f_best = y.min()
+
         def acq(x):
-            m,s = gp.predict(x.reshape(1,-1), return_std=True)
-            xi  = 0.1; z = (f_best-m-xi)/(s+1e-9)
-            return -(f_best-m-xi)*norm.cdf(z) - s*norm.pdf(z)
-        starts = [np.random.uniform(0.1,5,(3,)) for _ in range(6)]
-        if seed is not None: starts.append(self._ratios_to_array(seed))
-        best_x,best_v = None,np.inf
+            m, s = gp.predict(x.reshape(1, -1), return_std=True)
+            xi = 0.1
+            z = (f_best - m - xi) / (s + 1e-9)
+            return -(f_best - m - xi) * norm.cdf(z) - s * norm.pdf(z)
+
+        starts = [np.random.uniform(0.1, 5.0, (N_PIG,)) for _ in range(6)]
+        if seed is not None:
+            starts.append(self._ratios_to_array(seed))
+
+        best_x, best_v = None, np.inf
         for s0 in starts:
-            res = minimize(acq, s0, method='L-BFGS-B', bounds=[(0.05,8)]*3)
+            res = minimize(acq, s0, method='L-BFGS-B',
+                           bounds=[(0.05, 8.0)] * N_PIG)
             if res.success and res.fun < best_v:
-                best_v,best_x = res.fun,res.x
-        return self._normalize(self._array_to_ratios(best_x if best_x is not None else starts[0]))
+                best_v, best_x = res.fun, res.x
+
+        choice = best_x if best_x is not None else starts[0]
+        return self._normalize(self._array_to_ratios(choice))
 
     # ---------- misc helpers ----------
     def _get_random(self):
-        return self._normalize({c:random.uniform(0.1,3.0) for c in ('red','yellow','blue')})
+        coloured = {c: random.uniform(0.1, 3.0) for c in ('red', 'yellow', 'blue')}
+        return self._normalize(coloured)
 
     # ---------- main decision ----------
     def recommend_next_ratios(self):
         N = len(self.history)
-        
-        # Handle case where no target color is set
-        if self.target_color is None:
-            logger.warning("⚠️  No target color set, using random ratios")
-            return self._get_random()
-            
-        if N == 0:
-            # Instead of pure dominant color, use a smarter initial guess
-            # Convert target RGB to absorbance and estimate ratios
-            target_absorb = self._rgb_to_absorb(self.target_color)
-            
-            # Use a rough heuristic based on color characteristics
-            r, g, b = self.target_color
-            
-            # Estimate ratios based on color appearance
-            red_ratio = max(0.1, (r - g - b + 255) / 255.0 * 2.0)
-            yellow_ratio = max(0.1, (r + g - 2*b + 255) / 255.0 * 1.5) 
-            blue_ratio = max(0.1, (b - r - g + 255) / 255.0 * 2.0)
-            
-            # Create initial guess and normalize
-            initial_guess = {'red': red_ratio, 'yellow': yellow_ratio, 'blue': blue_ratio}
-            return self._normalize(initial_guess)
 
+        if self.target_color is None:
+            logger.warning("⚠️  No target color set – random ratios returned")
+            return self._get_random()
+
+        # --- phase 0 (first shot) ---
+        if N == 0:
+            r, g, b = self.target_color
+            guess = {
+                'red':    max(0.1, (r - g - b + 255) / 255.0 * 2.0),
+                'yellow': max(0.1, (r + g - 2 * b + 255) / 255.0 * 1.5),
+                'blue':   max(0.1, (b - r - g + 255) / 255.0 * 2.0)
+            }
+            return self._normalize(guess)
+
+        # --- phase 1 ---
         if N == 1:
             return self._gp_next()
 
+        # --- phase 2 ---
         if N == 2:
             self._rough_scale_calibration()
             w_cal = self._inverse_weights()
-            w_gp  = self._gp_next()
-            return w_gp if w_cal is None else self._normalize(
-                {c:0.6*w_cal[c]+0.4*w_gp[c] for c in w_cal})
+            w_gp = self._gp_next()
+            if w_cal is None:
+                return w_gp
+            mix = {c: 0.6 * w_cal[c] + 0.4 * w_gp[c] for c in w_cal}
+            return self._normalize(mix)
 
-        if 3 <= N <= 7:
+        # --- phase 3‑11 (hybrid) ---
+        if 3 <= N <= 11:
             self._fit_full_calibration()
             w_cal = self._inverse_weights()
-            w_gp  = self._gp_next(seed=w_cal)
-            if w_cal is None: return w_gp
-            w_cal_w = (N-1)/8.0; w_gp_w = 1.0 - w_cal_w
-            return self._normalize({c:w_cal_w*w_cal[c]+w_gp_w*w_gp[c] for c in w_cal})
+            w_gp = self._gp_next(seed=w_cal)
+            if w_cal is None:
+                return w_gp
+            # smoothly increase calibration weight from 0.25 → 0.85 over trials 3‑11
+            w_cal_w = 0.25 + 0.60 * (N - 3) / 8.0
+            w_gp_w = 1.0 - w_cal_w
+            mix = {c: w_cal_w * w_cal[c] + w_gp_w * w_gp[c] for c in w_cal}
+            return self._normalize(mix)
 
+        # --- phase ≥12 (calibration only) ---
         self._fit_full_calibration()
         res = self._inverse_weights()
         return res if res else self._get_random()
@@ -215,10 +254,12 @@ class ColorOptimizer:
     # ---------- lightweight stats ----------
     def get_statistics(self):
         d = [h['distance_to_target'] for h in self.history]
-        return {"total_attempts":len(self.history),
-                "best_distance":min(d) if d else None,
-                "current_distance":d[-1] if d else None,
-                "std_error_absorb":self.std_error}
+        return {
+            "total_attempts": len(self.history),
+            "best_distance": min(d) if d else None,
+            "current_distance": d[-1] if d else None,
+            "std_error_absorb": self.std_error
+        }
 
 # ╔══════════════════════════════════════╗
 # ║    H I D D E N   B O T T L E   M O D E L     ║
@@ -334,22 +375,33 @@ def _sample_reachable_rgb(P_est: np.ndarray,
                           max_total: float = 3.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
     """Return (rgb8, weights) inside the reachable gamut of P_est.
     
-    Generates normalized color ratios that sum to max_total (default 3.0)
+    Generates normalized color ratios for 4 pigments that sum to max_total (default 3.0)
     to match the ColorOptimizer's normalization scheme and ground truth calibration.
+    P_est is now (4,3) including white pigment.
     """
     # Generate random ratios using exponential distribution to avoid uniform bias
-    raw_ratios = np.random.exponential(1.0, 3)
+    raw_ratios = np.random.exponential(1.0, N_PIG)
     
-    # Create ratio dictionary and normalize using the same method as ColorOptimizer
-    ratio_dict = {'red': raw_ratios[0], 'yellow': raw_ratios[1], 'blue': raw_ratios[2]}
+    # Create ratio dictionary for all 4 pigments
+    ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
     
-    # Apply ColorOptimizer._normalize() logic exactly
-    s = sum(ratio_dict.values()) or 1.0
-    f = max_total / s
-    normalized_dict = {k: max(0.1, v * f) for k, v in ratio_dict.items()}
+    # Apply ColorOptimizer._normalize() logic exactly for 4-pigment system
+    coloured = {k: v for k, v in ratio_dict.items() if k != "white"}
+    s = sum(coloured.values()) or 1.0
+    f = min(1.0, max_total / s)
+    normalized_dict = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
+    normalized_dict["white"] = max_total - sum(normalized_dict.values())
     
-    # Convert back to array for matrix operations
-    w = np.array([normalized_dict['red'], normalized_dict['yellow'], normalized_dict['blue']])
+    # Enforce minimum solvent (white) volume
+    if normalized_dict["white"] < 0.1:
+        deficit = 0.1 - normalized_dict["white"]
+        scale = (sum(normalized_dict.values()) - deficit) / sum(normalized_dict.values())
+        for k in ('red', 'yellow', 'blue'):
+            normalized_dict[k] *= scale
+        normalized_dict["white"] = 0.1
+    
+    # Convert back to array for matrix operations (4 components)
+    w = np.array([normalized_dict[p] for p in PIGMENTS])
     
     # Calculate absorbance and convert to RGB
     A = w @ P_est
