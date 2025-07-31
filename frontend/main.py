@@ -456,7 +456,7 @@ async def robot_dispense(req: Request):
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{ROBOT_SERVICE_URL}/dispense",
+                f"{ROBOT_SERVICE_URL}/robot/dispense",
                 json=data,
                 timeout=30.0
             )
