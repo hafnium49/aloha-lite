@@ -177,6 +177,7 @@ def extract_solution_color(image_data, n_clusters=5):
     # ───────────────────────────────────────────────────────────────────
     # B.  Optional SAM‑2 refinement (box‑prompted by the detected circle)
     # ───────────────────────────────────────────────────────────────────
+    mask_strategy = "circle_only"  # Track what masking strategy was used
     if SAM_PREDICTOR is not None:
         try:
             SAM_PREDICTOR.set_image(image_rgb)          # SAM expects RGB
@@ -187,12 +188,47 @@ def extract_solution_color(image_data, n_clusters=5):
                 box=input_box[None, :],
                 multimask_output=False)
             sam_mask = masks[0].astype(np.uint8) * 255   # H×W uint8
-            mask = cv2.bitwise_and(circle_mask, sam_mask)
-            logger.debug(f"SAM mask IoU≈{scores[0]:.3f}")
+            
+            # Analyze SAM mask to determine if it represents solution or beaker structure
+            # Count overlap between SAM mask and circle center area
+            center_radius = r // 3  # Inner 1/3 of the circle
+            center_mask = np.zeros_like(gray, dtype=np.uint8)
+            cv2.circle(center_mask, (x, y), center_radius, 255, thickness=-1)
+            
+            # Calculate what percentage of the center area is covered by SAM mask
+            center_overlap = cv2.bitwise_and(center_mask, sam_mask)
+            center_coverage = np.sum(center_overlap > 0) / np.sum(center_mask > 0)
+            
+            logger.debug(f"SAM mask IoU≈{scores[0]:.3f}, center coverage≈{center_coverage:.3f}")
+            
+            # If SAM covers most of the center, it likely represents the solution interior
+            # If SAM covers little of the center, it likely represents the beaker walls/structure
+            if center_coverage > 0.5:
+                # SAM represents solution interior - use intersection with circle
+                mask = cv2.bitwise_and(circle_mask, sam_mask)
+                mask_strategy = "sam_interior"
+                logger.debug("Using SAM mask as solution interior")
+            else:
+                # SAM represents beaker structure - use circle minus SAM (inverted SAM within circle)
+                sam_inverted = cv2.bitwise_not(sam_mask)
+                mask = cv2.bitwise_and(circle_mask, sam_inverted)
+                
+                # Fallback: if inverted SAM gives us too little area, use circle only
+                mask_area = np.sum(mask > 0)
+                circle_area = np.sum(circle_mask > 0)
+                if mask_area < circle_area * 0.1:  # Less than 10% of circle area
+                    logger.debug("Inverted SAM mask too small, falling back to circle mask")
+                    mask = circle_mask
+                    mask_strategy = "circle_only"
+                else:
+                    mask_strategy = "sam_inverted"
+                    logger.debug("Using inverted SAM mask (beaker structure detected)")
+                    
         except Exception as e:
             # Fail‑soft: revert to circle‑only mask
             logger.warning(f"SAM failed ({e}); falling back to circle mask")
             mask = circle_mask
+            mask_strategy = "circle_only"
     else:
         mask = circle_mask
     masked_img = cv2.bitwise_and(image_rgb, image_rgb, mask=mask)
@@ -246,7 +282,8 @@ def extract_solution_color(image_data, n_clusters=5):
         'beaker_circle': {'x': int(x), 'y': int(y), 'radius': int(r)},
         'clusters': cluster_info,
         'dominant_cluster_index': dominant_cluster['index'],
-        'total_pixels_analyzed': len(bright_pixels)
+        'total_pixels_analyzed': len(bright_pixels),
+        'mask_strategy': mask_strategy  # Track which masking approach was used
     }
 
     # keep a tiny preview (uint8) for optional visualisation
@@ -275,15 +312,26 @@ def create_visualization_image(image_data, analysis_data):
     # Draw center point
     cv2.circle(viz_img, (circle['x'], circle['y']), 5, (0, 255, 0), -1)
 
-    # B.  If a SAM mask was returned, overlay it in translucent yellow
+    # B.  If a SAM mask was returned, overlay it with color coding based on strategy
     if analysis_data.get("sam_mask_preview") is not None:
-        sam_alpha = 0.35
-        yellow    = np.array([0, 255, 255], dtype=np.uint8)
+        mask_strategy = analysis_data.get('mask_strategy', 'unknown')
+        
+        # Choose overlay color based on masking strategy
+        if mask_strategy == "sam_interior":
+            overlay_color = np.array([0, 255, 255], dtype=np.uint8)  # Yellow - solution interior
+            sam_alpha = 0.25
+        elif mask_strategy == "sam_inverted":
+            overlay_color = np.array([255, 0, 255], dtype=np.uint8)  # Magenta - inverted beaker structure
+            sam_alpha = 0.35
+        else:
+            overlay_color = np.array([0, 255, 0], dtype=np.uint8)    # Green - circle only
+            sam_alpha = 0.20
+            
         mask_bool = analysis_data["sam_mask_preview"] > 0
         viz_img[mask_bool] = cv2.addWeighted(viz_img, 1-sam_alpha,
-                                             np.full_like(viz_img, yellow), sam_alpha, 0)[mask_bool]
+                                             np.full_like(viz_img, overlay_color), sam_alpha, 0)[mask_bool]
     
-    # Add text with dominant color info
+    # Add text with dominant color info and mask strategy
     dominant_cluster = next(c for c in analysis_data['clusters'] 
                           if c['index'] == analysis_data['dominant_cluster_index'])
     
@@ -292,6 +340,11 @@ def create_visualization_image(image_data, analysis_data):
     
     saturation_text = f"Saturation: {dominant_cluster['avg_saturation']:.1f}"
     cv2.putText(viz_img, saturation_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    
+    # Add mask strategy information
+    mask_strategy = analysis_data.get('mask_strategy', 'unknown')
+    strategy_text = f"Mask: {mask_strategy}"
+    cv2.putText(viz_img, strategy_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
     return viz_img
 
@@ -531,7 +584,8 @@ async def analyze_beaker(file: UploadFile = File(...)):
             "analysis_stats": {
                 "total_pixels_analyzed": int(analysis_data['total_pixels_analyzed']),
                 "num_clusters": len(analysis_data['clusters']),
-                "dominant_cluster_index": int(analysis_data['dominant_cluster_index'])
+                "dominant_cluster_index": int(analysis_data['dominant_cluster_index']),
+                "mask_strategy": analysis_data.get('mask_strategy', 'unknown')
             },
             "visualization_image": viz_base64
         }
