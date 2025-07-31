@@ -302,7 +302,7 @@ def test_bottle_model_and_target_generation():
     
     print(f"   Direct sampling: RGB{rgb_sample}, weights={[round(w, 2) for w in weights]}")
     assert all(0 <= c <= 255 for c in rgb_sample), "Sampled RGB should be valid"
-    assert len(weights) == 3, "Should have 3 pigment weights"
+    assert len(weights) == 4, "Should have 4 pigment weights (including white)"
     assert all(w >= 0 for w in weights), "Weights should be non-negative"
     
     print("✅ BottleModel and target generation tests passed")
