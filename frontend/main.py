@@ -288,10 +288,22 @@ def load_ground_truth_calibration():
 
             if "calibration_matrix" in summary_data.get("calibration_summary", {}):
                 matrix_data = summary_data["calibration_summary"]["calibration_matrix"]["matrix"]
-                P_true = np.array(matrix_data)
-                logger.info("🎯 Loaded ground truth matrix from calibration summary")
-                logger.info("📊 Matrix shape: %s, mean absorbance: %.3f", P_true.shape, P_true.mean())
-                return P_true
+                P_loaded = np.array(matrix_data)
+                
+                # Ensure matrix is 4x3 (add white row if needed)
+                if P_loaded.shape == (3, 3):
+                    P_true = np.vstack([P_loaded, np.array([0.0, 0.0, 0.0])])  # Add white pigment row
+                    logger.info("🎯 Loaded 3x3 ground truth matrix from calibration summary, extended to 4x3")
+                elif P_loaded.shape == (4, 3):
+                    P_true = P_loaded
+                    logger.info("🎯 Loaded 4x3 ground truth matrix from calibration summary")
+                else:
+                    logger.warning("⚠️  Invalid matrix shape %s in calibration summary", P_loaded.shape)
+                    P_true = None
+                
+                if P_true is not None:
+                    logger.info("📊 Matrix shape: %s, mean absorbance: %.3f", P_true.shape, P_true.mean())
+                    return P_true
 
             solutions_block = summary_data.get("calibration_summary", {}).get("solutions", {})
             for colour in ("red", "yellow", "blue"):
@@ -327,7 +339,8 @@ def load_ground_truth_calibration():
             P_true = np.array([
                 [absorbance_coefficients[0], 0.1, 0.08],
                 [0.15, absorbance_coefficients[1], 0.1],
-                [0.12, 0.15, absorbance_coefficients[2]]
+                [0.12, 0.15, absorbance_coefficients[2]],
+                [0.0, 0.0, 0.0]                          # white solvent (no absorbance)
             ])
             logger.info("🔧 Constructed ground truth matrix from individual files")
             logger.info("📊 Matrix:\n%s", P_true)
@@ -339,15 +352,15 @@ def load_ground_truth_calibration():
         }
         if len(rgb_source) == 3:
             # Ground truth calibration uses single solutions at total volume 3.0
-            # For w = [3.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
+            # For w = [3.0, 0.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
             # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
-            # But we also need the matrix to represent the correct mixing behavior.
-            # The correct approach: P_est[i,j] represents the j-th RGB component absorbance per unit of i-th color
+            # The matrix now includes white pigment as the 4th row (ideally zero absorbance)
             P_true = np.array([
                 ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
                 ColorOptimizer._rgb_to_absorb(rgb_source["yellow"]) / 3.0, # Row 1: yellow color's absorbance per unit volume  
-                ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 3.0    # Row 2: blue color's absorbance per unit volume
-            ])  # Shape: (3,3) where rows are colors, columns are RGB channels
+                ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 3.0,   # Row 2: blue color's absorbance per unit volume
+                np.array([0.0, 0.0, 0.0])                                 # Row 3: white solvent (no absorbance)
+            ])  # Shape: (4,3) where rows are pigments (including white), columns are RGB channels
             
             logger.info("🔧 Constructed ground truth matrix from RGB measurements (normalized for volume 3.0)")
             logger.info("📊 Matrix:\n%s", P_true)
@@ -357,10 +370,12 @@ def load_ground_truth_calibration():
         logger.warning("⚠️  Error loading ground truth calibration: %s", e)
         logger.info("🔄 Falling back to random matrix generation")
     
-    # Final fallback: generate random matrix (original behavior)
+    # Final fallback: generate random matrix (original behavior) - now 4x3 for 4 pigments
     np.random.seed(42)
     P_fallback = np.abs(np.random.normal(loc=0.3, scale=0.15, size=(3,3)))
-    logger.info("🎲 Using random fallback matrix")
+    # Add white pigment row (no absorbance)
+    P_fallback = np.vstack([P_fallback, np.array([0.0, 0.0, 0.0])])
+    logger.info("🎲 Using random fallback matrix (4x3 with white)")
     return P_fallback
 
 # --- Load ground truth calibration and create bottle model ---
