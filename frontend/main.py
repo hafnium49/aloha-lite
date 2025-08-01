@@ -64,8 +64,9 @@ class ColorOptimizer:
       0     : heuristic single‑shot (dominant pigment guess)
       1     : GP only
       2     : rough α‑calibration  +  GP  (0.6 / 0.4)
-      3‑11  : full NNLS (12‑param) +  GP   – weights shift from GP→calib
-      ≥12   : NNLS only
+      3‑8   : full NNLS (9‑param when white locked) +  GP   – weights shift from GP→calib
+      3‑11  : full NNLS (12‑param when white learnable) +  GP   – weights shift from GP→calib
+      ≥9/12 : NNLS only
     The model matrix P ∈ ℝ^(4×3) now includes a 4th "white" row
     (locked to zero absorbance by default, assuming pure RGB(255,255,255) background).
     """
@@ -266,20 +267,23 @@ class ColorOptimizer:
             mix = {c: 0.6 * w_cal[c] + 0.4 * w_gp[c] for c in w_cal}
             return self._normalize(mix)
 
-        # --- phase 3‑11 (hybrid) ---
-        if 3 <= N <= 11:
+        # --- phase 3‑8/11 (hybrid) ---
+        # Shorter hybrid phase when white-solvent locked (fewer effective parameters)
+        hybrid_end = 8 if not self.allow_white_absorbance else 11
+        if 3 <= N <= hybrid_end:
             self._fit_full_calibration()
             w_cal = self._inverse_weights()
             w_gp = self._gp_next(seed=w_cal)
             if w_cal is None:
                 return w_gp
-            # smoothly increase calibration weight from 0.25 → 0.85 over trials 3‑11
-            w_cal_w = 0.25 + 0.60 * (N - 3) / 8.0
+            # smoothly increase calibration weight from 0.25 → 0.85 over trials 3‑hybrid_end
+            hybrid_range = hybrid_end - 3
+            w_cal_w = 0.25 + 0.60 * (N - 3) / hybrid_range
             w_gp_w = 1.0 - w_cal_w
             mix = {c: w_cal_w * w_cal[c] + w_gp_w * w_gp[c] for c in w_cal}
             return self._normalize(mix)
 
-        # --- phase ≥12 (calibration only) ---
+        # --- phase ≥9/12 (calibration only) ---
         self._fit_full_calibration()
         res = self._inverse_weights()
         return res if res else self._get_random()
