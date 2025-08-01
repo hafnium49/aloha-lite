@@ -551,77 +551,54 @@ def _sample_reachable_rgb(P_est: np.ndarray,
 
 def generate_random_target_color() -> Tuple[int,int,int]:
     """
-    Generate target colors with equal probability for redish, yellowish, and bluish colors.
-    Uses equal volumes of the three color solutions from ground truth calibration data
-    to create statistically balanced target colors.
+    Generate target colors by sampling from the reachable color space.
+    This ensures all targets are achievable with the available pigment concentrations.
+    Uses the bottle model to sample realistic, reachable color combinations.
     """
     if bottle_model.P_est is not None:
-        # Get the pure solution RGB values from ground truth calibration
-        try:
-            ground_truth_dir = Path(__file__).parent / "ground_truth_calibration"
+        # Generate multiple candidate colors and pick one that represents the desired color family
+        candidates = []
+        primary_colors = ["red", "yellow", "blue"]
+        
+        # Choose which primary color family we want
+        target_primary = random.choice(primary_colors)
+        
+        # Generate several reachable candidates
+        for _ in range(20):  # Try 20 different combinations
+            rgb, ratios = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
             
-            # Try to load from calibration summary first
-            summary_file = ground_truth_dir / "calibration_summary.json"
-            pure_colors = {}
+            # Calculate which primary color dominates this combination
+            primary_volumes = {
+                "red": ratios[0],     # red pigment volume
+                "yellow": ratios[1],  # yellow pigment volume  
+                "blue": ratios[2]     # blue pigment volume
+            }
             
-            if summary_file.exists():
-                with open(summary_file, 'r') as f:
-                    summary_data = json.load(f)
-                solutions_block = summary_data.get("calibration_summary", {}).get("solutions", {})
-                for color in ("red", "yellow", "blue"):
-                    if color in solutions_block and "rgb" in solutions_block[color]:
-                        pure_colors[color] = tuple(solutions_block[color]["rgb"])
+            dominant_color = max(primary_volumes, key=primary_volumes.get)
             
-            # Fallback to individual files if summary doesn't have complete data
-            if len(pure_colors) < 3:
-                pure_colors = {}
-                for color in ("red", "yellow", "blue"):
-                    color_file = ground_truth_dir / f"{color}_solution_ground_truth.json"
-                    if color_file.exists():
-                        try:
-                            with open(color_file, 'r') as f:
-                                color_data = json.load(f)
-                            rgb = color_data.get("color_measurement", {}).get("rgb")
-                            if rgb:
-                                pure_colors[color] = tuple(rgb)
-                        except Exception:
-                            pass
+            # If this candidate matches our target primary, add it
+            if dominant_color == target_primary:
+                # Calculate how "pure" this color is (higher ratio = more pure)
+                purity = primary_volumes[dominant_color] / sum(primary_volumes.values())
+                candidates.append((rgb, ratios, purity))
+        
+        if candidates:
+            # Pick a reasonably pure color (not too muddy, not too extreme)
+            # Sort by purity and pick from the middle-high range
+            candidates.sort(key=lambda x: x[2])  # Sort by purity
+            mid_start = len(candidates) // 3    # Skip bottom third (too muddy)
+            mid_end = min(len(candidates), int(len(candidates) * 0.8))  # Skip top 20% (too extreme)
             
-            # If we have all three pure colors, generate balanced target colors
-            if len(pure_colors) == 3:
-                # Choose primary color with equal probability (1/3 each)
-                primary_color = random.choice(["red", "yellow", "blue"])
-                
-                # Create distinct color ratios based on actual ground truth calibration
-                # Use the bottle model to simulate realistic color mixing
-                if primary_color == "red":
-                    # Redish: Use primarily red solution with minimal mixing
-                    # This creates a color closer to pure red solution
-                    base_ratios = {"red": 2.8, "yellow": 0.1, "blue": 0.1, "white": 0.0}
-                elif primary_color == "yellow":
-                    # Yellowish: Use primarily yellow solution with minimal mixing
-                    # This creates a color closer to pure yellow solution
-                    base_ratios = {"red": 0.1, "yellow": 2.8, "blue": 0.1, "white": 0.0}
-                else:  # blue
-                    # Bluish: Use primarily blue solution with minimal mixing
-                    # This creates a color closer to pure blue solution
-                    base_ratios = {"red": 0.1, "yellow": 0.1, "blue": 2.8, "white": 0.0}
-                
-                # Simulate the color mixing using the bottle model
-                w = np.array([base_ratios[p] for p in PIGMENTS])
-                A = w @ bottle_model.P_est
-                rgb_lin = 10 ** (-A)
-                rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
-                
-                logger.info(f"🎯 Generated {primary_color}ish target color: RGB{rgb8} (from ground truth ratios)")
-                return rgb8
-                
-        except Exception as e:
-            logger.warning(f"⚠️  Error generating balanced target color: {e}")
+            if mid_start < mid_end:
+                chosen = random.choice(candidates[mid_start:mid_end])
+                rgb, ratios, purity = chosen
+                logger.info(f"🎯 Generated reachable {target_primary}ish target: RGB{rgb} (purity={purity:.2f})")
+                return rgb
     
-    # Fallback: use the original reachable color sampling
+    # Fallback: use the existing reachable color sampling
     if bottle_model.P_est is not None:
         rgb, _ = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
+        logger.info(f"🎯 Generated fallback reachable target: RGB{rgb}")
         return rgb
 
     # Final fallback (should never be used after first start)
