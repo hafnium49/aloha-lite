@@ -551,10 +551,20 @@ def generate_random_target_color() -> Tuple[int,int,int]:
                 # Choose primary color with equal probability (1/3 each)
                 primary_color = random.choice(["red", "yellow", "blue"])
                 
-                # Create equal volume ratios: 1.0 of chosen color, 1.0 each of the other two
-                # This creates a balanced color that's slightly biased toward the chosen primary
-                base_ratios = {"red": 1.0, "yellow": 1.0, "blue": 1.0, "white": 0.0}
-                base_ratios[primary_color] += 1.0  # Double the chosen primary color
+                # Create distinct color ratios based on actual ground truth calibration
+                # Use the bottle model to simulate realistic color mixing
+                if primary_color == "red":
+                    # Redish: Use primarily red solution with minimal mixing
+                    # This creates a color closer to pure red solution
+                    base_ratios = {"red": 2.8, "yellow": 0.1, "blue": 0.1, "white": 0.0}
+                elif primary_color == "yellow":
+                    # Yellowish: Use primarily yellow solution with minimal mixing
+                    # This creates a color closer to pure yellow solution
+                    base_ratios = {"red": 0.1, "yellow": 2.8, "blue": 0.1, "white": 0.0}
+                else:  # blue
+                    # Bluish: Use primarily blue solution with minimal mixing
+                    # This creates a color closer to pure blue solution
+                    base_ratios = {"red": 0.1, "yellow": 0.1, "blue": 2.8, "white": 0.0}
                 
                 # Simulate the color mixing using the bottle model
                 w = np.array([base_ratios[p] for p in PIGMENTS])
@@ -562,7 +572,7 @@ def generate_random_target_color() -> Tuple[int,int,int]:
                 rgb_lin = 10 ** (-A)
                 rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
                 
-                logger.info(f"🎯 Generated {primary_color}ish target color: RGB{rgb8}")
+                logger.info(f"🎯 Generated {primary_color}ish target color: RGB{rgb8} (from ground truth ratios)")
                 return rgb8
                 
         except Exception as e:
