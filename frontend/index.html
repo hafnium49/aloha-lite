@@ -306,14 +306,6 @@ button[onclick="applyRecommendation()"] {
   background: rgba(255, 255, 255, 0.8);
 }
 
-#trend-canvas {
-  max-width: 100%;
-  border: 2px solid #dee2e6;
-  border-radius: 10px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
 /* Log Area */
 #log {
   background: #2c3e50;
@@ -932,72 +924,6 @@ function updateOptimizationStats(stats) {
     // Draw perceptual color space chart
     drawPerceptualChart()
   }
-}
-
-function drawTrendChart(trends) {
-  const canvas = document.getElementById('trend-canvas')
-  const ctx = canvas.getContext('2d')
-  
-  // Clear canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-  
-  if (trends.length === 0) return
-  
-  // Calculate chart dimensions
-  const padding = 30
-  const chartWidth = canvas.width - 2 * padding
-  const chartHeight = canvas.height - 2 * padding
-  
-  // Find min/max values
-  const maxDistance = Math.max(...trends)
-  const minDistance = Math.min(...trends)
-  const range = maxDistance - minDistance || 1
-  
-  // Draw axes
-  ctx.strokeStyle = '#666'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(padding, padding)
-  ctx.lineTo(padding, padding + chartHeight)
-  ctx.lineTo(padding + chartWidth, padding + chartHeight)
-  ctx.stroke()
-  
-  // Draw trend line
-  if (trends.length > 1) {
-    ctx.strokeStyle = '#007bff'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    
-    trends.forEach((distance, index) => {
-      const x = padding + (index / (trends.length - 1)) * chartWidth
-      const y = padding + chartHeight - ((distance - minDistance) / range) * chartHeight
-      
-      if (index === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
-      }
-    })
-    
-    ctx.stroke()
-    
-    // Draw points
-    ctx.fillStyle = '#007bff'
-    trends.forEach((distance, index) => {
-      const x = padding + (index / (trends.length - 1)) * chartWidth
-      const y = padding + chartHeight - ((distance - minDistance) / range) * chartHeight
-      
-      ctx.beginPath()
-      ctx.arc(x, y, 3, 0, 2 * Math.PI)
-      ctx.fill()
-    })
-  }
-  
-  // Add labels
-  ctx.fillStyle = '#333'
-  ctx.font = '12px Arial'
-  ctx.fillText('距離', 5, 20)
-  ctx.fillText('試行回数', canvas.width - 50, canvas.height - 5)
 }
 
 async function drawPerceptualChart() {
