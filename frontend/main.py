@@ -171,6 +171,41 @@ class ColorOptimizer:
         if not self.allow_white_absorbance:
             self.P_est[3, :] = 0.0
 
+    def _first_order_correction(self) -> Optional[Dict[str, float]]:
+        """
+        Single‑step Newton / least‑squares correction based on the *hue prototype*
+        matrix P_hue.  Uses only the last trial, so it is well‑posed with N = 1.
+        Returns a normalised pigment‑ratio dict or None on failure.
+        """
+        if not self.history or self.target_color is None:
+            return None
+
+        # Prototype per‑unit‑volume absorbance (same as in _rough_scale_calibration)
+        P_hue = np.array([[0.8, 0.1, 0.1],   # red
+                          [0.2, 0.9, 0.1],   # yellow
+                          [0.1, 0.1, 0.9]])  # blue   (white omitted)
+
+        last = self.history[-1]
+        w_old = self._ratios_to_array(last["ratios"])[:3]           # (3,)
+        A_old = self._rgb_to_absorb(last["measured_rgb"])           # (3,)
+        A_tgt = self._rgb_to_absorb(self.target_color)              # (3,)
+        dA    = A_tgt - A_old                                       # desired change
+
+        # Solve P_hue.T @ Δw ≈ dA   (bounded, allow negative Δw but small)
+        if not ML_AVAILABLE:
+            return None
+            
+        res = lsq_linear(P_hue.T, dA,
+                         bounds=(-1.0, 1.0),  # safety bounds per pigment
+                         lsmr_tol=1e-4)
+
+        if not res.success:
+            return None
+
+        w_new_coloured = np.clip(w_old + res.x, 0.0, 5.0)           # keep ≥0
+        ratios = dict(zip(('red', 'yellow', 'blue'), w_new_coloured))
+        return self._normalize(ratios)                              # adds white
+
     def _fit_full_calibration(self):
         if len(self.history) < 3 or not ML_AVAILABLE:
             return
@@ -254,18 +289,24 @@ class ColorOptimizer:
             }
             return self._normalize(guess)
 
-        # --- phase 1 ---
+        # --- phase 1 (after the very first measurement) ---
         if N == 1:
-            return self._gp_next()
+            step = self._first_order_correction()
+            return step if step else self._get_random()
 
-        # --- phase 2 ---
+        # --- phase 2 (after two measurements) ---
         if N == 2:
             self._rough_scale_calibration()
-            w_cal = self._inverse_weights()
-            w_gp = self._gp_next()
-            if w_cal is None:
-                return w_gp
-            mix = {c: 0.6 * w_cal[c] + 0.4 * w_gp[c] for c in w_cal}
+            w_cal = self._inverse_weights()               # 3‑α rough calib
+            w_lin = self._first_order_correction()        # deterministic step
+            if w_cal is None and w_lin is None:
+                return self._get_random()
+            if w_cal is None:                 # fall back if inverse failed
+                return w_lin
+            if w_lin is None:
+                return w_cal
+            # Blend 70% linear‑step, 30% rough‑calib for added stability
+            mix = {c: 0.7 * w_lin[c] + 0.3 * w_cal[c] for c in w_cal}
             return self._normalize(mix)
 
         # --- phase 3‑8/11 (hybrid) ---
