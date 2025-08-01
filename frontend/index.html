@@ -514,11 +514,6 @@ img {
           </div>
         </div>
         
-        <div id="improvement-chart">
-          <h4>📈 改善傾向</h4>
-          <canvas id="trend-canvas" width="400" height="200"></canvas>
-        </div>
-        
         <div id="perceptual-chart" style="margin-top: 1.5rem;">
           <h4>🎨 知覚的色空間での進捗</h4>
           <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
@@ -934,9 +929,6 @@ function updateOptimizationStats(stats) {
     document.getElementById('current-distance').textContent = stats.current_distance ? stats.current_distance.toFixed(1) : '-'
     document.getElementById('average-distance').textContent = stats.average_distance ? stats.average_distance.toFixed(1) : '-'
     
-    // Draw improvement trend chart
-    drawTrendChart(stats.improvement_trend)
-    
     // Draw perceptual color space chart
     drawPerceptualChart()
   }
@@ -1064,17 +1056,97 @@ async function drawPerceptualChart() {
       return [x, y]
     }
     
-    // Draw axes
-    ctx.strokeStyle = '#ccc'
+    // Helper function to convert LAB to RGB for background color visualization
+    function labToRgb(l, a, b) {
+      // Convert LAB to XYZ
+      const fy = (l + 16) / 116
+      const fx = a / 500 + fy
+      const fz = fy - b / 200
+      
+      const xn = 0.95047, yn = 1.00000, zn = 1.08883  // D65 reference white
+      
+      const x = xn * (fx > 0.206897 ? fx ** 3 : (fx - 16/116) / 7.787)
+      const y = yn * (fy > 0.206897 ? fy ** 3 : (fy - 16/116) / 7.787)
+      const z = zn * (fz > 0.206897 ? fz ** 3 : (fz - 16/116) / 7.787)
+      
+      // Convert XYZ to RGB using sRGB matrix
+      let r = x *  3.2404542 + y * -1.5371385 + z * -0.4985314
+      let g = x * -0.9692660 + y *  1.8760108 + z *  0.0415560
+      let b_rgb = x *  0.0556434 + y * -0.2040259 + z *  1.0572252
+      
+      // Apply gamma correction
+      r = r > 0.0031308 ? 1.055 * (r ** (1/2.4)) - 0.055 : 12.92 * r
+      g = g > 0.0031308 ? 1.055 * (g ** (1/2.4)) - 0.055 : 12.92 * g
+      b_rgb = b_rgb > 0.0031308 ? 1.055 * (b_rgb ** (1/2.4)) - 0.055 : 12.92 * b_rgb
+      
+      // Clamp to 0-255 range
+      r = Math.max(0, Math.min(255, Math.round(r * 255)))
+      g = Math.max(0, Math.min(255, Math.round(g * 255)))
+      b_rgb = Math.max(0, Math.min(255, Math.round(b_rgb * 255)))
+      
+      return [r, g, b_rgb]
+    }
+    
+    // Draw color background grid to visualize the color space
+    const gridResolution = 20  // Grid resolution for color background
+    const avgL = data.target.lab[0]  // Use target's lightness as base
+    
+    for (let i = 0; i < gridResolution; i++) {
+      for (let j = 0; j < gridResolution; j++) {
+        // Calculate LAB coordinates for this grid cell
+        const a = minA + (i / (gridResolution - 1)) * (maxA - minA)
+        const b = minB + (j / (gridResolution - 1)) * (maxB - minB)
+        
+        // Convert to RGB
+        const [r, g, b_rgb] = labToRgb(avgL, a, b)
+        
+        // Calculate canvas position
+        const cellWidth = chartWidth / gridResolution
+        const cellHeight = chartHeight / gridResolution
+        const x = padding + i * cellWidth
+        const y = padding + (gridResolution - 1 - j) * cellHeight
+        
+        // Draw color cell with some transparency to not overwhelm the data
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b_rgb}, 0.15)`
+        ctx.fillRect(x, y, cellWidth, cellHeight)
+      }
+    }
+    
+    // Add subtle border around the color space
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
     ctx.lineWidth = 1
+    ctx.strokeRect(padding, padding, chartWidth, chartHeight)
+    
+    // Draw axes (more prominent over color background)
+    ctx.strokeStyle = '#666'
+    ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(padding, padding)
     ctx.lineTo(padding, padding + chartHeight)
     ctx.lineTo(padding + chartWidth, padding + chartHeight)
     ctx.stroke()
     
-    // Draw grid lines
-    ctx.strokeStyle = '#f0f0f0'
+    // Draw grid lines (more visible over color background)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+    ctx.lineWidth = 1
+    for (let i = 1; i < 5; i++) {
+      // Vertical grid lines
+      const x = padding + (i / 5) * chartWidth
+      ctx.beginPath()
+      ctx.moveTo(x, padding)
+      ctx.lineTo(x, padding + chartHeight)
+      ctx.stroke()
+      
+      // Horizontal grid lines
+      const y = padding + (i / 5) * chartHeight
+      ctx.beginPath()
+      ctx.moveTo(padding, y)
+      ctx.lineTo(padding + chartWidth, y)
+      ctx.stroke()
+    }
+    
+    // Add darker grid lines for better visibility
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'
     ctx.lineWidth = 0.5
     for (let i = 1; i < 5; i++) {
       // Vertical grid lines
@@ -1092,11 +1164,28 @@ async function drawPerceptualChart() {
       ctx.stroke()
     }
     
-    // Draw trail line
+    // Draw trail line (enhanced visibility)
     if (data.trail.length > 1) {
-      ctx.strokeStyle = '#666'
-      ctx.lineWidth = 2
+      // Draw white shadow for trail line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      ctx.lineWidth = 4
       ctx.setLineDash([5, 5])
+      ctx.beginPath()
+      
+      data.trail.forEach((point, index) => {
+        const [x, y] = labToCanvas(point.lab[1], point.lab[2])
+        if (index === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      })
+      
+      ctx.stroke()
+      
+      // Draw main trail line
+      ctx.strokeStyle = '#333'
+      ctx.lineWidth = 2
       ctx.beginPath()
       
       data.trail.forEach((point, index) => {
@@ -1112,10 +1201,16 @@ async function drawPerceptualChart() {
       ctx.setLineDash([])
     }
     
-    // Draw trail points (colored by actual measured color)
+    // Draw trail points (enhanced with white border for visibility)
     data.trail.forEach((point, index) => {
       const [x, y] = labToCanvas(point.lab[1], point.lab[2])
       const [r, g, b] = point.rgb
+      
+      // Draw white shadow/border
+      ctx.fillStyle = 'white'
+      ctx.beginPath()
+      ctx.arc(x, y, 10, 0, 2 * Math.PI)
+      ctx.fill()
       
       // Draw point with actual color
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
@@ -1126,16 +1221,26 @@ async function drawPerceptualChart() {
       ctx.fill()
       ctx.stroke()
       
-      // Add iteration number
+      // Add iteration number with better contrast
       ctx.fillStyle = '#fff'
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 3
       ctx.font = 'bold 10px Arial'
       ctx.textAlign = 'center'
+      ctx.strokeText((index + 1).toString(), x, y + 3)
       ctx.fillText((index + 1).toString(), x, y + 3)
     })
     
-    // Draw target point (larger, with black border)
+    // Draw target point (enhanced visibility)
     const [targetX, targetY] = labToCanvas(targetA, targetB)
     const [tr, tg, tb] = data.target.rgb
+    
+    // Draw white shadow/border for target
+    ctx.fillStyle = 'white'
+    ctx.beginPath()
+    ctx.arc(targetX, targetY, 15, 0, 2 * Math.PI)
+    ctx.fill()
+    
     ctx.fillStyle = `rgb(${tr}, ${tg}, ${tb})`
     ctx.strokeStyle = '#000'
     ctx.lineWidth = 3
@@ -1144,18 +1249,16 @@ async function drawPerceptualChart() {
     ctx.fill()
     ctx.stroke()
     
-    // Target label
+    // Target label with better contrast
     ctx.fillStyle = '#000'
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 3
     ctx.font = 'bold 12px Arial'  
     ctx.textAlign = 'center'
-    ctx.fillText('目標', targetX, targetY - 18)
+    ctx.strokeText('目標', targetX, targetY - 20)
+    ctx.fillText('目標', targetX, targetY - 20)
     
-    // Draw ΔE circles (perceptually meaningful distances)
-    ctx.strokeStyle = '#ddd'
-    ctx.lineWidth = 1
-    ctx.setLineDash([2, 2])
-    
-    // ΔE circles of 1, 2, 5 units (just noticeable, noticeable, clear difference)
+    // Draw ΔE circles (enhanced visibility over color background)
     const deltaECircles = [1, 2, 5]
     deltaECircles.forEach(deltaE => {
       // In CAM02-UCS, Euclidean distance ≈ ΔE
@@ -1167,37 +1270,79 @@ async function drawPerceptualChart() {
       const radiusPixelsB = (radiusB / (maxB - minB)) * chartHeight
       const radiusPixels = Math.sqrt(radiusPixelsA * radiusPixelsA + radiusPixelsB * radiusPixelsB) / Math.sqrt(2)
       
+      // Draw white shadow for circle
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      ctx.lineWidth = 3
+      ctx.setLineDash([4, 4])
       ctx.beginPath()
       ctx.arc(targetX, targetY, radiusPixels, 0, 2 * Math.PI)
       ctx.stroke()
       
-      // Label the circle
-      ctx.fillStyle = '#999'
+      // Draw main circle
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(targetX, targetY, radiusPixels, 0, 2 * Math.PI)
+      ctx.stroke()
+      
+      // Label the circle with better contrast
+      const labelX = targetX + radiusPixels * 0.7
+      const labelY = targetY - radiusPixels * 0.7
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.lineWidth = 2
       ctx.font = '10px Arial'
-      ctx.fillText(`ΔE=${deltaE}`, targetX + radiusPixels * 0.7, targetY - radiusPixels * 0.7)
+      ctx.textAlign = 'center'
+      
+      // Draw label background
+      const labelText = `ΔE=${deltaE}`
+      const labelMetrics = ctx.measureText(labelText)
+      const labelWidth = labelMetrics.width + 6
+      const labelHeight = 12
+      ctx.fillRect(labelX - labelWidth/2, labelY - labelHeight/2, labelWidth, labelHeight)
+      
+      // Draw label text
+      ctx.strokeText(labelText, labelX, labelY + 3)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.fillText(labelText, labelX, labelY + 3)
     })
     
     ctx.setLineDash([])
     
-    // Add axis labels
-    ctx.fillStyle = '#333'
+    // Add axis labels with enhanced visibility
+    ctx.fillStyle = '#000'
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 3
     ctx.font = '14px Arial'
     ctx.textAlign = 'center'
     
     // X-axis label
+    ctx.strokeText(data.axis_labels.x, canvas.width / 2, canvas.height - 10)
     ctx.fillText(data.axis_labels.x, canvas.width / 2, canvas.height - 10)
     
     // Y-axis label (rotated)
     ctx.save()
     ctx.translate(15, canvas.height / 2)
     ctx.rotate(-Math.PI / 2)
+    ctx.strokeText(data.axis_labels.y, 0, 0)
     ctx.fillText(data.axis_labels.y, 0, 0)
     ctx.restore()
     
-    // Title
+    // Title with enhanced visibility
     ctx.font = 'bold 16px Arial'
     ctx.textAlign = 'center'
+    ctx.strokeText(data.axis_labels.title, canvas.width / 2, 25)
     ctx.fillText(data.axis_labels.title, canvas.width / 2, 25)
+    
+    // Add legend for color background
+    ctx.font = '11px Arial'
+    ctx.textAlign = 'left'
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.lineWidth = 2
+    const legendText = `背景色: L*=${Math.round(avgL)} での色空間表現`
+    ctx.strokeText(legendText, padding, canvas.height - 30)
+    ctx.fillText(legendText, padding, canvas.height - 30)
     
     // Legend
     ctx.font = '12px Arial'

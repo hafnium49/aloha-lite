@@ -223,7 +223,7 @@ def _extract_solution_color_space_mask(image_data, roi=None):
     
     # Auto-calculate ROI if not provided (center area, ~1% of image)
     if roi is None:
-        roi_size = int(min(w, h) * 0.01)  # 1% of smaller dimension for ROI size
+        roi_size = int(min(w, h) * 0.03)  # 3% of smaller dimension for ROI size
         center_x, center_y = w // 2, h // 2
         half_size = roi_size // 2
         roi = (

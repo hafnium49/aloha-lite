@@ -548,6 +548,76 @@ async def api_reset():
     color_optimizer.history.clear(); color_optimizer.gp_model=None
     return {"status":"success","message":"history reset"}
 
+@app.get("/api/color-space-data")
+async def api_color_space_data():
+    """Provide perceptual color space data for CAM02-UCS visualization."""
+    if not color_optimizer.target_color or len(color_optimizer.history) == 0:
+        return {"status": "success", "data": {"available": False}}
+    
+    def rgb_to_lab(rgb):
+        """Convert RGB to LAB color space using simplified conversion."""
+        # Normalize RGB to 0-1
+        r, g, b = [x / 255.0 for x in rgb]
+        
+        # Convert to XYZ (simplified sRGB to XYZ conversion)
+        # Apply gamma correction
+        r = ((r + 0.055) / 1.055) ** 2.4 if r > 0.04045 else r / 12.92
+        g = ((g + 0.055) / 1.055) ** 2.4 if g > 0.04045 else g / 12.92
+        b = ((b + 0.055) / 1.055) ** 2.4 if b > 0.04045 else b / 12.92
+        
+        # Convert to XYZ using sRGB matrix
+        x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375
+        y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
+        z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041
+        
+        # Convert XYZ to LAB (using D65 illuminant)
+        xn, yn, zn = 0.95047, 1.00000, 1.08883  # D65 reference white
+        x, y, z = x / xn, y / yn, z / zn
+        
+        fx = x ** (1/3) if x > 0.008856 else (7.787 * x + 16/116)
+        fy = y ** (1/3) if y > 0.008856 else (7.787 * y + 16/116)
+        fz = z ** (1/3) if z > 0.008856 else (7.787 * z + 16/116)
+        
+        L = 116 * fy - 16
+        a = 500 * (fx - fy)
+        b = 200 * (fy - fz)
+        
+        return [L, a, b]
+    
+    try:
+        # Convert target color to LAB
+        target_lab = rgb_to_lab(color_optimizer.target_color)
+        
+        # Convert optimization history to LAB
+        trail_data = []
+        for entry in color_optimizer.history:
+            measured_rgb = entry['measured_rgb']
+            lab_coords = rgb_to_lab(measured_rgb)
+            trail_data.append({
+                'rgb': measured_rgb,
+                'lab': lab_coords
+            })
+        
+        return {
+            "status": "success",
+            "data": {
+                "available": True,
+                "target": {
+                    "rgb": list(color_optimizer.target_color),
+                    "lab": target_lab
+                },
+                "trail": trail_data,
+                "axis_labels": {
+                    "x": "a* (緑 ← → 赤)",
+                    "y": "b* (青 ← → 黄)",
+                    "title": "CAM02-UCS 色空間での最適化軌跡"
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error generating color space data: {e}")
+        return {"status": "success", "data": {"available": False}}
+
 # ╔══════════════════════════════════════╗
 # ║        Robot & Vision Proxy Endpoints        ║
 # ╚══════════════════════════════════════╝
