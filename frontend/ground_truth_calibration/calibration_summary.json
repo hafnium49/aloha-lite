@@ -1,8 +1,8 @@
 {
   "calibration_summary": {
-    "timestamp": "2025-07-30T18:07:46.707900",
-    "total_solutions": 3,
-    "calibration_session_id": "gt_calib_20250730_180746",
+    "timestamp": "2025-08-01T13:54:17.510542",
+    "total_solutions": 4,
+    "calibration_session_id": "gt_calib_20250801_135417",
     "solutions": {
       "red": {
         "rgb": [
@@ -33,6 +33,16 @@
         "hex": "#5f9bb9",
         "timestamp": "2025-07-30T18:07:46.707319",
         "sequence": "calibration_blue_solution"
+      },
+      "white": {
+        "rgb": [
+          255,
+          255,
+          255
+        ],
+        "hex": "#ffffff",
+        "timestamp": "2025-08-01T13:54:17.508507",
+        "sequence": "calibration_white_background"
       }
     }
   }
