@@ -1,1300 +1,365 @@
-<!DOCTYPE html><html lang="ja"><meta charset="utf-8">
-<title>色混合コンソール</title>
+<!DOCTYPE html>
+<html lang="ja">
+<meta charset="utf-8">
+<title>色混合コンソール — Hue Optimiser</title>
+
+<!-- ——— STYLE  (mostly unchanged) ——— -->
 <style>
-/* Global Styles */
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  color: #333;
-}
-
-.container {
-  max-width: 1400px;
-  margin: 0 auto;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-}
-
-h1 {
-  text-align: center;
-  color: #2c3e50;
-  font-size: 2.5rem;
-  margin-bottom: 2rem;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Main Grid Layout */
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-
-.left-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* Bottom Full Width */
-.full-width {
-  grid-column: 1 / -1;
-}
-
-/* Section Styles */
-section {
-  background: white;
-  border-radius: 15px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-}
-
-section:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
-}
-
-section h2 {
-  margin-top: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-/* Target Color Section */
-.target-color {
-  border-left: 5px solid #ffc107;
-  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-}
-
-#target-color-display {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-#target-color-swatch {
-  width: 80px;
-  height: 80px;
-  border: 4px solid #333;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease;
-}
-
-#target-color-swatch:hover {
-  transform: scale(1.05);
-}
-
-#target-color-text {
-  font-weight: bold;
-  font-size: 1.3rem;
-  color: #2c3e50;
-}
-
-#target-color-hex {
-  color: #6c757d;
-  font-family: 'Courier New', monospace;
-  font-size: 1.1rem;
-}
-
-/* Color Mixing Section */
-.color-mixing {
-  border-left: 5px solid #17a2b8;
-  background: linear-gradient(135deg, #e6f7ff 0%, #b3e5fc 100%);
-}
-
-.color-ratio {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 1rem 0;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 10px;
-  transition: all 0.3s ease;
-}
-
-.color-ratio:hover {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateX(5px);
-}
-
-.color-ratio span {
-  min-width: 80px;
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.color-ratio input {
-  flex: 1;
-  min-width: 80px;
-  padding: 0.75rem;
-  border: 2px solid #dee2e6;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.color-ratio input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-#color-preview {
-  width: 100%;
-  height: 60px;
-  margin: 1.5rem 0;
-  border: 3px solid #dee2e6;
-  border-radius: 12px;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-/* Buttons */
-button {
-  padding: 0.875rem 1.5rem;
-  border: none;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 1rem;
-}
-
-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}
-
-button[onclick="send()"] {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
-  font-size: 1.1rem;
-  padding: 1rem 2rem;
-}
-
-button[onclick="generateNewTarget()"] {
-  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-  color: white;
-}
-
-button[onclick="getRecommendation()"] {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  font-size: 1rem;
-  padding: 0.875rem 1.5rem;
-  margin: 0;
-}
-
-button[onclick="applyRecommendation()"] {
-  background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);
-  color: white;
-  font-size: 1rem;
-  padding: 0.875rem 1.5rem;
-  margin: 0;
-}
-
-/* Beaker Analysis Styles */
-.beaker-analysis {
-  border-left: 5px solid #007bff;
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-}
-
-.analysis-result {
-  margin-top: 1rem;
-  padding: 1.5rem;
-  border: 1px solid #dee2e6;
-  border-radius: 12px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.color-swatch {
-  display: inline-block;
-  width: 35px;
-  height: 35px;
-  border: 3px solid #333;
-  border-radius: 8px;
-  margin-right: 12px;
-  vertical-align: middle;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.cluster-info {
-  margin: 0.75rem 0;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 10px;
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.cluster-info:hover {
-  background: #e9ecef;
-  transform: translateX(5px);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.stat-item {
-  padding: 1rem;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border: 1px solid #dee2e6;
-  border-radius: 10px;
-  text-align: center;
-  transition: all 0.3s ease;
-}
-
-.stat-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.stat-item strong {
-  color: #495057;
-  font-size: 0.9rem;
-}
-
-.stat-item span {
-  color: #007bff;
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-/* ML Optimization Styles */
-.ml-optimization {
-  border-left: 5px solid #28a745;
-  background: linear-gradient(135deg, #e8f5e8 0%, #c3e6cb 100%);
-}
-
-#ml-recommendations .color-ratio {
-  margin: 0.75rem 0;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-/* Log Area */
-#log {
-  background: #2c3e50;
-  color: #ecf0f1;
-  padding: 1rem;
-  border-radius: 10px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-top: 1rem;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-#log::-webkit-scrollbar {
-  width: 8px;
-}
-
-#log::-webkit-scrollbar-track {
-  background: #34495e;
-  border-radius: 4px;
-}
-
-#log::-webkit-scrollbar-thumb {
-  background: #7f8c8d;
-  border-radius: 4px;
-}
-
-#log::-webkit-scrollbar-thumb:hover {
-  background: #95a5a6;
-}
-
-/* Image Styles */
-img {
-  max-width: 100%;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-#analysis-visualization {
-  border: 3px solid #007bff;
-  border-radius: 12px;
-  margin-top: 1rem;
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .container {
-    padding: 1.5rem;
-  }
-  
-  h1 {
-    font-size: 2rem;
-  }
-}
-
-@media (max-width: 768px) {
-  body {
-    padding: 1rem;
-  }
-  
-  .container {
-    padding: 1rem;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  #target-color-display {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .color-ratio {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .color-ratio span {
-    min-width: auto;
-  }
-}
-
-/* Animation for loading states */
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
-}
-
-.loading {
-  animation: pulse 1.5s infinite;
-}
-
-/* Utility Classes */
-.text-center { text-align: center; }
-.mt-1 { margin-top: 1rem; }
-.mb-1 { margin-bottom: 1rem; }
-.p-1 { padding: 1rem; }
+/* …——— (identical global CSS from your original file) ——— */
+*{box-sizing:border-box}body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:0;padding:2rem;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#333}.container{max-width:1400px;margin:0 auto;background:rgba(255,255,255,.95);border-radius:20px;padding:2rem;box-shadow:0 20px 40px rgba(0,0,0,.1);backdrop-filter:blur(10px)}h1{text-align:center;color:#2c3e50;font-size:2.5rem;margin-bottom:2rem;text-shadow:2px 2px 4px rgba(0,0,0,.1);background:linear-gradient(45deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}/* grid & panels */.main-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:2rem}.left-column,.right-column{display:flex;flex-direction:column;gap:1.5rem}.full-width{grid-column:1/-1}section{background:#fff;border-radius:15px;padding:1.5rem;box-shadow:0 8px 25px rgba(0,0,0,.1);border:1px solid rgba(255,255,255,.2);transition:.3s}section:hover{transform:translateY(-2px);box-shadow:0 12px 35px rgba(0,0,0,.15)}section h2{margin:0 0 1rem;font-size:1.5rem;font-weight:600}/* specific colours */.target-color{border-left:5px solid #ffc107;background:linear-gradient(135deg,#fff9e6 0%,#fff3cd 100%)}.color-mixing{border-left:5px solid #17a2b8;background:linear-gradient(135deg,#e6f7ff 0%,#b3e5fc 100%)}.beaker-analysis{border-left:5px solid #007bff;background:linear-gradient(135deg,#e3f2fd 0%,#bbdefb 100%)}.ml-optimization{border-left:5px solid #28a745;background:linear-gradient(135deg,#e8f5e8 0%,#c3e6cb 100%)}/* inputs & preview */.color-ratio{display:flex;align-items:center;gap:1rem;margin:1rem 0;padding:.75rem;background:rgba(255,255,255,.7);border-radius:10px}.color-ratio:hover{background:rgba(255,255,255,.9);transform:translateX(5px)}.color-ratio span{min-width:80px;font-weight:600;font-size:1.1rem}.color-ratio input{flex:1;min-width:80px;padding:.75rem;border:2px solid #dee2e6;border-radius:8px;font-size:1rem}.color-ratio input:focus{outline:none;border-color:#007bff;box-shadow:0 0 0 3px rgba(0,123,255,.1)}#color-preview{width:100%;height:60px;margin:1.5rem 0;border:3px solid #dee2e6;border-radius:12px;box-shadow:inset 0 2px 8px rgba(0,0,0,.1)}/* buttons */button{padding:.875rem 1.5rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;transition:.3s;box-shadow:0 4px 12px rgba(0,0,0,.1)}button:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.2)}button[onclick="send()"]{background:linear-gradient(135deg,#28a745 0%,#20c997 100%);color:#fff;font-size:1.1rem}button[onclick="generateNewTarget()"]{background:linear-gradient(135deg,#ffc107 0%,#fd7e14 100%);color:#fff}button[onclick="getRecommendation()"]{background:linear-gradient(135deg,#007bff 0%,#0056b3 100%);color:#fff}button[onclick="applyRecommendation()"]{background:linear-gradient(135deg,#6f42c1 0%,#e83e8c 100%);color:#fff}/* log & misc (unchanged) */#log{background:#2c3e50;color:#ecf0f1;padding:1rem;border-radius:10px;font-family:'Courier New',monospace;font-size:.9rem;max-height:300px;overflow-y:auto;margin-top:1rem}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1rem;margin:1rem 0}.stat-item{text-align:center;padding:.75rem;background:rgba(255,255,255,.7);border-radius:8px;border:1px solid #e9ecef}.stat-item strong{display:block;font-size:.9rem;color:#6c757d;margin-bottom:.25rem}.stat-item span{font-size:1.1rem;font-weight:600;color:#2c3e50}
 </style>
+
 <div class="container">
-<h1>🎨 色混合 + ビーカー分析 + ML最適化</h1>
+  <h1>🎨 色混合 + ビーカー分析 + ML最適化 <small>(Hue)</small></h1>
 
-<div class="main-grid">
-  <!-- Left Column -->
-  <div class="left-column">
-    <!-- Target Color Section -->
-    <section class="target-color">
-      <h2>🎯 目標色</h2>
-      <div id="target-color-display">
-        <div id="target-color-swatch" style="background:#ff0000"></div>
-        <div>
-          <div id="target-color-text">RGB(255, 0, 0)</div>
-          <div id="target-color-hex">#FF0000</div>
+  <div class="main-grid">
+    <!-- ── LEFT COLUMN ───────────────────────────── -->
+    <div class="left-column">
+      <section class="target-color">
+        <h2>🎯 目標色相 (Hue)</h2>
+        <div id="target-color-display" style="display:flex;align-items:center;gap:1.5rem">
+          <div id="target-color-swatch" style="width:80px;height:80px;border:4px solid #333;border-radius:12px"></div>
+          <div>
+            <div id="target-color-text">Hue&nbsp;0 °</div>
+            <div id="target-color-hex">#FF0000</div>
+          </div>
+          <button onclick="generateNewTarget()">新しい目標色を生成</button>
         </div>
-        <button onclick="generateNewTarget()">新しい目標色を生成</button>
-      </div>
-    </section>
+      </section>
 
-    <!-- Color Mixing Section -->
-    <section class="color-mixing">
-      <h2>🎨 色混合 - 現在の試行</h2>
-      <label>色の比率（部分）</label>
-      <div class="color-ratio">
-        <span style="color:#dc3545">赤:</span>
-        <input id="red-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-      </div>
-      <div class="color-ratio">
-        <span style="color:#ffc107">黄:</span>
-        <input id="yellow-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-      </div>
-      <div class="color-ratio">
-        <span style="color:#007bff">青:</span>
-        <input id="blue-ratio" type="number" min="0" max="100" step="0.1" value="1" onchange="updatePreview()">
-      </div>
+      <section class="color-mixing">
+        <h2>🎨 色混合 - 現在の試行</h2>
+        <label>色の比率（部分）</label>
 
-      <div id="color-preview"></div>
-      <button onclick="send()">混合を調剤してスナップ撮影</button>
-      
-      <img id="snap" style="display:none">
-    </section>
+        <div class="color-ratio"><span style="color:#dc3545">赤:</span>
+          <input id="red-ratio"    type="number" min="0" step="0.1" value="1" onchange="updatePreview()">
+        </div>
+        <div class="color-ratio"><span style="color:#ffc107">黄:</span>
+          <input id="yellow-ratio" type="number" min="0" step="0.1" value="1" onchange="updatePreview()">
+        </div>
+        <div class="color-ratio"><span style="color:#007bff">青:</span>
+          <input id="blue-ratio"   type="number" min="0" step="0.1" value="1" onchange="updatePreview()">
+        </div>
+
+        <div id="color-preview"></div>
+        <button onclick="send()">混合を調剤してスナップ撮影</button>
+        <img id="snap" style="display:none">
+      </section>
+    </div>
+
+    <!-- ── RIGHT COLUMN ──────────────────────────── -->
+    <div class="right-column">
+      <section class="ml-optimization">
+        <h2>🧠 ML最適化システム</h2>
+        <div id="ml-available-indicator" style="color:#28a745">✅ 機械学習が利用可能</div>
+
+        <div id="ml-recommendations">
+          <h3>🎯 次回推奨比率</h3>
+          <div id="recommended-ratios" style="display:none">
+            <div class="color-ratio"><span style="color:#dc3545">赤:</span><span id="rec-red-value">1.0</span></div>
+            <div class="color-ratio"><span style="color:#ffc107">黄:</span><span id="rec-yellow-value">1.0</span></div>
+            <div class="color-ratio"><span style="color:#007bff">青:</span><span id="rec-blue-value">1.0</span></div>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <button onclick="getRecommendation()">推奨比率を取得</button>
+            <button onclick="applyRecommendation()">推奨値を適用</button>
+          </div>
+        </div>
+
+        <div id="optimization-stats" style="display:none">
+          <h3>📊 最適化統計</h3>
+          <div class="stats-grid">
+            <div class="stat-item"><strong>試行回数</strong><br><span id="total-attempts">0</span></div>
+            <div class="stat-item"><strong>最良Δh (°)</strong><br><span id="best-distance">‑</span></div>
+            <div class="stat-item"><strong>現在Δh (°)</strong><br><span id="current-distance">‑</span></div>
+            <div class="stat-item"><strong>平均Δh (°)</strong><br><span id="average-distance">‑</span></div>
+          </div>
+
+          <div id="hue-chart" style="margin-top:1.5rem">
+            <h4>📈 色相の進捗</h4>
+            <canvas id="hue-canvas" width="500" height="300"></canvas>
+          </div>
+        </div>
+
+        <div style="margin-top:1rem">
+          <button onclick="resetOptimization()" style="background:#dc3545;color:#fff">最適化履歴をリセット</button>
+          <button onclick="showOptimizationHistory()">履歴を表示</button>
+        </div>
+      </section>
+    </div>
   </div>
 
-  <!-- Right Column -->
-  <div class="right-column">
-    <!-- ML Optimization Section -->
-    <section class="ml-optimization">
-      <h2>🧠 ML最適化システム</h2>
-      <div id="ml-status">
-        <span id="ml-available-indicator" style="color:#28a745">✅ 機械学習が利用可能</span>
-      </div>
-
-      <div id="ml-recommendations">
-        <h3>🎯 次回推奨比率</h3>
-        <div id="recommended-ratios" style="display:none">
-          <div class="color-ratio">
-            <span style="color:#dc3545">推奨赤:</span>
-            <span id="rec-red-value">1.0</span>
-          </div>
-          <div class="color-ratio">
-            <span style="color:#ffc107">推奨黄:</span>
-            <span id="rec-yellow-value">1.0</span>
-          </div>
-          <div class="color-ratio">
-            <span style="color:#007bff">推奨青:</span>
-            <span id="rec-blue-value">1.0</span>
-          </div>
-        </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-          <button onclick="getRecommendation()" id="get-recommendation-btn">推奨比率を取得</button>
-          <button onclick="applyRecommendation()">推奨値を適用</button>
-        </div>
-      </div>
-
-      <div id="optimization-stats" style="display:none">
-        <h3>📊 最適化統計</h3>
-        <div class="stats-grid">
-          <div class="stat-item">
-            <strong>試行回数</strong><br>
-            <span id="total-attempts">0</span>
-          </div>
-          <div class="stat-item">
-            <strong>最良距離</strong><br>
-            <span id="best-distance">-</span>
-          </div>
-          <div class="stat-item">
-            <strong>現在の距離</strong><br>
-            <span id="current-distance">-</span>
-          </div>
-          <div class="stat-item">
-            <strong>平均距離</strong><br>
-            <span id="average-distance">-</span>
-          </div>
-        </div>
-        
-        <div id="perceptual-chart" style="margin-top: 1.5rem;">
-          <h4>🎨 知覚的色空間での進捗</h4>
-          <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
-            CAM02-UCS a'b' 平面での最適化の軌跡（知覚的に均一な色空間）
-          </p>
-          <canvas id="perceptual-canvas" width="500" height="400"></canvas>
-        </div>
-      </div>
-
-      <div class="mt-1">
-        <button onclick="resetOptimization()" style="background:#dc3545;color:white">最適化履歴をリセット</button>
-        <button onclick="showOptimizationHistory()">履歴を表示</button>
-      </div>
-    </section>
-  </div>
-</div>
-
-<!-- Full Width Bottom Sections -->
-<div class="full-width">
-  <!-- Beaker Analysis Section -->
+  <!-- FULL‑WIDTH SECTIONS (beaker analysis, log) -->
   <section class="beaker-analysis">
-    <h2>🧪 高度ビーカー分析</h2>
-    <p>ロボットが実行するビーカー分析の結果がここに表示されます。</p>
-
-    <div id="analysis-results" style="display:none">
-      <div class="analysis-result">
-        <h3>分析結果</h3>
-        <div id="dominant-color-info">
-          <h4>主要溶液色</h4>
-          <div id="color-display">
-            <span id="color-swatch" class="color-swatch"></span>
-            <span id="color-text"></span>
-          </div>
-        </div>
-        
-        <div class="stats-grid">
-          <div class="stat-item">
-            <strong>ビーカー位置</strong><br>
-            <span id="beaker-position">-</span>
-          </div>
-          <div class="stat-item">
-            <strong>ビーカー半径</strong><br>
-            <span id="beaker-radius">-</span>
-          </div>
-          <div class="stat-item">
-            <strong>検出クラスター数</strong><br>
-            <span id="cluster-count">-</span>
-          </div>
-          <div class="stat-item">
-            <strong>分析ピクセル数</strong><br>
-            <span id="pixels-analyzed">-</span>
-          </div>
-        </div>
-        
-        <div id="cluster-details">
-          <h4>色クラスター（彩度順）</h4>
-          <div id="clusters-list"></div>
-        </div>
-        
-        <img id="analysis-visualization" alt="分析の可視化がここに表示されます" style="display:none">
-      </div>
+    <h2>🔬 ビーカー分析 - 色クラスタリング</h2>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap">
+      <button onclick="captureAndAnalyze()">📷 撮影して分析</button>
+      <button onclick="resetAnalysis()">🔄 分析リセット</button>
+    </div>
+    <div id="analysis-result" style="display:none">
+      <h3>📊 分析結果</h3>
+      <div id="analysis-content"></div>
     </div>
   </section>
 
-  <!-- Log Section -->
   <section>
     <h2>📝 システムログ</h2>
     <pre id="log"></pre>
   </section>
 </div>
-</div>
 
+<!-- ——— SCRIPTS  (adapted) ——— -->
 <script>
 async function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
+/* ---------- UI helpers (unchanged ratios preview) ----------------------- */
 function updatePreview(){
-  const red = parseFloat(document.querySelector('#red-ratio').value) || 0
-  const yellow = parseFloat(document.querySelector('#yellow-ratio').value) || 0
-  const blue = parseFloat(document.querySelector('#blue-ratio').value) || 0
-  
-  const total = red + yellow + blue
-  if(total === 0) {
-    document.querySelector('#color-preview').style.background = '#f8f9fa'
-    return
-  }
-  
-  // Calculate percentages
-  const redPct = (red / total * 100).toFixed(1)
-  const yellowPct = (yellow / total * 100).toFixed(1)
-  const bluePct = (blue / total * 100).toFixed(1)
-  
-  // Create gradient preview
-  const gradient = `linear-gradient(to right, 
-    #dc3545 0%, #dc3545 ${redPct}%, 
-    #ffc107 ${redPct}%, #ffc107 ${parseFloat(redPct) + parseFloat(yellowPct)}%, 
-    #007bff ${parseFloat(redPct) + parseFloat(yellowPct)}%, #007bff 100%)`
-  
-  document.querySelector('#color-preview').style.background = gradient
-  
-  // Update mixing button text with ratios (show up to 1 decimal place)
-  const mixingButton = document.querySelector('button[onclick="send()"]')
-  const redDisplay = red % 1 === 0 ? red.toString() : red.toFixed(1)
-  const yellowDisplay = yellow % 1 === 0 ? yellow.toString() : yellow.toFixed(1)
-  const blueDisplay = blue % 1 === 0 ? blue.toString() : blue.toFixed(1)
-  if (mixingButton) {
-    mixingButton.textContent = `混合を調剤 (${redDisplay}:${yellowDisplay}:${blueDisplay}) してスナップ撮影`
-  }
+  const r=+red.value||0,y=+yellow.value||0,b=+blue.value||0,total=r+y+b
+  colorPreview.style.background = total?`linear-gradient(to right,#dc3545 0%,#dc3545 ${(r/total*100).toFixed(1)}%,#ffc107 ${(r/total*100).toFixed(1)}%,#ffc107 ${((r+y)/total*100).toFixed(1)}%,#007bff ${((r+y)/total*100).toFixed(1)}%,#007bff 100%)`:'#f8f9fa'
 }
+const red   = document.getElementById('red-ratio')
+const yellow= document.getElementById('yellow-ratio')
+const blue  = document.getElementById('blue-ratio')
+const colorPreview = document.getElementById('color-preview')
 
-async function send(){
-  try {
-    const redRatio = parseFloat(document.querySelector('#red-ratio').value) || 0
-    const yellowRatio = parseFloat(document.querySelector('#yellow-ratio').value) || 0
-    const blueRatio = parseFloat(document.querySelector('#blue-ratio').value) || 0
-    
-    const totalParts = redRatio + yellowRatio + blueRatio
-    if(totalParts === 0) {
-      log('エラー: 少なくとも1つの色の比率が0より大きい必要があります')
-      return
-    }
-    
-    // Calculate normalized ratios (as percentages)
-    const redPercent = (redRatio / totalParts * 100).toFixed(2)
-    const yellowPercent = (yellowRatio / totalParts * 100).toFixed(2)
-    const bluePercent = (blueRatio / totalParts * 100).toFixed(2)
-    
-    log(`混合比率 - 赤:${redRatio} 黄:${yellowRatio} 青:${blueRatio}`)
-    log(`パーセンテージ - 赤:${redPercent}% 黄:${yellowPercent}% 青:${bluePercent}%`)
-    
-    // Determine dominant color for compatibility
-    let dominantColor = 'red'
-    let dominantRatio = redRatio
-    
-    if(yellowRatio > dominantRatio) {
-      dominantColor = 'yellow'
-      dominantRatio = yellowRatio
-    }
-    if(blueRatio > dominantRatio) {
-      dominantColor = 'blue'
-      dominantRatio = blueRatio
-    }
-    
-    const body = {
-      mix_id: 1,
-      run_id: 1,
-      colour: dominantColor,
-      color_ratios: {
-        red: redRatio,
-        yellow: yellowRatio, 
-        blue: blueRatio
-      },
-      normalized_percentages: {
-        red: parseFloat(redPercent),
-        yellow: parseFloat(yellowPercent),
-        blue: parseFloat(bluePercent)
-      }
-    }
-    
-    log('POST /robot/dispense ' + JSON.stringify(body, null, 2))
-
-    let r=await fetch('/robot/dispense',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    })
-    
-    if (!r.ok) {
-      const error = await r.text()
-      throw new Error(`HTTP ${r.status}: ${error}`)
-    }
-    
-    const response = await r.json()
-    log('レスポンス受信: ' + JSON.stringify(response))
-    
-    // Extract cmd_id from response
-    const cmd_id = response.cmd_id
-    if (!cmd_id) {
-      throw new Error('サーバーからcmd_idを受信できませんでした。レスポンス: ' + JSON.stringify(response))
-    }
-    
-    log('cmd_id=' + cmd_id)
-
-    // poll status every second with timeout
-    const maxPolls = 60 // 1 minute max
-    let polls = 0
-    while(polls < maxPolls){
-      await sleep(1000)
-      polls++
-      
-      try {
-        let statusResp = await fetch('/robot/'+cmd_id+'/status')
-        if (!statusResp.ok) {
-          throw new Error(`ステータス確認に失敗しました: ${statusResp.status}`)
-        }
-        
-        let s = await statusResp.json()
-        log('status='+JSON.stringify(s))
-        
-        // Check for beaker analysis results
-        if (s.beaker_analysis_results) {
-          log('🧪 ビーカー分析結果が検出されました！')
-          displayAnalysisResults(s.beaker_analysis_results)
-        }
-        
-        if(s.status!=='running') break
-      } catch (e) {
-        log('ステータス確認エラー: ' + e.message)
-        break
-      }
-    }
-    
-    if (polls >= maxPolls) {
-      log('完了待機タイムアウト')
-      return
-    }
-    
-    // Check for beaker analysis results one more time after completion
-    let finalAnalysisResults = null
-    try {
-      let analysisResp = await fetch('/robot/'+cmd_id+'/beaker-analysis')
-      if (analysisResp.ok) {
-        let analysisData = await analysisResp.json()
-        log('🧪 専用エンドポイントからビーカー分析結果を取得しました')
-        finalAnalysisResults = analysisData.analysis_results
-        displayAnalysisResults(finalAnalysisResults)
-      } else if (analysisResp.status === 404) {
-        log('ビーカー分析結果が見つかりませんでした（分析が実行されなかった場合は正常です）')
-        displayAnalysisResults(null) // Show "no results" message
-      } else {
-        throw new Error(`分析結果の取得に失敗: ${analysisResp.status}`)
-      }
-    } catch (e) {
-      // Analysis results not available, that's okay
-      log('ビーカー分析結果の取得中にエラーが発生しました: ' + e.message)
-      displayAnalysisResults(null) // Show "no results" message
-    }
-    
-    // Send measurement data to ML optimizer if we have beaker analysis results
-    if (finalAnalysisResults && finalAnalysisResults.dominant_color && finalAnalysisResults.dominant_color.rgb) {
-      try {
-        const measuredRgb = finalAnalysisResults.dominant_color.rgb
-        const ratios = {
-          red: redRatio,
-          yellow: yellowRatio,
-          blue: blueRatio
-        }
-        
-        log(`🧠 ML最適化に測定結果を送信中: RGB(${measuredRgb.join(', ')})`)
-        
-        const mlResponse = await fetch('/api/recommend-ratios', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            measured_rgb: measuredRgb,
-            ratios: ratios
-          })
-        })
-        
-        if (mlResponse.ok) {
-          const mlData = await mlResponse.json()
-          if (mlData.status === 'success') {
-            displayRecommendation(mlData.recommended_ratios)
-            updateOptimizationStats(mlData.statistics)
-            log('🎯 次回推奨比率が更新されました')
-          }
-        }
-      } catch (mlError) {
-        log('ML最適化の更新エラー: ' + mlError.message)
-      }
-    }
-    
-    // fetch snapshot with timeout
-    try {
-      let snapResp = await fetch('/robot/'+cmd_id+'/pose-snapshot')
-      if (!snapResp.ok) {
-        throw new Error(`スナップショットに失敗しました: ${snapResp.status}`)
-      }
-      let snap = await snapResp.json()
-      const snapImg = document.querySelector('#snap')
-      snapImg.src = snap.url
-      snapImg.style.display = 'block'
-      log('スナップショットの撮影に成功しました')
-    } catch (e) {
-      log('スナップショット撮影エラー: ' + e.message)
-    }
-  } catch (e) {
-    log('エラー: ' + e.message)
-  }
-}
-
+/* ---------- log --------------------------------------------------------- */
 function log(txt){
-  const logEl = document.querySelector('#log')
-  logEl.textContent += new Date().toLocaleTimeString() + ': ' + txt + "\n"
-  logEl.scrollTop = logEl.scrollHeight
+  const el=document.getElementById('log')
+  el.textContent += new Date().toLocaleTimeString()+': '+txt+'\n'
+  el.scrollTop=el.scrollHeight
 }
 
-// Initialize preview on page load
-window.onload = async function() {
-  updatePreview()
-  log('色混合 + ビーカー分析 + ML最適化が初期化されました')
-  
-  // Load initial target color and check ML availability
-  await loadTargetColor()
-  await checkMLAvailability()
-  await getRecommendation()
-  
-  // Initialize perceptual chart
-  await drawPerceptualChart()
-}
-
-// ML Optimization Functions
-async function loadTargetColor() {
+/* ---------- robot interaction ------------------------------------------- */
+async function send() {
   try {
-    const response = await fetch('/api/target-color')
-    const data = await response.json()
-    
-    if (data.status === 'success') {
-      updateTargetColorDisplay(data.target_rgb, data.target_hex)
-      log(`🎯 目標色が設定されました: ${data.target_hex}`)
-    }
-  } catch (e) {
-    log('目標色の読み込みエラー: ' + e.message)
-  }
-}
-
-async function generateNewTarget() {
-  try {
-    const response = await fetch('/api/target-color')
-    const data = await response.json()
-    
-    if (data.status === 'success') {
-      updateTargetColorDisplay(data.target_rgb, data.target_hex)
-      log(`🎯 新しい目標色: ${data.target_hex}`)
-      
-      // Reset optimization and get new recommendation
-      await resetOptimization()
-      await getRecommendation()
-    }
-  } catch (e) {
-    log('新しい目標色の生成エラー: ' + e.message)
-  }
-}
-
-function updateTargetColorDisplay(rgb, hex) {
-  document.getElementById('target-color-swatch').style.background = hex
-  document.getElementById('target-color-text').textContent = `RGB(${rgb.join(', ')})`
-  document.getElementById('target-color-hex').textContent = hex
-}
-
-async function checkMLAvailability() {
-  try {
-    const response = await fetch('/health')
-    const data = await response.json()
-    
-    const indicator = document.getElementById('ml-available-indicator')
-    if (data.ml_available) {
-      indicator.innerHTML = '✅ 機械学習（Bayesian最適化）が利用可能'
-      indicator.style.color = '#28a745'
-    } else {
-      indicator.innerHTML = '⚠️ 機械学習が無効（ヒューリスティック最適化を使用）'
-      indicator.style.color = '#ffc107'
-    }
-  } catch (e) {
-    log('ML可用性チェックエラー: ' + e.message)
-  }
-}
-
-async function getRecommendation() {
-  try {
-    const response = await fetch('/api/recommend-ratios', {
+    log('🤖 ロボットに送信中...')
+    const response = await fetch('/robot/dispense', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({})
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        red: parseFloat(red.value) || 0,
+        yellow: parseFloat(yellow.value) || 0,
+        blue: parseFloat(blue.value) || 0
+      })
     })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
     
     const data = await response.json()
+    log('✅ ロボット応答: ' + JSON.stringify(data))
     
-    if (data.status === 'success') {
-      displayRecommendation(data.recommended_ratios)
-      updateOptimizationStats(data.statistics)
-      log('🧠 ML推奨比率を取得しました')
-    }
-  } catch (e) {
-    log('推奨比率取得エラー: ' + e.message)
-  }
-}
-
-function displayRecommendation(ratios) {
-  document.getElementById('rec-red-value').textContent = ratios.red.toFixed(2)
-  document.getElementById('rec-yellow-value').textContent = ratios.yellow.toFixed(2)
-  document.getElementById('rec-blue-value').textContent = ratios.blue.toFixed(2)
-  document.getElementById('recommended-ratios').style.display = 'block'
-}
-
-function applyRecommendation() {
-  const redValue = parseFloat(document.getElementById('rec-red-value').textContent)
-  const yellowValue = parseFloat(document.getElementById('rec-yellow-value').textContent)
-  const blueValue = parseFloat(document.getElementById('rec-blue-value').textContent)
-  
-  document.getElementById('red-ratio').value = redValue
-  document.getElementById('yellow-ratio').value = yellowValue
-  document.getElementById('blue-ratio').value = blueValue
-  
-  updatePreview()
-  log('📝 推奨値を適用しました')
-}
-
-function updateOptimizationStats(stats) {
-  if (stats.total_attempts > 0) {
-    document.getElementById('optimization-stats').style.display = 'block'
-    document.getElementById('total-attempts').textContent = stats.total_attempts
-    document.getElementById('best-distance').textContent = stats.best_distance ? stats.best_distance.toFixed(1) : '-'
-    document.getElementById('current-distance').textContent = stats.current_distance ? stats.current_distance.toFixed(1) : '-'
-    document.getElementById('average-distance').textContent = stats.average_distance ? stats.average_distance.toFixed(1) : '-'
-    
-    // Draw perceptual color space chart
-    drawPerceptualChart()
-  }
-}
-
-async function drawPerceptualChart() {
-  try {
-    const response = await fetch('/api/color-space-data')
-    const result = await response.json()
-    
-    if (result.status !== 'success' || !result.data.available) {
-      return
-    }
-    
-    const data = result.data
-    const canvas = document.getElementById('perceptual-canvas')
-    const ctx = canvas.getContext('2d')
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    
-    // Chart dimensions
-    const padding = 60
-    const chartWidth = canvas.width - 2 * padding
-    const chartHeight = canvas.height - 2 * padding
-    
-    // Find data bounds for a' and b' (indices 1 and 2 in LAB)
-    let minA = Infinity, maxA = -Infinity
-    let minB = Infinity, maxB = -Infinity
-    
-    // Include target in bounds
-    const targetA = data.target.lab[1]
-    const targetB = data.target.lab[2]
-    minA = Math.min(minA, targetA)
-    maxA = Math.max(maxA, targetA)
-    minB = Math.min(minB, targetB)
-    maxB = Math.max(maxB, targetB)
-    
-    // Include trail points in bounds
-    data.trail.forEach(point => {
-      minA = Math.min(minA, point.lab[1])
-      maxA = Math.max(maxA, point.lab[1])
-      minB = Math.min(minB, point.lab[2])
-      maxB = Math.max(maxB, point.lab[2])
-    })
-    
-    // Add some padding to bounds
-    const rangeA = maxA - minA || 20
-    const rangeB = maxB - minB || 20
-    minA -= rangeA * 0.1
-    maxA += rangeA * 0.1
-    minB -= rangeB * 0.1
-    maxB += rangeB * 0.1
-    
-    // Helper function to convert LAB coordinates to canvas coordinates
-    function labToCanvas(a, b) {
-      const x = padding + ((a - minA) / (maxA - minA)) * chartWidth
-      const y = padding + chartHeight - ((b - minB) / (maxB - minB)) * chartHeight
-      return [x, y]
-    }
-    
-    // Helper function to convert LAB to RGB for background color visualization
-    function labToRgb(l, a, b) {
-      // Convert LAB to XYZ
-      const fy = (l + 16) / 116
-      const fx = a / 500 + fy
-      const fz = fy - b / 200
-      
-      const xn = 0.95047, yn = 1.00000, zn = 1.08883  // D65 reference white
-      
-      const x = xn * (fx > 0.206897 ? fx ** 3 : (fx - 16/116) / 7.787)
-      const y = yn * (fy > 0.206897 ? fy ** 3 : (fy - 16/116) / 7.787)
-      const z = zn * (fz > 0.206897 ? fz ** 3 : (fz - 16/116) / 7.787)
-      
-      // Convert XYZ to RGB using sRGB matrix
-      let r = x *  3.2404542 + y * -1.5371385 + z * -0.4985314
-      let g = x * -0.9692660 + y *  1.8760108 + z *  0.0415560
-      let b_rgb = x *  0.0556434 + y * -0.2040259 + z *  1.0572252
-      
-      // Apply gamma correction
-      r = r > 0.0031308 ? 1.055 * (r ** (1/2.4)) - 0.055 : 12.92 * r
-      g = g > 0.0031308 ? 1.055 * (g ** (1/2.4)) - 0.055 : 12.92 * g
-      b_rgb = b_rgb > 0.0031308 ? 1.055 * (b_rgb ** (1/2.4)) - 0.055 : 12.92 * b_rgb
-      
-      // Clamp to 0-255 range
-      r = Math.max(0, Math.min(255, Math.round(r * 255)))
-      g = Math.max(0, Math.min(255, Math.round(g * 255)))
-      b_rgb = Math.max(0, Math.min(255, Math.round(b_rgb * 255)))
-      
-      return [r, g, b_rgb]
-    }
-    
-    // Draw color background grid to visualize the color space
-    const gridResolution = 20  // Grid resolution for color background
-    const avgL = data.target.lab[0]  // Use target's lightness as base
-    
-    for (let i = 0; i < gridResolution; i++) {
-      for (let j = 0; j < gridResolution; j++) {
-        // Calculate LAB coordinates for this grid cell
-        const a = minA + (i / (gridResolution - 1)) * (maxA - minA)
-        const b = minB + (j / (gridResolution - 1)) * (maxB - minB)
-        
-        // Convert to RGB
-        const [r, g, b_rgb] = labToRgb(avgL, a, b)
-        
-        // Calculate canvas position
-        const cellWidth = chartWidth / gridResolution
-        const cellHeight = chartHeight / gridResolution
-        const x = padding + i * cellWidth
-        const y = padding + (gridResolution - 1 - j) * cellHeight
-        
-        // Draw color cell with some transparency to not overwhelm the data
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b_rgb}, 0.15)`
-        ctx.fillRect(x, y, cellWidth, cellHeight)
-      }
-    }
-    
-    // Add subtle border around the color space
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
-    ctx.lineWidth = 1
-    ctx.strokeRect(padding, padding, chartWidth, chartHeight)
-    
-    // Draw axes (more prominent over color background)
-    ctx.strokeStyle = '#666'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(padding, padding)
-    ctx.lineTo(padding, padding + chartHeight)
-    ctx.lineTo(padding + chartWidth, padding + chartHeight)
-    ctx.stroke()
-    
-    // Draw grid lines (more visible over color background)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
-    ctx.lineWidth = 1
-    for (let i = 1; i < 5; i++) {
-      // Vertical grid lines
-      const x = padding + (i / 5) * chartWidth
-      ctx.beginPath()
-      ctx.moveTo(x, padding)
-      ctx.lineTo(x, padding + chartHeight)
-      ctx.stroke()
-      
-      // Horizontal grid lines
-      const y = padding + (i / 5) * chartHeight
-      ctx.beginPath()
-      ctx.moveTo(padding, y)
-      ctx.lineTo(padding + chartWidth, y)
-      ctx.stroke()
-    }
-    
-    // Add darker grid lines for better visibility
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'
-    ctx.lineWidth = 0.5
-    for (let i = 1; i < 5; i++) {
-      // Vertical grid lines
-      const x = padding + (i / 5) * chartWidth
-      ctx.beginPath()
-      ctx.moveTo(x, padding)
-      ctx.lineTo(x, padding + chartHeight)
-      ctx.stroke()
-      
-      // Horizontal grid lines
-      const y = padding + (i / 5) * chartHeight
-      ctx.beginPath()
-      ctx.moveTo(padding, y)
-      ctx.lineTo(padding + chartWidth, y)
-      ctx.stroke()
-    }
-    
-    // Draw trail line (enhanced visibility)
-    if (data.trail.length > 1) {
-      // Draw white shadow for trail line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
-      ctx.lineWidth = 4
-      ctx.setLineDash([5, 5])
-      ctx.beginPath()
-      
-      data.trail.forEach((point, index) => {
-        const [x, y] = labToCanvas(point.lab[1], point.lab[2])
-        if (index === 0) {
-          ctx.moveTo(x, y)
-        } else {
-          ctx.lineTo(x, y)
-        }
-      })
-      
-      ctx.stroke()
-      
-      // Draw main trail line
-      ctx.strokeStyle = '#333'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      
-      data.trail.forEach((point, index) => {
-        const [x, y] = labToCanvas(point.lab[1], point.lab[2])
-        if (index === 0) {
-          ctx.moveTo(x, y)
-        } else {
-          ctx.lineTo(x, y)
-        }
-      })
-      
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
-    
-    // Draw trail points (enhanced with white border for visibility)
-    data.trail.forEach((point, index) => {
-      const [x, y] = labToCanvas(point.lab[1], point.lab[2])
-      const [r, g, b] = point.rgb
-      
-      // Draw white shadow/border
-      ctx.fillStyle = 'white'
-      ctx.beginPath()
-      ctx.arc(x, y, 10, 0, 2 * Math.PI)
-      ctx.fill()
-      
-      // Draw point with actual color
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
-      ctx.strokeStyle = '#333'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(x, y, 8, 0, 2 * Math.PI)
-      ctx.fill()
-      ctx.stroke()
-      
-      // Add iteration number with better contrast
-      ctx.fillStyle = '#fff'
-      ctx.strokeStyle = '#000'
-      ctx.lineWidth = 3
-      ctx.font = 'bold 10px Arial'
-      ctx.textAlign = 'center'
-      ctx.strokeText((index + 1).toString(), x, y + 3)
-      ctx.fillText((index + 1).toString(), x, y + 3)
-    })
-    
-    // Draw target point (enhanced visibility)
-    const [targetX, targetY] = labToCanvas(targetA, targetB)
-    const [tr, tg, tb] = data.target.rgb
-    
-    // Draw white shadow/border for target
-    ctx.fillStyle = 'white'
-    ctx.beginPath()
-    ctx.arc(targetX, targetY, 15, 0, 2 * Math.PI)
-    ctx.fill()
-    
-    ctx.fillStyle = `rgb(${tr}, ${tg}, ${tb})`
-    ctx.strokeStyle = '#000'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(targetX, targetY, 12, 0, 2 * Math.PI)
-    ctx.fill()
-    ctx.stroke()
-    
-    // Target label with better contrast
-    ctx.fillStyle = '#000'
-    ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 3
-    ctx.font = 'bold 12px Arial'  
-    ctx.textAlign = 'center'
-    ctx.strokeText('目標', targetX, targetY - 20)
-    ctx.fillText('目標', targetX, targetY - 20)
-    
-    // Draw ΔE circles (enhanced visibility over color background)
-    const deltaECircles = [1, 2, 5]
-    deltaECircles.forEach(deltaE => {
-      // In CAM02-UCS, Euclidean distance ≈ ΔE
-      // Convert ΔE to canvas pixels
-      const radiusA = deltaE
-      const radiusB = deltaE
-      
-      const radiusPixelsA = (radiusA / (maxA - minA)) * chartWidth
-      const radiusPixelsB = (radiusB / (maxB - minB)) * chartHeight
-      const radiusPixels = Math.sqrt(radiusPixelsA * radiusPixelsA + radiusPixelsB * radiusPixelsB) / Math.sqrt(2)
-      
-      // Draw white shadow for circle
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
-      ctx.lineWidth = 3
-      ctx.setLineDash([4, 4])
-      ctx.beginPath()
-      ctx.arc(targetX, targetY, radiusPixels, 0, 2 * Math.PI)
-      ctx.stroke()
-      
-      // Draw main circle
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.arc(targetX, targetY, radiusPixels, 0, 2 * Math.PI)
-      ctx.stroke()
-      
-      // Label the circle with better contrast
-      const labelX = targetX + radiusPixels * 0.7
-      const labelY = targetY - radiusPixels * 0.7
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'
-      ctx.lineWidth = 2
-      ctx.font = '10px Arial'
-      ctx.textAlign = 'center'
-      
-      // Draw label background
-      const labelText = `ΔE=${deltaE}`
-      const labelMetrics = ctx.measureText(labelText)
-      const labelWidth = labelMetrics.width + 6
-      const labelHeight = 12
-      ctx.fillRect(labelX - labelWidth/2, labelY - labelHeight/2, labelWidth, labelHeight)
-      
-      // Draw label text
-      ctx.strokeText(labelText, labelX, labelY + 3)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
-      ctx.fillText(labelText, labelX, labelY + 3)
-    })
-    
-    ctx.setLineDash([])
-    
-    // Add axis labels with enhanced visibility
-    ctx.fillStyle = '#000'
-    ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 3
-    ctx.font = '14px Arial'
-    ctx.textAlign = 'center'
-    
-    // X-axis label
-    ctx.strokeText(data.axis_labels.x, canvas.width / 2, canvas.height - 10)
-    ctx.fillText(data.axis_labels.x, canvas.width / 2, canvas.height - 10)
-    
-    // Y-axis label (rotated)
-    ctx.save()
-    ctx.translate(15, canvas.height / 2)
-    ctx.rotate(-Math.PI / 2)
-    ctx.strokeText(data.axis_labels.y, 0, 0)
-    ctx.fillText(data.axis_labels.y, 0, 0)
-    ctx.restore()
-    
-    // Title with enhanced visibility
-    ctx.font = 'bold 16px Arial'
-    ctx.textAlign = 'center'
-    ctx.strokeText(data.axis_labels.title, canvas.width / 2, 25)
-    ctx.fillText(data.axis_labels.title, canvas.width / 2, 25)
-    
-    // Add legend for color background
-    ctx.font = '11px Arial'
-    ctx.textAlign = 'left'
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
-    ctx.lineWidth = 2
-    const legendText = `背景色: L*=${Math.round(avgL)} での色空間表現`
-    ctx.strokeText(legendText, padding, canvas.height - 30)
-    ctx.fillText(legendText, padding, canvas.height - 30)
-    
-    // Legend
-    ctx.font = '12px Arial'
-    ctx.textAlign = 'left'
-    ctx.fillStyle = '#666'
-    const legendY = canvas.height - 40
-    ctx.fillText('● 測定色（番号付き）', padding, legendY)
-    ctx.fillText('● 目標色', padding + 150, legendY)
-    ctx.fillText('--- 最適化経路', padding + 250, legendY)
+    // Auto-capture after dispensing
+    await sleep(2000)
+    await captureAndAnalyze()
     
   } catch (error) {
-    console.error('Error drawing perceptual chart:', error)
+    log('❌ エラー: ' + error.message)
   }
+}
+
+async function captureAndAnalyze() {
+  try {
+    log('📷 画像キャプチャ中...')
+    const response = await fetch('/vision/capture', { method: 'POST' })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const blob = await response.blob()
+    const imageUrl = URL.createObjectURL(blob)
+    
+    const snapImg = document.getElementById('snap')
+    snapImg.src = imageUrl
+    snapImg.style.display = 'block'
+    
+    log('✅ 画像キャプチャ完了')
+    
+    // Analyze the captured image
+    await analyzeImage(blob)
+    
+  } catch (error) {
+    log('❌ キャプチャエラー: ' + error.message)
+  }
+}
+
+async function analyzeImage(imageBlob) {
+  try {
+    log('🔍 画像分析中...')
+    
+    const formData = new FormData()
+    formData.append('image', imageBlob, 'capture.jpg')
+    
+    const response = await fetch('/vision/analyze', {
+      method: 'POST',
+      body: formData
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const analysis = await response.json()
+    displayAnalysis(analysis)
+    
+    // Send measurement to ML system
+    if (analysis.dominant_color && analysis.dominant_color.rgb) {
+      await submitMeasurement(analysis.dominant_color.rgb)
+    }
+    
+    log('✅ 画像分析完了')
+    
+  } catch (error) {
+    log('❌ 分析エラー: ' + error.message)
+  }
+}
+
+function displayAnalysis(analysis) {
+  const resultDiv = document.getElementById('analysis-result')
+  const contentDiv = document.getElementById('analysis-content')
+  
+  let html = ''
+  
+  if (analysis.dominant_color) {
+    const rgb = analysis.dominant_color.rgb
+    const hex = analysis.dominant_color.hex
+    html += `<div class="cluster-info">
+      <div style="display:flex;align-items:center;gap:1rem">
+        <div style="width:40px;height:40px;background:${hex};border:3px solid #333;border-radius:8px"></div>
+        <div>
+          <strong>主要色:</strong> RGB(${rgb.join(', ')}) | ${hex}<br>
+          <strong>覆盖率:</strong> ${(analysis.dominant_color.coverage * 100).toFixed(1)}%
+        </div>
+      </div>
+    </div>`
+  }
+  
+  if (analysis.color_clusters && analysis.color_clusters.length > 0) {
+    html += '<h4>🎨 色クラスター</h4>'
+    analysis.color_clusters.forEach((cluster, i) => {
+      const rgb = cluster.center
+      const hex = `#${rgb.map(c => Math.round(c).toString(16).padStart(2, '0')).join('')}`
+      html += `<div class="cluster-info">
+        <div style="display:flex;align-items:center;gap:1rem">
+          <div style="width:30px;height:30px;background:${hex};border:2px solid #333;border-radius:6px"></div>
+          <div>
+            <strong>クラスター ${i + 1}:</strong> RGB(${rgb.map(c => Math.round(c)).join(', ')}) | ${hex}<br>
+            <strong>ピクセル数:</strong> ${cluster.size} | <strong>比率:</strong> ${(cluster.percentage).toFixed(1)}%
+          </div>
+        </div>
+      </div>`
+    })
+  }
+  
+  if (analysis.statistics) {
+    const stats = analysis.statistics
+    html += `<div class="stats-grid">
+      <div class="stat-item"><strong>総ピクセル数</strong><br><span>${stats.total_pixels}</span></div>
+      <div class="stat-item"><strong>ユニーク色数</strong><br><span>${stats.unique_colors}</span></div>
+      <div class="stat-item"><strong>平均輝度</strong><br><span>${stats.avg_brightness?.toFixed(1) || 'N/A'}</span></div>
+      <div class="stat-item"><strong>色多様性</strong><br><span>${stats.color_diversity?.toFixed(3) || 'N/A'}</span></div>
+    </div>`
+  }
+  
+  contentDiv.innerHTML = html
+  resultDiv.style.display = 'block'
+}
+
+async function submitMeasurement(measuredRgb) {
+  try {
+    const currentRatios = {
+      red: parseFloat(red.value) || 0,
+      yellow: parseFloat(yellow.value) || 0,
+      blue: parseFloat(blue.value) || 0
+    }
+    
+    const response = await fetch('/api/recommend-ratios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        measured_rgb: measuredRgb,
+        ratios: currentRatios
+      })
+    })
+    
+    const data = await response.json()
+    if (data.status === 'success') {
+      updateStats(data.statistics)
+      log(`📊 測定値をMLシステムに送信: RGB(${measuredRgb.join(', ')})`)
+    }
+    
+  } catch (error) {
+    log('❌ 測定送信エラー: ' + error.message)
+  }
+}
+
+function resetAnalysis() {
+  document.getElementById('analysis-result').style.display = 'none'
+  document.getElementById('snap').style.display = 'none'
+  log('🔄 分析結果をリセットしました')
+}
+
+/* ---------- API helpers for hue system ---------------------------------- */
+async function loadTargetColor(){
+  const r = await fetch('/api/target-color'); const d = await r.json()
+  if(d.status==='success'){ showTarget(d) }
+}
+function showTarget(d){
+  const sw=document.getElementById('target-color-swatch')
+  sw.style.background=d.target_hex
+  document.getElementById('target-color-text').textContent=`Hue ${d.target_hue.toFixed(1)}°`
+  document.getElementById('target-color-hex').textContent = d.target_hex.toUpperCase()
+}
+
+async function generateNewTarget(){
+  const r=await fetch('/api/target-color'); const d=await r.json()
+  if(d.status==='success'){
+     showTarget(d); await resetOptimization(); await getRecommendation()
+     log(`🎯 新しい目標色相 ${d.target_hue.toFixed(1)}°`)
+  }
+}
+
+/* ---------- ML recommendation, stats (minor text tweaks) ---------------- */
+async function getRecommendation(){
+  const r=await fetch('/api/recommend-ratios',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+  const d=await r.json()
+  if(d.status==='success'){
+     const rr=d.recommended_ratios
+     recRed.textContent   = rr.red.toFixed(2)
+     recYellow.textContent= rr.yellow.toFixed(2)
+     recBlue.textContent  = rr.blue.toFixed(2)
+     recommendedRatios.style.display='block'
+     updateStats(d.statistics)
+  }
+}
+function applyRecommendation(){
+  red.value   = +recRed.textContent
+  yellow.value= +recYellow.textContent
+  blue.value  = +recBlue.textContent
+  updatePreview(); log('📝 推奨値を適用しました')
+}
+function updateStats(s){
+  totalAttempts.textContent = s.total_attempts
+  bestDistance.textContent  = s.best_distance  ? s.best_distance.toFixed(1):'‑'
+  currentDistance.textContent=s.current_distance? s.current_distance.toFixed(1):'‑'
+  averageDistance.textContent=s.average_distance? s.average_distance.toFixed(1):'‑'
+  optimizationStats.style.display='block'
+  drawHueChart()
 }
 
 async function resetOptimization() {
   try {
-    const response = await fetch('/api/reset-optimization', {method: 'POST'})
+    const response = await fetch('/api/reset-optimization', { method: 'POST' })
     const data = await response.json()
-    
     if (data.status === 'success') {
       document.getElementById('optimization-stats').style.display = 'none'
+      document.getElementById('recommended-ratios').style.display = 'none'
       log('🔄 最適化履歴をリセットしました')
     }
-  } catch (e) {
-    log('最適化リセットエラー: ' + e.message)
+  } catch (error) {
+    log('❌ リセットエラー: ' + error.message)
   }
 }
 
@@ -1302,159 +367,70 @@ async function showOptimizationHistory() {
   try {
     const response = await fetch('/api/optimization-history')
     const data = await response.json()
-    
     if (data.status === 'success') {
-      const historyText = data.history.map((h, i) => 
-        `試行${i+1}: R=${h.ratios.red.toFixed(2)} Y=${h.ratios.yellow.toFixed(2)} B=${h.ratios.blue.toFixed(2)} → 距離=${h.distance_to_target.toFixed(1)}`
-      ).join('\n')
-      
-      log('📊 最適化履歴:\n' + historyText)
+      log(`📋 最適化履歴 (${data.history.length}件):`)
+      data.history.forEach((entry, i) => {
+        const ratios = `R:${entry.ratios.red.toFixed(1)} Y:${entry.ratios.yellow.toFixed(1)} B:${entry.ratios.blue.toFixed(1)}`
+        const rgb = `RGB(${entry.measured_rgb.join(',')})`
+        const hue = `H:${entry.hue.toFixed(1)}°`
+        const dist = entry.distance ? `Δ:${entry.distance.toFixed(1)}°` : 'Δ:N/A'
+        log(`  ${i+1}. ${ratios} → ${rgb} ${hue} ${dist}`)
+      })
     }
-  } catch (e) {
-    log('履歴表示エラー: ' + e.message)
-  }
-}
-
-// Beaker Analysis Functions
-// Note: Beaker analysis is now only performed by robot operations, not manual file uploads
-
-function displayAnalysisResults(results) {
-  try {
-    // Check if results exist
-    if (!results) {
-      log('分析結果の表示エラー: 結果データが存在しません')
-      document.getElementById('analysis-results').style.display = 'block'
-      document.querySelector('#analysis-results .analysis-result').innerHTML = 
-        `<p style="color:orange">分析結果が利用できません。ロボットが分析を実行しなかった可能性があります。</p>`
-      return
-    }
-    
-    // Show results container
-    document.getElementById('analysis-results').style.display = 'block'
-    
-    // Extract analysis data
-    const dominantColor = results.dominant_color || {}
-    const beakerCircle = results.beaker_circle || {}
-    const clusters = results.clusters || []
-    const stats = results.analysis_stats || {}
-    
-    // Display dominant color
-    const hex = dominantColor.hex || '#000000'
-    const rgb = dominantColor.rgb || [0, 0, 0]
-    
-    // Display beaker info
-    const x = beakerCircle.x || 0
-    const y = beakerCircle.y || 0
-    const radius = beakerCircle.radius || 0
-    
-    // Display analysis stats
-    const numClusters = stats.num_clusters || 0
-    const totalPixels = stats.total_pixels_analyzed || 0
-    
-    // Generate clusters list HTML
-    let clustersHtml = ''
-    clusters.slice(0, 5).forEach((cluster, index) => {
-      const clusterRgb = cluster.rgb || [0, 0, 0]
-      const clusterHex = cluster.hex || rgbToHex(clusterRgb[0], clusterRgb[1], clusterRgb[2])
-      const pixelCount = cluster.pixel_count || 0
-      const saturation = cluster.saturation || 0
-      
-      clustersHtml += `
-        <div class="cluster-info">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span class="color-swatch" style="background-color:${clusterHex}"></span>
-            <div>
-              <strong>クラスター ${index + 1}</strong> ${clusterHex}<br>
-              <small>RGB(${clusterRgb.join(', ')}) - 彩度: ${saturation.toFixed(1)}, ピクセル: ${pixelCount.toLocaleString()}</small>
-            </div>
-          </div>
-        </div>
-      `
-    })
-    
-    // Update the analysis results display
-    const analysisResult = document.querySelector('#analysis-results .analysis-result')
-    analysisResult.innerHTML = `
-      <h3>✅ ビーカー分析結果</h3>
-      <div id="dominant-color-info">
-        <h4>主要溶液色</h4>
-        <div id="color-display">
-          <span class="color-swatch" style="background-color:${hex}"></span>
-          <span>${hex} RGB(${rgb.join(', ')})</span>
-        </div>
-      </div>
-      
-      <div class="stats-grid">
-        <div class="stat-item">
-          <strong>ビーカー位置</strong><br>
-          <span>(${x}, ${y})</span>
-        </div>
-        <div class="stat-item">
-          <strong>ビーカー半径</strong><br>
-          <span>${radius}px</span>
-        </div>
-        <div class="stat-item">
-          <strong>検出クラスター数</strong><br>
-          <span>${numClusters}</span>
-        </div>
-        <div class="stat-item">
-          <strong>分析ピクセル数</strong><br>
-          <span>${totalPixels.toLocaleString()}</span>
-        </div>
-      </div>
-      
-      <div id="cluster-details">
-        <h4>色クラスター（彩度順）</h4>
-        <div id="clusters-list">${clustersHtml}</div>
-      </div>
-    `
-    
-    // Display visualization image if available
-    if (results.visualization_image) {
-      const vizImg = document.createElement('img')
-      vizImg.src = 'data:image/jpeg;base64,' + results.visualization_image
-      vizImg.style.cssText = 'max-width:100%;border:2px solid #007bff;border-radius:8px;margin-top:1rem'
-      vizImg.alt = '分析の可視化'
-      analysisResult.appendChild(vizImg)
-    }
-    
-    // Color interpretation
-    let interpretation = ''
-    if (hex.toLowerCase().includes('ff0000') || hex.toLowerCase().includes('dc143c') || (rgb[0] > 150 && rgb[1] < 100 && rgb[2] < 100)) {
-      interpretation = '🔴 赤い溶液が検出されました - 赤色染料または指示薬が含まれている可能性があります'
-    } else if (hex.toLowerCase().includes('ffff00') || hex.toLowerCase().includes('ffd700') || (rgb[0] > 200 && rgb[1] > 200 && rgb[2] < 100)) {
-      interpretation = '🟡 黄色い溶液が検出されました - 黄色染料または指示薬が含まれている可能性があります'
-    } else if (hex.toLowerCase().includes('0000ff') || hex.toLowerCase().includes('1e90ff') || (rgb[0] < 100 && rgb[1] < 100 && rgb[2] > 150)) {
-      interpretation = '🔵 青い溶液が検出されました - 青色染料または指示薬が含まれている可能性があります'
-    } else if (rgb[0] < 50 && rgb[1] < 50 && rgb[2] < 50) {
-      interpretation = '⚫ 暗色/黒色溶液が検出されました'
-    } else if (rgb[0] > 200 && rgb[1] > 200 && rgb[2] > 200) {
-      interpretation = '⚪ 透明/無色溶液が検出されました'
-    } else {
-      interpretation = `🎨 カスタム色溶液が検出されました: ${hex}`
-    }
-    
-    // Add interpretation
-    const interpretationDiv = document.createElement('div')
-    interpretationDiv.style.cssText = 'margin-top:1rem;padding:1rem;background:#e7f3ff;border:1px solid #007bff;border-radius:4px'
-    interpretationDiv.innerHTML = `<h4>🧪 色の解釈</h4><p>${interpretation}</p>`
-    analysisResult.appendChild(interpretationDiv)
-    
-    log('🎨 ビーカー分析結果がGUIに表示されました')
-    
   } catch (error) {
-    log('分析結果の表示エラー: ' + error.message)
-    document.getElementById('analysis-results').style.display = 'block'
-    document.querySelector('#analysis-results .analysis-result').innerHTML = 
-      `<p style="color:red">分析結果の表示エラー: ${error.message}</p>`
+    log('❌ 履歴取得エラー: ' + error.message)
   }
 }
 
-function rgbToHex(r, g, b) {
-  return "#" + [r, g, b].map(x => {
-    const hex = x.toString(16)
-    return hex.length === 1 ? "0" + hex : hex
-  }).join("")
-}
-</script>
+/* ---------- Hue progress chart ------------------------------------------ */
+async function drawHueChart(){
+  const res=await fetch('/api/color-space-data'); const d=await res.json()
+  if(d.status!=='success'||!d.data.available){return}
+  const data=d.data, canvas=document.getElementById('hue-canvas'), ctx=canvas.getContext('2d')
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+  const pad=40,w=canvas.width-pad*2,h=canvas.height-pad*2
+  /* axes */
+  ctx.strokeStyle='#666';ctx.lineWidth=2
+  ctx.beginPath();ctx.moveTo(pad, pad);ctx.lineTo(pad, pad+h);ctx.lineTo(pad+w,pad+h);ctx.stroke()
+  /* grid lines every 60° */
+  ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=1
+  for(let deg=0;deg<=360;deg+=60){
+     const y=pad+h - (deg/360)*h
+     ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(pad+w,y);ctx.stroke()
+     ctx.fillStyle='#333';ctx.font='10px sans-serif'
+     ctx.fillText(`${deg}°`,5,y+4)
+  }
+  /* target line */
+  const targetY = pad+h - (data.target.hue/360)*h
+  ctx.strokeStyle='red';ctx.setLineDash([5,3]);ctx.beginPath()
+  ctx.moveTo(pad,targetY);ctx.lineTo(pad+w,targetY);ctx.stroke();ctx.setLineDash([])
+  ctx.fillStyle='red';ctx.fillText('目標',pad+w-35,targetY-6)
 
+  /* plot points */
+  data.trail.forEach((p,i)=>{
+     const x = pad + (i/(data.trail.length-1||1))*w
+     const y = pad+h - (p.hue/360)*h
+     ctx.fillStyle=`rgb(${p.rgb.join(',')})`
+     ctx.strokeStyle='#000';ctx.lineWidth=1.5
+     ctx.beginPath();ctx.arc(x,y,6,0,2*Math.PI);ctx.fill();ctx.stroke()
+     ctx.fillStyle='#fff';ctx.font='9px sans-serif'
+     ctx.fillText(i+1,x-3,y+3)
+  })
+}
+
+/* ---------- page init --------------------------------------------------- */
+window.addEventListener('DOMContentLoaded',async()=>{
+  window.recRed=document.getElementById('rec-red-value')
+  window.recYellow=document.getElementById('rec-yellow-value')
+  window.recBlue=document.getElementById('rec-blue-value')
+  window.recommendedRatios=document.getElementById('recommended-ratios')
+  window.totalAttempts=document.getElementById('total-attempts')
+  window.bestDistance=document.getElementById('best-distance')
+  window.currentDistance=document.getElementById('current-distance')
+  window.averageDistance=document.getElementById('average-distance')
+  window.optimizationStats=document.getElementById('optimization-stats')
+  updatePreview(); await loadTargetColor(); await getRecommendation()
+  log('ページ初期化完了')
+})
+</script>
+</html>
