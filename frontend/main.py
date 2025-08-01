@@ -67,17 +67,26 @@ class ColorOptimizer:
       3‑11  : full NNLS (12‑param) +  GP   – weights shift from GP→calib
       ≥12   : NNLS only
     The model matrix P ∈ ℝ^(4×3) now includes a 4th "white" row
-    (ideally all zeros – no absorbance).
+    (locked to zero absorbance by default, assuming pure RGB(255,255,255) background).
     """
 
     # ---------- init ----------
-    def __init__(self):
+    def __init__(self, allow_white_absorbance: bool = False):
+        """
+        Initialize ColorOptimizer.
+        
+        Args:
+            allow_white_absorbance: If False (default), white-solvent absorbance is locked to zero
+                                  assuming pure RGB(255,255,255) background. If True, allows
+                                  the optimizer to learn white-solvent absorbance parameters.
+        """
         self.history: List[Dict] = []
         self.target_color: Optional[Tuple[int, int, int]] = None
         self.P_est: Optional[np.ndarray] = None    # (4,3) absorbance/volume
         self.std_error: Optional[float] = None
         self.gp_model: Optional[GaussianProcessRegressor] = None
         self.epsilon_rgb = 10.0                   # diagnostic only
+        self.allow_white_absorbance = allow_white_absorbance
 
     # ---------- low‑level helpers ----------
     @staticmethod
@@ -134,7 +143,7 @@ class ColorOptimizer:
         P_hue = np.array([[0.8, 0.1, 0.1],       # red
                           [0.2, 0.9, 0.1],       # yellow
                           [0.1, 0.1, 0.9],       # blue
-                          [0.0, 0.0, 0.0]])      # white
+                          [0.0, 0.0, 0.0]])      # white (locked to zero)
         W = np.stack([self._ratios_to_array(h['ratios']) for h in self.history])  # (n_history, 4)
         A = np.stack([self._rgb_to_absorb(h['measured_rgb']) for h in self.history])  # (n_history, 3)
         
@@ -155,6 +164,10 @@ class ColorOptimizer:
         
         alpha = alpha.clip(1e-6)  # Ensure positive values
         self.P_est = P_hue * alpha[np.newaxis, :]  # Broadcast scaling
+        
+        # Lock white-solvent absorbance to zero unless explicitly allowed
+        if not self.allow_white_absorbance:
+            self.P_est[3, :] = 0.0
 
     def _fit_full_calibration(self):
         if len(self.history) < 3 or not ML_AVAILABLE:
@@ -166,7 +179,12 @@ class ColorOptimizer:
             res = lsq_linear(W, A[:, ch], bounds=(0, np.inf))
             P[:, ch] = res.x
         self.P_est = P
-        resid = A - W @ P
+        
+        # Lock white-solvent absorbance to zero unless explicitly allowed
+        if not self.allow_white_absorbance:
+            self.P_est[3, :] = 0.0
+            
+        resid = A - W @ self.P_est
         self.std_error = float(np.sqrt(np.mean(resid ** 2)))
 
     def _inverse_weights(self):
@@ -281,14 +299,21 @@ class ColorOptimizer:
 # ╚══════════════════════════════════════╝
 class BottleModel(ColorOptimizer):
     """Fixed pigment matrix known only to the backend (for target sampling)."""
-    def __init__(self, P_true: np.ndarray):
-        super().__init__()
+    def __init__(self, P_true: np.ndarray, allow_white_absorbance: bool = False):
+        super().__init__(allow_white_absorbance=allow_white_absorbance)
         self.P_est = P_true.copy()   # never changes
 
-def load_ground_truth_calibration():
+def load_ground_truth_calibration(allow_white_absorbance: bool = False):
     """
     Load ground truth calibration data from JSON files and construct the calibration matrix.
-    Returns a 3x3 numpy array representing the true pigment absorbance matrix.
+    
+    Args:
+        allow_white_absorbance: If False (default), white-solvent absorbance is locked to zero
+                              assuming pure RGB(255,255,255) background. If True, allows
+                              loading of actual white-solvent absorbance parameters.
+    
+    Returns:
+        A 4x3 numpy array representing the true pigment absorbance matrix.
     """
     ground_truth_dir = Path(__file__).parent / "ground_truth_calibration"
 
@@ -355,8 +380,16 @@ def load_ground_truth_calibration():
         white_coeff = absorbance_coefficients[3] if len(absorbance_coefficients) > 3 else None
         
         if all(c is not None for c in colored_coeffs):
-            # Use white coefficient if available, otherwise default to 0.0
-            white_absorbance = white_coeff if white_coeff is not None else 0.0
+            # Use white coefficient if available and allowed, otherwise default to 0.0
+            if allow_white_absorbance and white_coeff is not None:
+                white_absorbance = white_coeff
+                logger.info("✅ Using white solution calibration: abs_coeff=%s", white_coeff)
+            else:
+                white_absorbance = 0.0
+                if not allow_white_absorbance:
+                    logger.info("🔒 White-solvent absorbance locked to zero (pure RGB(255,255,255) background assumed)")
+                else:
+                    logger.info("📝 White solution not found, using default zero absorbance")
             
             P_true = np.array([
                 [absorbance_coefficients[0], 0.1, 0.08],
@@ -365,10 +398,6 @@ def load_ground_truth_calibration():
                 [white_absorbance, white_absorbance, white_absorbance]  # white solvent
             ])
             logger.info("🔧 Constructed ground truth matrix from individual files")
-            if white_coeff is not None:
-                logger.info("✅ Using white solution calibration: abs_coeff=%s", white_coeff)
-            else:
-                logger.info("📝 White solution not found, using default zero absorbance")
             logger.info("📊 Matrix:\n%s", P_true)
             return P_true
 
@@ -384,14 +413,18 @@ def load_ground_truth_calibration():
             # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
             # The matrix now includes white pigment as the 4th row
             
-            # Calculate white row: use white solution data if available, otherwise use RGB(255,255,255)
-            if white_rgb is not None:
+            # Calculate white row: use white solution data if available and allowed, 
+            # otherwise lock to zero absorbance for pure RGB(255,255,255) background
+            if allow_white_absorbance and white_rgb is not None:
                 white_absorbance_row = ColorOptimizer._rgb_to_absorb(white_rgb) / 3.0
                 logger.info("✅ Using white solution RGB measurement: RGB%s", white_rgb)
             else:
-                # Use RGB(255,255,255) as default white reference (pure white, no absorbance)
-                white_absorbance_row = ColorOptimizer._rgb_to_absorb((255, 255, 255)) / 3.0
-                logger.info("📝 White solution file not found, using RGB(255,255,255) as white reference")
+                # Lock white absorbance to zero for ideal white background RGB(255,255,255)
+                white_absorbance_row = np.array([0.0, 0.0, 0.0])
+                if not allow_white_absorbance:
+                    logger.info("🔒 White-solvent absorbance locked to zero (pure RGB(255,255,255) background assumed)")
+                else:
+                    logger.info("📝 White solution file not found, using zero absorbance")
             
             P_true = np.array([
                 ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
@@ -411,15 +444,24 @@ def load_ground_truth_calibration():
     # Final fallback: generate random matrix (original behavior) - now 4x3 for 4 pigments
     np.random.seed(42)
     P_fallback = np.abs(np.random.normal(loc=0.3, scale=0.15, size=(3,3)))
-    # Add white pigment row (no absorbance)
-    P_fallback = np.vstack([P_fallback, np.array([0.0, 0.0, 0.0])])
-    logger.info("🎲 Using random fallback matrix (4x3 with white)")
+    # Add white pigment row (locked to zero unless explicitly allowed)
+    white_row = np.array([0.0, 0.0, 0.0]) if not allow_white_absorbance else np.abs(np.random.normal(loc=0.05, scale=0.02, size=3))
+    P_fallback = np.vstack([P_fallback, white_row])
+    
+    if allow_white_absorbance:
+        logger.info("🎲 Using random fallback matrix (4x3 with learnable white)")
+    else:
+        logger.info("🎲 Using random fallback matrix (4x3 with white locked to zero)")
     return P_fallback
 
 # --- Load ground truth calibration and create bottle model ---
 from pathlib import Path
-_P_TRUE = load_ground_truth_calibration()
-bottle_model = BottleModel(_P_TRUE)
+
+# Configuration: Set to True if you want to allow white-solvent absorbance learning
+ALLOW_WHITE_ABSORBANCE = False  # Default: lock white to zero for pure RGB(255,255,255) background
+
+_P_TRUE = load_ground_truth_calibration(allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
+bottle_model = BottleModel(_P_TRUE, allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
 
 # ╔══════════════════════════════════════╗
 # ║     Target-colour helper functions     ║
@@ -479,7 +521,7 @@ def generate_random_target_color() -> Tuple[int,int,int]:
 # ╔══════════════════════════════════════╗
 # ║     FastAPI   +  endpoints (UNCHANGED)    ║
 # ╚══════════════════════════════════════╝
-color_optimizer = ColorOptimizer()
+color_optimizer = ColorOptimizer(allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -766,4 +808,6 @@ if __name__ == "__main__":
     rgb0 = generate_random_target_color()
     color_optimizer.set_target_color(rgb0)
     logger.info("🎯 Initial target RGB%s", rgb0)
+    logger.info("🔧 White-solvent absorbance mode: %s", 
+                "learnable" if ALLOW_WHITE_ABSORBANCE else "locked to zero")
     uvicorn.run(app, host="0.0.0.0", port=3000)
