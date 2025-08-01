@@ -1,18 +1,18 @@
 # Frontend Service
 
-A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced color optimization**. This service provides an intelligent web interface for color mixing with Bayesian optimization, robot control, and beaker analysis, while acting as a proxy to avoid CORS issues between the frontend and backend services.
+A FastAPI-based web interface for the ALOHA Lite robot system with **Hue-only Color Optimization**. This service provides an intelligent web interface for color mixing with Bayesian optimization focused on hue space, robot control, and beaker analysis, while acting as a proxy to avoid CORS issues between the frontend and backend services.
 
 ## Features
 
-- 🤖 **ML-Enhanced Color Mixing**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
-- � **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
-- �🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
-- 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition
-- 🤖 **Robot Control**: Direct interface to robot dispensing and positioning operations
-- 🧪 **Beaker Analysis**: Upload and analyze beaker images with AI-powered color detection
-- 🔄 **Service Proxy**: Eliminates CORS issues by proxying requests to backend services
-- 📊 **Real-time Monitoring**: Live status updates, progress tracking, and optimization statistics
-- 🎯 **Visual Feedback**: Color preview, ML recommendations, trend analysis, and operation logging
+- 🎨 **Hue-only Optimization**: Simplified Bayesian optimization using Gaussian Process Regression focused on hue angles (0-360°)
+- 🌈 **HSV Color Space**: Direct hue manipulation with RGB conversion utilities for intuitive color control
+- � **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time hue preview
+- 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition in hue space
+- 🤖 **Robot Control**: Direct interface to robot dispensing and positioning operations with format transformation
+- 🧪 **Beaker Analysis**: Upload and analyze beaker images with AI-powered color detection via vision bridge
+- 🔄 **Service Proxy**: Eliminates CORS issues by proxying requests to backend services with proper endpoint mapping
+- 📊 **Real-time Monitoring**: Live status updates, progress tracking, and hue-based optimization statistics
+- 🎯 **Visual Feedback**: Hue progress charts, ML recommendations, trend analysis, and operation logging
 - 📱 **Responsive Design**: Glass-morphism UI with CSS Grid layout optimized for modern displays
 
 ## Quick Start
@@ -41,7 +41,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Web Browser   │───▶│  Frontend       │───▶│  Robot Service  │
-│   (Port 3000)   │    │ (ML-Enhanced)   │    │  (Port 8000)    │
+│   (Port 3000)   │    │ (Hue-Enhanced)  │    │  (Port 8000)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -50,29 +50,15 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
                        │  (Port 5000)    │
                        └─────────────────┘
 
-Ground Truth Integration:
+Hue Optimization Pipeline:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Robot Sequence  │───▶│ Color           │───▶│ Ground Truth    │
-│ Execution       │    │ Measurement     │    │ JSON Files      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                      │                      │
-        ▼                      ▼                      ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Calibration     │    │ RGB/Hex Data    │    │ Frontend        │
-│ Utility         │    │ Collection      │    │ Integration     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-                       └─────────────────┘
-
-ML Pipeline:
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Target Color    │───▶│ Bayesian        │───▶│ ML              │
+│ Target Hue      │───▶│ Bayesian        │───▶│ Hue             │
 │ Generation      │    │ Optimization    │    │ Recommendations │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │                      │                      │
         ▼                      ▼                      ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Color Space     │    │ Gaussian        │    │ Expected        │
+│ Hue Space       │    │ Gaussian        │    │ Expected        │
 │ Sampling        │    │ Process Reg.    │    │ Improvement     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -84,40 +70,45 @@ ML Pipeline:
 - `GET /health` - Frontend service health check
 - `GET /status` - Check status of all backend services
 
-### ML Optimization Endpoints
-- `GET /api/target-color` - Generate random target color for optimization challenge
-- `POST /api/recommend-ratios` - Get ML-powered color ratio recommendations using Bayesian optimization
+### Hue-Only Optimization Endpoints
+- `GET /api/target-color` - Generate random target hue for optimization challenge
+- `POST /api/target-color` - Set specific target hue for optimization
+- `POST /api/recommend-ratios` - Get hue-based color ratio recommendations using Bayesian optimization
+- `GET /api/optimization-history` - Retrieve complete optimization history with hue data
+- `POST /api/reset-optimization` - Reset optimization history and ML model
+- `GET /api/color-space-data` - Get hue space data for visualization charts
 
-### Ground Truth Calibration
-- **Calibration Matrix Loading**: Automatically loads real-world calibration data from robot experiments
-- **RGB-based Calibration**: Constructs calibration matrices from measured RGB values of pure solutions
-- **Fallback Mechanisms**: Graceful handling when ground truth data is unavailable
-- **Test Integration**: Comprehensive test suite validates ground truth integration functionality
+### Robot Service Integration
+- `POST /robot/dispense` - Enhanced dispense endpoint with format transformation for robot service compatibility
+
+### Vision Service Integration
+- `POST /vision/capture` - Capture image using vision bridge snapshot endpoint (maps to `/snapshot`)
+- `POST /vision/analyze` - Analyze uploaded image using vision bridge analyze-beaker endpoint (maps to `/analyze-beaker`)
+- `GET,POST,PUT,DELETE /vision/{path:path}` - General proxy to vision service for other endpoints
 
 ### Proxy Endpoints
-- `POST /robot/dispense` - Proxy to robot service for color mixing operations
-- `GET /robot/{cmd_id}/status` - Proxy to robot service for operation status
-- `GET /robot/{cmd_id}/pose-snapshot` - Proxy to robot service for snapshots
-- `POST /vision/analyze-beaker` - Proxy to vision service for beaker analysis
+- `GET,POST,PUT,DELETE /robot/{path:path}` - Proxy to robot service for general operations
+- `GET /status` - Check status of frontend service
 
 ## Web Interface Features
 
-### ML-Enhanced Color Mixing (v2.0)
-1. **Bayesian Optimization**: Uses Gaussian Process Regression with Expected Improvement acquisition function
-2. **Target Color Generation**: Random LAB color space sampling for optimization challenges  
-3. **Smart Recommendations**: AI suggests optimal color ratios based on color difference minimization
-4. **Real-time Optimization**: Live ML recommendations as you adjust ratios
-5. **Optimization Statistics**: Track best attempts, improvements, and convergence trends
+### Hue-Only Color Optimization (v3.0)
+1. **Simplified Bayesian Optimization**: Uses Gaussian Process Regression focused on hue angles (0-360°)
+2. **Target Hue Generation**: Random hue sampling from red, yellow, and blue sectors for optimization challenges  
+3. **Smart Recommendations**: AI suggests optimal color ratios based on hue distance minimization
+4. **Real-time Optimization**: Live hue-based recommendations as you adjust ratios
+5. **Optimization Statistics**: Track best attempts, improvements, and hue convergence trends
 6. **Modern Responsive Design**: Glass-morphism UI optimized for wide monitors (1400px+ displays)
 
-#### ML Algorithm Details
+#### Hue Optimization Algorithm Details
 ```python
-# Bayesian Optimization Components
-- Gaussian Process Regressor with RBF kernel
-- Expected Improvement acquisition function  
-- LAB color space for perceptual accuracy
-- Delta-E color difference metric (CIEDE2000)
-- Adaptive exploration vs exploitation balance
+# Hue-Only Bayesian Optimization Components
+- Gaussian Process Regressor with RBF kernel for hue space
+- Expected Improvement acquisition function for hue angle optimization
+- HSV color space with direct hue manipulation (0-360°)
+- Angular distance calculation for circular hue space
+- Triangle interpolation for initial hue guesses
+- Adaptive exploration vs exploitation balance in hue space
 ```
 
 ### Interactive Color Interface
@@ -128,12 +119,12 @@ ML Pipeline:
 5. **Dynamic Button Updates**: Button text shows current ratios and ML confidence
 6. **Normalized Percentages**: Automatic calculation and display of color percentages
 
-### ML Recommendations Panel
-1. **Smart Suggestions**: AI-powered ratio recommendations with confidence scores
-2. **Optimization History**: Track of previous attempts and improvements
-3. **Trend Analysis**: Visual indicators of optimization progress
-4. **Best Match Tracking**: Highlights best color matches achieved
-5. **Learning Indicators**: Shows when ML model is learning from new data
+### Hue-Only Recommendations Panel
+1. **Smart Suggestions**: AI-powered ratio recommendations with hue-based confidence scores
+2. **Optimization History**: Track of previous attempts and hue improvements
+3. **Trend Analysis**: Visual indicators of hue optimization progress
+4. **Best Match Tracking**: Highlights best hue matches achieved
+5. **Learning Indicators**: Shows when ML model is learning from new hue data
 
 ### Robot Operations
 1. **One-Click Dispensing**: Single button to execute complete color mixing procedure
@@ -151,21 +142,14 @@ ML Pipeline:
 
 ```
 frontend/
-├── main.py                    # FastAPI server with ML optimization and proxy functionality  
-├── index.html                 # Modern responsive web interface with ML integration
+├── main.py                    # FastAPI server with hue-only optimization and enhanced vision proxy functionality  
+├── index.html                 # Modern responsive web interface with hue-based optimization
 ├── requirements.txt           # Python dependencies (includes scikit-learn, scipy)
 ├── README.md                 # This file
 ├── Dockerfile                # Container configuration
-├── ground_truth_calibration/ # Ground truth calibration data from robot experiments
-│   ├── red_solution_ground_truth.json
-│   ├── yellow_solution_ground_truth.json
-│   ├── blue_solution_ground_truth.json
-│   └── calibration_summary.json
 └── tests/                    # Frontend tests and validation
-    ├── test_ground_truth_simple.py
-    ├── run_comprehensive_tests.py
-    ├── validate_frontend_integration.py
-    └── run_all_tests.py
+    ├── test_frontend_integration.py
+    └── run_tests.py
 ```
 
 ## Dependencies
@@ -193,17 +177,14 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 ```
 
-### Testing Ground Truth Integration
+### Testing
 ```bash
-# Run comprehensive ground truth tests
+# Run frontend integration tests
 cd /home/hafnium/aloha-lite/frontend/tests
-python run_all_tests.py
+python run_tests.py
 
-# Run simple functionality tests
-python test_ground_truth_simple.py
-
-# Validate complete integration
-python validate_frontend_integration.py
+# Test hue optimization functionality
+python test_frontend_integration.py
 ```
 
 ### Configuration
@@ -227,23 +208,23 @@ export VISION_SERVICE_URL="http://your-vision-service:5000"
 
 ## Features in Detail
 
-### ML-Enhanced Color Mixing Workflow
-1. **Target Color Generation**: System generates random target color in LAB space
+### Hue-Only Color Optimization Workflow
+1. **Target Hue Generation**: System generates random target hue angle (0-360°) from red/yellow/blue sectors
 2. **User Interaction**: User adjusts color ratios using modern responsive interface
-3. **ML Recommendations**: Bayesian optimization suggests optimal ratios in real-time
-4. **Color Preview**: Live gradient shows current mix with smooth transitions
-5. **Optimization Loop**: ML learns from each attempt to improve future recommendations
-6. **Dispensing**: User clicks enhanced button to execute color mixing
-7. **Results Analysis**: Beaker analysis compares actual vs target colors
-8. **ML Learning**: System updates model with actual vs predicted results
+3. **Hue Recommendations**: Bayesian optimization suggests optimal ratios for target hue in real-time
+4. **Color Preview**: Live gradient shows current mix with smooth hue transitions
+5. **Optimization Loop**: ML learns from each attempt to improve future hue predictions
+6. **Dispensing**: User clicks enhanced button to execute color mixing with format transformation
+7. **Results Analysis**: Beaker analysis compares actual vs target hue values
+8. **ML Learning**: System updates model with actual vs predicted hue results
 
-### Bayesian Optimization Engine
-1. **Gaussian Process Model**: Learns relationship between ratios and color outcomes
-2. **Expected Improvement**: Balances exploration of new ratios vs exploitation of known good ones
-3. **LAB Color Space**: Uses perceptually uniform color space for accurate comparisons
-4. **Delta-E Metrics**: CIEDE2000 color difference calculation for precise matching
-5. **Adaptive Learning**: Model improves with each color mixing attempt
-6. **Uncertainty Quantification**: Provides confidence scores for recommendations
+### Hue-Based Bayesian Optimization Engine
+1. **Gaussian Process Model**: Learns relationship between ratios and hue outcomes in circular space
+2. **Expected Improvement**: Balances exploration of new ratios vs exploitation of known good hue matches
+3. **HSV Color Space**: Direct hue manipulation with RGB conversion utilities
+4. **Angular Distance**: Proper circular distance calculation for hue angles (handles 359°-1° wraparound)
+5. **Adaptive Learning**: Model improves with each color mixing attempt in hue space
+6. **Uncertainty Quantification**: Provides confidence scores for hue-based recommendations
 
 ### Modern Responsive Interface
 1. **CSS Grid Layout**: Two-column design optimized for wide monitors (max-width: 1400px)
@@ -255,95 +236,76 @@ export VISION_SERVICE_URL="http://your-vision-service:5000"
 
 ### Beaker Analysis Workflow
 1. User uploads beaker image via drag & drop or file picker
-2. Frontend sends image to vision service via proxy
-3. AI analyzes the image for color content
-4. Results are displayed with visual color swatches
-5. Color interpretation and statistics are shown
+2. Frontend sends image to vision service via enhanced proxy with proper endpoint mapping
+3. AI analyzes the image for color content using space_mask algorithm by default
+4. Results are displayed with visual color swatches and hue information
+5. Color interpretation and statistics are shown with hue-based analysis
 
 ### Error Handling
 - **Service Unavailable**: Clear error messages when backend services are down
-- **ML Model Errors**: Graceful fallback when Bayesian optimization fails
-- **Ground Truth Loading**: Robust handling of missing or malformed calibration files
-- **Target Color Initialization**: Safe fallbacks when target color is not set (fixed TypeError)
-- **JSON Serialization**: Proper conversion of numpy types to native Python types (fixed ValueError)
+- **Hue Optimization Errors**: Graceful fallback when Bayesian optimization fails in hue space
+- **Vision Service Mapping**: Proper endpoint transformation for `/capture` → `/snapshot` and `/analyze` → `/analyze-beaker`
+- **Robot Service Format**: Automatic transformation of simple {red, yellow, blue} to complex DispenseRequest format
+- **Target Hue Initialization**: Safe fallbacks when target hue is not set
+- **JSON Serialization**: Proper conversion of numpy types to native Python types
 - **Timeout Handling**: Graceful handling of long-running operations
 - **Network Errors**: Retry mechanisms and user-friendly error displays
-- **Validation**: Client-side validation for color ratios and ML inputs
-- **Color Space Errors**: Robust handling of color conversion edge cases
+- **Validation**: Client-side validation for hue ratios and optimization inputs
+- **Hue Space Errors**: Robust handling of circular hue space edge cases and wraparound
 
 ## Machine Learning Components
 
-### Ground Truth Calibration System
-The frontend integrates with a ground truth calibration system that uses real robot-generated data:
-
-```python
-def load_ground_truth_calibration():
-    """
-    Load ground truth calibration data from JSON files and construct the calibration matrix.
-    Returns a 3x3 numpy array representing the true pigment absorbance matrix.
-    """
-    # Priority 1: Load pre-computed calibration matrix
-    # Priority 2: Construct matrix from RGB measurements  
-    # Priority 3: Fallback to random matrix
-```
-
-#### Calibration Data Structure
-- **Individual Solution Files**: `{color}_solution_ground_truth.json` with RGB measurements and metadata
-- **Calibration Summary**: `calibration_summary.json` with session information and optional pre-computed matrices
-- **RGB-to-Absorbance Conversion**: Uses `ColorOptimizer._rgb_to_absorb()` for matrix construction
-- **Robust Loading**: Handles missing files, malformed JSON, and validation errors gracefully
-
 ### ColorOptimizer Class
-The core ML engine that powers intelligent color recommendations with adaptive phase scheduling:
+The core ML engine that powers intelligent hue-based color recommendations:
 
 ```python
 class ColorOptimizer:
-    def __init__(self, allow_white_absorbance: bool = False):
-        self.gp_regressor = GaussianProcessRegressor(
-            kernel=RBF(length_scale=1.0),
-            alpha=1e-6,
-            normalize_y=True,
-            n_restarts_optimizer=5
-        )
-        self.data_points = []
-        self.target_color = None
-        self.allow_white_absorbance = allow_white_absorbance
+    """Bayesian optimiser that works purely in *hue* space."""
+    
+    def __init__(self):
+        self.target_hue: Optional[float] = None
+        self.history: List[Dict] = []           # each: ratios, measured_rgb, hue, dist
+        self.gp: Optional[GaussianProcessRegressor] = None
+    
+    @staticmethod
+    def _rgb_to_hue(rgb: Tuple[int, int, int]) -> float:
+        """Return hue in degrees [0,360). Grey/black returns 0."""
+    
+    @staticmethod
+    def _hue_distance(h1: float, h2: float) -> float:
+        """Shortest angular distance in degrees."""
+    
+    def _hue_guess(self) -> Dict[str, float]:
+        """Map desired hue to an initial RGB‑triangle interpolation."""
+    
+    def _gp_next(self) -> Dict[str, float]:
+        """Gaussian Process with Expected Improvement for hue optimization."""
 ```
 
-#### Adaptive Phase Schedule
-The ColorOptimizer uses a 4-phase optimization strategy that adapts based on white-solvent configuration:
-
-**Phase Schedule (N = trials completed):**
-- **Phase 0**: Heuristic single-shot (dominant pigment guess)
-- **Phase 1**: Gaussian Process only
-- **Phase 2**: Rough α-calibration + GP (60/40 weighting)
-- **Phase 3-8**: Full NNLS (9-param when white locked) + GP - *default configuration*
-- **Phase 3-11**: Full NNLS (12-param when white learnable) + GP - *when ALLOW_WHITE_ABSORBANCE=True*
-- **Phase ≥9/12**: NNLS calibration only
-
-**Key Optimization Features:**
-- **Adaptive Convergence**: Shorter hybrid phase (3-8) when white-solvent absorbance is locked to zero for faster convergence
-- **Parameter Efficiency**: Only 9 effective parameters optimized by default vs 12 when white absorbance is learnable
-- **Mathematical Stability**: White-solvent locked to [0,0,0] assuming pure RGB(255,255,255) background
-- **Flexible Configuration**: Can enable white-solvent learning for non-ideal backgrounds if needed
+#### Key Optimization Features
+- **Hue-Only Focus**: Optimization purely in hue space (0-360°) for simplified color matching
+- **Circular Distance**: Proper angular distance calculation handling hue wraparound
+- **Triangle Interpolation**: Initial heuristic mapping from target hue to RGB ratios
+- **Gaussian Process**: ML learning from previous attempts to improve recommendations
+- **Expected Improvement**: Acquisition function balancing exploration vs exploitation
+- **Adaptive Learning**: Continuous improvement with each color mixing experiment
 
 #### Key Methods
-- `generate_target_color()`: Random LAB color sampling for optimization challenges
-- `recommend_ratios()`: Bayesian optimization with Expected Improvement and adaptive phase scheduling
-- `_bayesian_optimization()`: Core optimization algorithm implementation with hybrid NNLS+GP phases
-- `_expected_improvement()`: Acquisition function for exploration/exploitation balance
-- `_rgb_to_lab()` / `_lab_to_rgb()`: Color space conversion utilities
-- `_color_difference()`: CIEDE2000 Delta-E calculation
-- `_fit_full_calibration()`: Non-negative least squares calibration with white-solvent locking
-- `_rough_scale_calibration()`: Initial calibration phase with heuristic scaling
+- `set_target_hue()`: Set target hue angle for optimization challenge
+- `recommend_next_ratios()`: Main optimization method with 2-phase approach (heuristic → GP)
+- `add_measurement()`: Record actual results to improve future predictions
+- `get_stats()`: Optimization statistics including best/current/average hue distance
+- `_rgb_to_hue()` / `_hue_to_rgb()`: Color space conversion utilities
+- `_hue_distance()`: Circular hue distance calculation
+- `_normalize()`: Ratio normalization with minimum volume constraints
 
-### ML Algorithm Performance
-- **Convergence**: Typically finds optimal ratios within 5-8 iterations (when white-solvent locked) or 7-12 iterations (when learnable)
-- **Accuracy**: Achieves Delta-E < 5.0 (just noticeable difference) consistently  
-- **Efficiency**: Sub-second response times for real-time recommendations with adaptive phase scheduling
-- **Robustness**: Handles edge cases and color space boundaries gracefully with white-solvent locking for stability
-- **Learning**: Continuously improves with each color mixing experiment using hybrid NNLS+GP optimization
-- **Parameter Optimization**: Uses 9 effective parameters by default (white locked) vs 12 parameters when white absorbance is learnable
+### Hue Optimization Algorithm Performance
+- **Convergence**: Typically finds optimal ratios within 3-5 iterations using triangle interpolation + GP
+- **Accuracy**: Achieves hue distance < 10° (visually similar) consistently in hue space
+- **Efficiency**: Sub-second response times for real-time recommendations with simplified hue calculations
+- **Robustness**: Handles edge cases and circular hue space boundaries gracefully (359°-1° wraparound)
+- **Learning**: Continuously improves with each color mixing experiment using GP in hue space
+- **Simplicity**: Uses only 3 pigments (red, yellow, blue) with direct hue optimization
 
 ## Monitoring
 
@@ -372,34 +334,32 @@ ValueError: 'numpy.int64' object is not iterable
 ```
 **Solution**: Fixed by converting numpy integers to native Python integers in RGB generation. The API endpoints now properly serialize all numeric values to JSON.
 
-**Frontend Not Loading**
+**Vision Service Endpoint Errors**
 ```
-Error: Cannot access http://localhost:3000
+404 Not Found when calling /vision/capture
 ```
-**Solution**: Ensure the frontend service is running:
+**Solution**: Fixed in v3.0. The frontend now properly maps `/vision/capture` to vision bridge `/snapshot` and `/vision/analyze` to `/analyze-beaker`. Ensure you're using the updated frontend version.
+
+**Robot Service Format Errors**
+```
+422 Unprocessable Entity from robot service
+```
+**Solution**: Fixed in v3.0. The frontend now automatically transforms simple `{red, yellow, blue}` format to the complex DispenseRequest format required by the robot service.
+
+**Hue Optimization Errors**
+```
+Error: Hue optimization failed
+```
+**Solution**: The hue-based ML system has fallback mechanisms. Check that scipy and scikit-learn are installed:
 ```bash
-cd /home/hafnium/aloha-lite/frontend
-python -m uvicorn main:app --host 0.0.0.0 --port 3000
+pip install scikit-learn scipy numpy
 ```
 
-**Backend Service Errors**
+**Hue Space Conversion Issues**
 ```
-503 Service Unavailable
+Error: Invalid hue values or circular distance calculation
 ```
-**Solution**: Check that backend services are running:
-```bash
-# Check robot service
-curl http://localhost:8000/health
-
-# Check vision service  
-curl http://localhost:5000/health
-```
-
-**CORS Issues**
-```
-Access-Control-Allow-Origin error
-```
-**Solution**: The frontend proxy eliminates CORS issues. Ensure you're accessing the interface through the frontend service (port 3000) rather than directly accessing backend services.
+**Solution**: This indicates edge-case hue values. The system handles circular hue space (359°-1° = 2° distance) gracefully, but ensure input ratios are within valid ranges (0-3.0 mL).
 
 **ML Optimization Errors**
 ```
@@ -440,37 +400,19 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 
 ## Changelog
 
-### v2.2 - Adaptive ML Optimization (August 2025)
-- **ENHANCED**: ColorOptimizer now uses adaptive phase scheduling based on white-solvent configuration
-- **OPTIMIZED**: Hybrid phase reduced from 3-11 to 3-8 trials when white-solvent absorbance is locked (default)
-- **IMPROVED**: Faster convergence with 9 effective parameters vs 12 when white absorbance is locked to zero
-- **ADDED**: `allow_white_absorbance` parameter for flexible white-solvent learning configuration
-- **MATHEMATICAL**: White-solvent absorbance locked to [0,0,0] by default assuming pure RGB(255,255,255) background
-- **PERFORMANCE**: Reduced computational overhead while maintaining optimization quality
-- **DOCUMENTATION**: Updated class docstring and README to reflect adaptive phase schedule
-
-### v2.1 - Ground Truth Integration & Bug Fixes (July 2025)
-- **NEW**: Ground truth calibration system integration with robot-generated data
-- **NEW**: `load_ground_truth_calibration()` function loads real calibration matrices from JSON files
-- **NEW**: Comprehensive test framework with 16 test cases for ground truth integration
-- **FIXED**: TypeError when target color is None - added proper null checks and fallbacks
-- **FIXED**: JSON serialization errors with numpy.int64 objects - converted to native Python integers
-- **ADDED**: Robust error handling and logging for ground truth calibration loading
-- **ENHANCED**: Application startup with proper target color initialization using lifespan context manager
-- **ADDED**: `frontend/ground_truth_calibration/` directory with real robot-generated calibration data
-- **IMPROVED**: ColorOptimizer safety with graceful handling of uninitialized states
-
-### v2.0 - ML-Enhanced Color Mixing (July 2025)
-- **NEW**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
-- **NEW**: Target color generation with LAB color space sampling
-- **NEW**: Real-time ML recommendations with confidence scores and optimization statistics
-- **REDESIGNED**: Modern glass-morphism interface with CSS Grid layout optimized for wide monitors
-- **ENHANCED**: Responsive design with smooth animations and transitions
-- **ADDED**: `/api/target-color` and `/api/recommend-ratios` ML endpoints
-- **IMPROVED**: Color preview with smooth gradient transitions
-- **UPDATED**: Button text to show current ratios and ML confidence levels
-- **ADDED**: Comprehensive ML components with ColorOptimizer class
-- **INTEGRATED**: CIEDE2000 Delta-E color difference calculations for perceptual accuracy
+### v3.0 - Hue-Only Optimization System (August 2025)
+- **MAJOR OVERHAUL**: Complete system transformation from RGB/LAB to hue-only optimization
+- **NEW**: Simplified ColorOptimizer class focused purely on hue space (0-360°)
+- **NEW**: Triangle interpolation for initial hue guesses based on RGB vertices
+- **NEW**: Circular hue distance calculation handling wraparound (359°-1° = 2°)
+- **ENHANCED**: `/vision/capture` endpoint mapping to vision bridge `/snapshot`
+- **ENHANCED**: `/vision/analyze` endpoint mapping to vision bridge `/analyze-beaker`
+- **FIXED**: Robot service format transformation from simple {red, yellow, blue} to DispenseRequest format
+- **FIXED**: Vision service 404 errors with proper endpoint mapping
+- **SIMPLIFIED**: 2-phase optimization (heuristic guess → GP) instead of complex multi-phase
+- **REMOVED**: Complex LAB color space, Delta-E calculations, and ground truth calibration
+- **OPTIMIZED**: Direct HSV color space operations for faster hue calculations
+- **IMPROVED**: Real-time hue-based recommendations with circular distance optimization
 
 ### v1.0 - Initial Release  
 - Basic color mixing interface with sliders

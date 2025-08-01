@@ -8,14 +8,14 @@ Hue‑only Colour‑mix Optimiser – FastAPI Frontend
 """
 
 from __future__ import annotations
-import random, logging, httpx, os
+import random, logging, httpx, os, uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from contextlib import asynccontextmanager
 
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # ── optional ML libs ─────────────────────────────────────────────────────────
@@ -280,11 +280,124 @@ async def _proxy(req: Request, base_url: str, subpath: str):
                                  content=await req.body())
         return r
 
+@app.post("/robot/dispense")
+async def dispense_robot(request: Request):
+    """Handle dispense requests with format transformation for robot service."""
+    body = await request.json()
+    log.info("Frontend received dispense request: %s", body)
+    
+    # Transform simple {red, yellow, blue} format to robot service format
+    if isinstance(body, dict) and all(k in body for k in ['red', 'yellow', 'blue']):
+        # Extract ratios
+        red = float(body.get('red', 0))
+        yellow = float(body.get('yellow', 0)) 
+        blue = float(body.get('blue', 0))
+        
+        # Calculate normalized percentages
+        total = red + yellow + blue
+        if total > 0:
+            norm_red = (red / total) * 100
+            norm_yellow = (yellow / total) * 100
+            norm_blue = (blue / total) * 100
+        else:
+            norm_red = norm_yellow = norm_blue = 0
+        
+        # Create robot service format
+        robot_request = {
+            "mix_id": 1,
+            "run_id": 1,
+            "colour": "red",  # Default dominant color
+            "color_ratios": {
+                "red": red,
+                "yellow": yellow,
+                "blue": blue
+            },
+            "normalized_percentages": {
+                "red": norm_red,
+                "yellow": norm_yellow,
+                "blue": norm_blue
+            }
+        }
+        
+        log.info("Transformed to robot service format: %s", robot_request)
+        
+        # Forward to robot service
+        url = f"{ROBOT_SERVICE_URL}/robot/dispense"
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            r = await client.post(url, json=robot_request)
+            return JSONResponse(r.json() if r.status_code == 200 else {"error": r.text}, 
+                              status_code=r.status_code)
+    else:
+        # Pass through other formats unchanged
+        r = await _proxy(request, ROBOT_SERVICE_URL, "robot/dispense")
+        return HTMLResponse(r.content, status_code=r.status_code, headers=r.headers)
+
 @app.api_route("/robot/{path:path}", methods=["GET","POST","PUT","DELETE"])
 async def proxy_robot(request: Request, path: str):
     r = await _proxy(request, ROBOT_SERVICE_URL, f"robot/{path}")
     return HTMLResponse(r.content, status_code=r.status_code,
                         headers=r.headers)
+
+@app.post("/vision/capture")
+async def capture_image():
+    """Capture image using vision bridge snapshot endpoint."""
+    cmd_id = str(uuid.uuid4())
+    
+    snapshot_request = {
+        "cmd_id": cmd_id,
+        "cam_id": "top_cam"
+    }
+    
+    url = f"{VISION_SERVICE_URL}/snapshot"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.post(url, json=snapshot_request)
+        if r.status_code != 200:
+            raise HTTPException(r.status_code, f"Vision service error: {r.text}")
+        
+        # The snapshot endpoint returns a URL, but we want to return the actual image
+        # Let's fetch the image from the camera directly for the frontend
+        camera_url = f"http://phosphobot/camera/snapshot/top_cam?format=jpeg"
+        try:
+            image_response = await client.get(camera_url, timeout=10.0)
+            if image_response.status_code == 200:
+                return HTMLResponse(
+                    image_response.content,
+                    status_code=200,
+                    headers={
+                        "Content-Type": "image/jpeg",
+                        "Content-Length": str(len(image_response.content))
+                    }
+                )
+        except Exception as e:
+            log.warning(f"Failed to fetch image directly: {e}")
+        
+        # Fallback: return the JSON response from snapshot endpoint
+        return JSONResponse(r.json())
+
+@app.post("/vision/analyze")
+async def analyze_image(request: Request):
+    """Analyze uploaded image using vision bridge analyze-beaker endpoint."""
+    # Get the form data from the request
+    form = await request.form()
+    image_file = form.get("image")
+    
+    if not image_file:
+        raise HTTPException(400, "No image file provided")
+    
+    # Forward to vision bridge analyze-beaker endpoint
+    url = f"{VISION_SERVICE_URL}/analyze-beaker"
+    
+    # Prepare the multipart form data for the vision bridge
+    files = {"file": (image_file.filename, await image_file.read(), image_file.content_type)}
+    data = {
+        "algorithm": "space_mask",  # Use fast space_mask algorithm by default
+        "n_clusters": 5
+    }
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.post(url, files=files, data=data)
+        return JSONResponse(r.json() if r.status_code == 200 else {"error": r.text}, 
+                          status_code=r.status_code)
 
 @app.api_route("/vision/{path:path}", methods=["GET","POST","PUT","DELETE"])
 async def proxy_vision(request: Request, path: str):
