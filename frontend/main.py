@@ -18,6 +18,7 @@ import os, json, random, logging, httpx
 from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
@@ -459,7 +460,6 @@ def load_ground_truth_calibration(allow_white_absorbance: bool = False):
     return P_fallback
 
 # --- Load ground truth calibration and create bottle model ---
-from pathlib import Path
 
 # Configuration: Set to True if you want to allow white-solvent absorbance learning
 ALLOW_WHITE_ABSORBANCE = False  # Default: lock white to zero for pure RGB(255,255,255) background
@@ -510,15 +510,70 @@ def _sample_reachable_rgb(P_est: np.ndarray,
 
 def generate_random_target_color() -> Tuple[int,int,int]:
     """
-    Draw a target colour guaranteed reachable by the current bottle model.
-    Uses normalized ratios that sum to 3.0 to match ground truth calibration conditions.
-    While no model exists (very first run only), fall back to a safe palette.
+    Generate target colors with equal probability for redish, yellowish, and bluish colors.
+    Uses equal volumes of the three color solutions from ground truth calibration data
+    to create statistically balanced target colors.
     """
+    if bottle_model.P_est is not None:
+        # Get the pure solution RGB values from ground truth calibration
+        try:
+            ground_truth_dir = Path(__file__).parent / "ground_truth_calibration"
+            
+            # Try to load from calibration summary first
+            summary_file = ground_truth_dir / "calibration_summary.json"
+            pure_colors = {}
+            
+            if summary_file.exists():
+                with open(summary_file, 'r') as f:
+                    summary_data = json.load(f)
+                solutions_block = summary_data.get("calibration_summary", {}).get("solutions", {})
+                for color in ("red", "yellow", "blue"):
+                    if color in solutions_block and "rgb" in solutions_block[color]:
+                        pure_colors[color] = tuple(solutions_block[color]["rgb"])
+            
+            # Fallback to individual files if summary doesn't have complete data
+            if len(pure_colors) < 3:
+                pure_colors = {}
+                for color in ("red", "yellow", "blue"):
+                    color_file = ground_truth_dir / f"{color}_solution_ground_truth.json"
+                    if color_file.exists():
+                        try:
+                            with open(color_file, 'r') as f:
+                                color_data = json.load(f)
+                            rgb = color_data.get("color_measurement", {}).get("rgb")
+                            if rgb:
+                                pure_colors[color] = tuple(rgb)
+                        except Exception:
+                            pass
+            
+            # If we have all three pure colors, generate balanced target colors
+            if len(pure_colors) == 3:
+                # Choose primary color with equal probability (1/3 each)
+                primary_color = random.choice(["red", "yellow", "blue"])
+                
+                # Create equal volume ratios: 1.0 of chosen color, 1.0 each of the other two
+                # This creates a balanced color that's slightly biased toward the chosen primary
+                base_ratios = {"red": 1.0, "yellow": 1.0, "blue": 1.0, "white": 0.0}
+                base_ratios[primary_color] += 1.0  # Double the chosen primary color
+                
+                # Simulate the color mixing using the bottle model
+                w = np.array([base_ratios[p] for p in PIGMENTS])
+                A = w @ bottle_model.P_est
+                rgb_lin = 10 ** (-A)
+                rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
+                
+                logger.info(f"🎯 Generated {primary_color}ish target color: RGB{rgb8}")
+                return rgb8
+                
+        except Exception as e:
+            logger.warning(f"⚠️  Error generating balanced target color: {e}")
+    
+    # Fallback: use the original reachable color sampling
     if bottle_model.P_est is not None:
         rgb, _ = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
         return rgb
 
-    # fallback (should never be used after first start)
+    # Final fallback (should never be used after first start)
     safe_palette = [(255,0,0),(255,255,0),(0,0,255)]
     return random.choice(safe_palette)
 
