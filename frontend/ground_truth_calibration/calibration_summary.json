@@ -1,8 +1,8 @@
 {
   "calibration_summary": {
-    "timestamp": "2025-08-01T13:54:17.510542",
+    "timestamp": "2025-08-01T14:31:51.878994",
     "total_solutions": 4,
-    "calibration_session_id": "gt_calib_20250801_135417",
+    "calibration_session_id": "gt_calib_20250801_143151",
     "solutions": {
       "red": {
         "rgb": [
@@ -11,7 +11,7 @@
           45
         ],
         "hex": "#dc552d",
-        "timestamp": "2025-07-30T17:50:49.968078",
+        "timestamp": "2025-08-01T14:31:51.872709",
         "sequence": "calibration_red_solution"
       },
       "yellow": {
