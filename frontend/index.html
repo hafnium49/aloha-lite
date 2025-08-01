@@ -91,9 +91,9 @@
 
   <!-- FULL‑WIDTH SECTIONS (beaker analysis, log) -->
   <section class="beaker-analysis">
-    <h2>🔬 ビーカー分析 - 色クラスタリング</h2>
+    <h2>🔬 ビーカー分析 - 自動分析</h2>
+    <p>ロボット手順中に自動的にビーカー分析が実行されます</p>
     <div style="display:flex;gap:1rem;flex-wrap:wrap">
-      <button onclick="captureAndAnalyze()">📷 撮影して分析</button>
       <button onclick="resetAnalysis()">🔄 分析リセット</button>
     </div>
     <div id="analysis-result" style="display:none">
@@ -150,121 +150,99 @@ async function send() {
     const data = await response.json()
     log('✅ ロボット応答: ' + JSON.stringify(data))
     
-    // Auto-capture after dispensing
-    await sleep(2000)
-    await captureAndAnalyze()
+    // The robot procedure includes automatic beaker analysis
+    if (data.cmd_id) {
+      log('🔬 ロボット手順中にビーカー分析が実行されます...')
+      
+      // Wait for robot procedure to complete and get analysis result
+      await waitForRobotCompletion(data.cmd_id)
+    }
     
   } catch (error) {
     log('❌ エラー: ' + error.message)
   }
 }
 
-async function captureAndAnalyze() {
+async function waitForRobotCompletion(cmdId) {
   try {
-    log('📷 画像キャプチャ中...')
-    const response = await fetch('/vision/capture', { method: 'POST' })
+    log('⏳ ロボット手順の完了を待機中...')
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    // Poll robot status until completion
+    let attempts = 0
+    const maxAttempts = 60 // 5 minutes max
+    
+    while (attempts < maxAttempts) {
+      await sleep(5000) // Wait 5 seconds between checks
+      
+      const statusResponse = await fetch(`/robot/${cmdId}/status`)
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json()
+        log(`🤖 ロボットステータス: ${statusData.status || 'チェック中...'}`)
+        
+        // Check if completed and has analysis result
+        if (statusData.status === 'completed' || statusData.beaker_analysis) {
+          // Look for dominant color in the response
+          let dominantColor = statusData.dominant_color || statusData.beaker_analysis?.dominant_color
+          
+          if (dominantColor) {
+            log('🎉 ロボット手順完了、分析結果を表示中...')
+            displayRobotAnalysis(dominantColor)
+            return
+          }
+        }
+        
+        if (statusData.status === 'failed' || statusData.status === 'error') {
+          log('❌ ロボット手順が失敗しました')
+          return
+        }
+      }
+      
+      attempts++
     }
     
-    const blob = await response.blob()
-    const imageUrl = URL.createObjectURL(blob)
-    
-    const snapImg = document.getElementById('snap')
-    snapImg.src = imageUrl
-    snapImg.style.display = 'block'
-    
-    log('✅ 画像キャプチャ完了')
-    
-    // Analyze the captured image
-    await analyzeImage(blob)
+    log('⚠️ ロボット手順の完了確認がタイムアウトしました')
     
   } catch (error) {
-    log('❌ キャプチャエラー: ' + error.message)
+    log('❌ ロボット完了確認エラー: ' + error.message)
   }
 }
 
-async function analyzeImage(imageBlob) {
+// Simplified analysis display function for robot-provided results
+function displayRobotAnalysis(dominantColor) {
   try {
-    log('🔍 画像分析中...')
+    log('� ロボット分析結果を表示中...')
     
-    const formData = new FormData()
-    formData.append('image', imageBlob, 'capture.jpg')
+    const resultDiv = document.getElementById('analysis-result')
+    const contentDiv = document.getElementById('analysis-content')
     
-    const response = await fetch('/vision/analyze', {
-      method: 'POST',
-      body: formData
-    })
+    // Parse hex color to RGB
+    const hex = dominantColor
+    const r = parseInt(hex.substr(1, 2), 16)
+    const g = parseInt(hex.substr(3, 2), 16)
+    const b = parseInt(hex.substr(5, 2), 16)
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
-    
-    const analysis = await response.json()
-    displayAnalysis(analysis)
-    
-    // Send measurement to ML system
-    if (analysis.dominant_color && analysis.dominant_color.rgb) {
-      await submitMeasurement(analysis.dominant_color.rgb)
-    }
-    
-    log('✅ 画像分析完了')
-    
-  } catch (error) {
-    log('❌ 分析エラー: ' + error.message)
-  }
-}
-
-function displayAnalysis(analysis) {
-  const resultDiv = document.getElementById('analysis-result')
-  const contentDiv = document.getElementById('analysis-content')
-  
-  let html = ''
-  
-  if (analysis.dominant_color) {
-    const rgb = analysis.dominant_color.rgb
-    const hex = analysis.dominant_color.hex
-    html += `<div class="cluster-info">
+    const html = `<div class="cluster-info">
       <div style="display:flex;align-items:center;gap:1rem">
-        <div style="width:40px;height:40px;background:${hex};border:3px solid #333;border-radius:8px"></div>
+        <div style="width:50px;height:50px;background:${hex};border:3px solid #333;border-radius:8px"></div>
         <div>
-          <strong>主要色:</strong> RGB(${rgb.join(', ')}) | ${hex}<br>
-          <strong>覆盖率:</strong> ${(analysis.dominant_color.coverage * 100).toFixed(1)}%
+          <strong>主要色:</strong> RGB(${r}, ${g}, ${b}) | ${hex}<br>
+          <strong>分析方法:</strong> ロボット手順中の自動分析<br>
+          <strong>ステータス:</strong> 完了
         </div>
       </div>
     </div>`
+    
+    contentDiv.innerHTML = html
+    resultDiv.style.display = 'block'
+    
+    // Send measurement to ML system for hue optimization
+    submitMeasurement([r, g, b])
+    
+    log('✅ ロボット分析結果表示完了')
+    
+  } catch (error) {
+    log('❌ 分析結果表示エラー: ' + error.message)
   }
-  
-  if (analysis.color_clusters && analysis.color_clusters.length > 0) {
-    html += '<h4>🎨 色クラスター</h4>'
-    analysis.color_clusters.forEach((cluster, i) => {
-      const rgb = cluster.center
-      const hex = `#${rgb.map(c => Math.round(c).toString(16).padStart(2, '0')).join('')}`
-      html += `<div class="cluster-info">
-        <div style="display:flex;align-items:center;gap:1rem">
-          <div style="width:30px;height:30px;background:${hex};border:2px solid #333;border-radius:6px"></div>
-          <div>
-            <strong>クラスター ${i + 1}:</strong> RGB(${rgb.map(c => Math.round(c)).join(', ')}) | ${hex}<br>
-            <strong>ピクセル数:</strong> ${cluster.size} | <strong>比率:</strong> ${(cluster.percentage).toFixed(1)}%
-          </div>
-        </div>
-      </div>`
-    })
-  }
-  
-  if (analysis.statistics) {
-    const stats = analysis.statistics
-    html += `<div class="stats-grid">
-      <div class="stat-item"><strong>総ピクセル数</strong><br><span>${stats.total_pixels}</span></div>
-      <div class="stat-item"><strong>ユニーク色数</strong><br><span>${stats.unique_colors}</span></div>
-      <div class="stat-item"><strong>平均輝度</strong><br><span>${stats.avg_brightness?.toFixed(1) || 'N/A'}</span></div>
-      <div class="stat-item"><strong>色多様性</strong><br><span>${stats.color_diversity?.toFixed(3) || 'N/A'}</span></div>
-    </div>`
-  }
-  
-  contentDiv.innerHTML = html
-  resultDiv.style.display = 'block'
 }
 
 async function submitMeasurement(measuredRgb) {

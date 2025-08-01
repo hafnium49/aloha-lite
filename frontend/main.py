@@ -338,72 +338,62 @@ async def proxy_robot(request: Request, path: str):
     return HTMLResponse(r.content, status_code=r.status_code,
                         headers=r.headers)
 
-@app.post("/vision/capture")
-async def capture_image():
-    """Capture image using vision bridge snapshot endpoint."""
-    cmd_id = str(uuid.uuid4())
-    
-    snapshot_request = {
-        "cmd_id": cmd_id,
-        "cam_id": "top_cam"
-    }
-    
-    url = f"{VISION_SERVICE_URL}/snapshot"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(url, json=snapshot_request)
-        if r.status_code != 200:
-            raise HTTPException(r.status_code, f"Vision service error: {r.text}")
-        
-        # The snapshot endpoint returns a URL, but we want to return the actual image
-        # Let's fetch the image from the camera directly for the frontend
-        camera_url = f"http://phosphobot/camera/snapshot/top_cam?format=jpeg"
-        try:
-            image_response = await client.get(camera_url, timeout=10.0)
-            if image_response.status_code == 200:
-                return HTMLResponse(
-                    image_response.content,
-                    status_code=200,
-                    headers={
-                        "Content-Type": "image/jpeg",
-                        "Content-Length": str(len(image_response.content))
-                    }
-                )
-        except Exception as e:
-            log.warning(f"Failed to fetch image directly: {e}")
-        
-        # Fallback: return the JSON response from snapshot endpoint
-        return JSONResponse(r.json())
-
-@app.post("/vision/analyze")
-async def analyze_image(request: Request):
-    """Analyze uploaded image using vision bridge analyze-beaker endpoint."""
-    # Get the form data from the request
-    form = await request.form()
-    image_file = form.get("image")
-    
-    if not image_file:
-        raise HTTPException(400, "No image file provided")
-    
-    # Forward to vision bridge analyze-beaker endpoint
-    url = f"{VISION_SERVICE_URL}/analyze-beaker"
-    
-    # Prepare the multipart form data for the vision bridge
-    files = {"file": (image_file.filename, await image_file.read(), image_file.content_type)}
-    data = {
-        "algorithm": "space_mask",  # Use fast space_mask algorithm by default
-        "n_clusters": 5
-    }
-    
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(url, files=files, data=data)
-        return JSONResponse(r.json() if r.status_code == 200 else {"error": r.text}, 
-                          status_code=r.status_code)
-
 @app.api_route("/vision/{path:path}", methods=["GET","POST","PUT","DELETE"])
-async def proxy_vision(request: Request, path: str):
-    r = await _proxy(request, VISION_SERVICE_URL, path)
-    return HTMLResponse(r.content, status_code=r.status_code,
-                        headers=r.headers)
+async def proxy_vision_service(request: Request, path: str):
+    """Proxy requests to the vision service."""
+    url = f"{VISION_SERVICE_URL}/{path}"
+    log.info(f"�️ Proxying {request.method} request to: {url}")
+
+    # Forward query parameters
+    if request.query_params:
+        url += "?" + str(request.query_params)
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            # Handle multipart form data (for image uploads)
+            if request.headers.get("content-type", "").startswith("multipart/form-data"):
+                form = await request.form()
+                files = {}
+                data = {}
+
+                for key, value in form.items():
+                    if hasattr(value, 'read'):  # File upload
+                        files[key] = (value.filename, await value.read(), value.content_type)
+                    else:  # Regular form field
+                        data[key] = value
+
+                response = await client.request(
+                    method=request.method,
+                    url=url,
+                    files=files,
+                    data=data
+                )
+            else:
+                # Get request body if present
+                body = await request.body() if request.method in ["POST", "PUT"] else None
+
+                # Forward the request
+                response = await client.request(
+                    method=request.method,
+                    url=url,
+                    headers=dict(request.headers),
+                    content=body
+                )
+
+            # Return the response properly
+            if response.headers.get("content-type", "").startswith("application/json"):
+                return JSONResponse(response.json())
+            else:
+                return HTMLResponse(response.content, status_code=response.status_code,
+                                 headers=response.headers)
+
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Vision service timeout")
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail="Vision service unavailable")
+        except Exception as e:
+            log.error(f"Vision service proxy error: {e}")
+            raise HTTPException(status_code=500, detail=f"Proxy error: {str(e)}")
 
 @app.get("/status")
 async def status():
