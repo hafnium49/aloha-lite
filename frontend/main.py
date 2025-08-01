@@ -213,7 +213,7 @@ class ColorOptimizer:
 
         def acq(x):
             m, s = gp.predict(x.reshape(1, -1), return_std=True)
-            xi = 0.1
+            xi = 0.01  # Reduced exploration magnitude by 10x (was 0.1)
             z = (f_best - m - xi) / (s + 1e-9)
             return -(f_best - m - xi) * norm.cdf(z) - s * norm.pdf(z)
 
