@@ -16,6 +16,7 @@ This version keeps TWO separate calibration states:
 
 import os, json, random, logging, httpx
 from datetime import datetime
+from math import atan2, degrees
 from typing import List, Tuple, Dict, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -84,6 +85,7 @@ class ColorOptimizer:
         """
         self.history: List[Dict] = []
         self.target_color: Optional[Tuple[int, int, int]] = None
+        self.hue_target_deg: Optional[float] = None
         self.P_est: Optional[np.ndarray] = None    # (4,3) absorbance/volume
         self.std_error: Optional[float] = None
         self.gp_model: Optional[GaussianProcessRegressor] = None
@@ -99,6 +101,52 @@ class ColorOptimizer:
     @classmethod
     def _rgb_to_absorb(cls, rgb):
         return -np.log10(cls._lin_rgb(rgb))
+
+    # RGB → CIELAB → hue conversion for hue-only optimization
+    @staticmethod
+    def _rgb_to_lab(rgb):
+        """Convert RGB to CIELAB."""
+        # Normalize RGB to [0, 1]
+        r, g, b = np.array(rgb) / 255.0
+        
+        # sRGB to XYZ conversion
+        def gamma_correct(c):
+            return ((c + 0.055) / 1.055) ** 2.4 if c > 0.04045 else c / 12.92
+        
+        r, g, b = map(gamma_correct, [r, g, b])
+        
+        # XYZ using sRGB matrix
+        X = r * 0.4124564 + g * 0.3575761 + b * 0.1804375
+        Y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
+        Z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041
+        
+        # XYZ to CIELAB
+        Xn, Yn, Zn = 0.95047, 1.00000, 1.08883  # D65 illuminant
+        
+        def f(t):
+            return t ** (1/3) if t > 0.008856 else (7.787 * t + 16/116)
+        
+        fx = f(X / Xn)
+        fy = f(Y / Yn)
+        fz = f(Z / Zn)
+        
+        L = 116 * fy - 16
+        a = 500 * (fx - fy)
+        b = 200 * (fy - fz)
+        
+        return L, a, b
+
+    @classmethod
+    def _hue_deg(cls, rgb):
+        """Extract hue angle in degrees from RGB."""
+        L, a, b = cls._rgb_to_lab(rgb)
+        return degrees(atan2(b, a)) % 360
+
+    @staticmethod
+    def _ang_diff(h1, h2):
+        """Angular difference between two hue angles (in degrees)."""
+        diff = abs(h1 - h2)
+        return min(diff, 360 - diff)
 
     # dict ⇆ ndarray conversions (4 components)
     def _ratios_to_array(self, d):
@@ -126,10 +174,15 @@ class ColorOptimizer:
     # ---------- public API ----------
     def set_target_color(self, rgb):
         self.target_color = rgb
-        logger.info("🎯 New target colour RGB%s", rgb)
+        self.hue_target_deg = self._hue_deg(rgb)
+        logger.info("🎯 New target colour RGB%s (hue: %.1f°)", rgb, self.hue_target_deg)
 
     def add_measurement(self, ratios, measured_rgb):
-        d = euclidean(measured_rgb, self.target_color) if self.target_color else 0
+        if self.hue_target_deg is not None:
+            measured_hue = self._hue_deg(measured_rgb)
+            d = self._ang_diff(measured_hue, self.hue_target_deg)
+        else:
+            d = euclidean(measured_rgb, self.target_color) if self.target_color else 0
         self.history.append({
             "timestamp": datetime.now().isoformat(),
             "ratios": ratios.copy(),
