@@ -56,12 +56,12 @@ def run_all_frontend_tests():
     # Test modules in order of importance
     test_modules = [
         ("test_four_rule_target_generator", "Four-Rule Target Generator Tests"),
-        ("test_hue_optimization", "Hue Optimization System Tests"),
+        ("test_hue_optimization", "Hue Optimization System Tests"), 
         ("test_4_pigment_system", "Four-Pigment System Tests"),
-        ("test_color_space", "Color Space Conversion Tests"),
-        ("test_ground_truth_calibration", "Ground Truth Calibration Tests"),
-        ("test_optimization", "General Optimization Tests"),
-        ("test_frontend_integration", "Frontend Integration Tests"),
+        ("test_color_space_conversions", "Color Space Conversion Tests"),
+        ("test_ground_truth_real", "Ground Truth Calibration Tests (Real Data)"),
+        ("test_general_optimization", "General Optimization Tests"),
+        ("test_frontend_integration", "Frontend Integration Tests")
     ]
     
     results = {}
