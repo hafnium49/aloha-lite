@@ -189,6 +189,13 @@ class ColorOptimizer:
             "measured_rgb": measured_rgb,
             "distance_to_target": d
         })
+        
+        # Store hue data for visualization
+        h = self._hue_deg(measured_rgb)
+        self.history[-1]["measured_hue_deg"] = h
+        if self.hue_target_deg is not None:
+            self.history[-1]["hue_error_deg"] = self._ang_diff(h, self.hue_target_deg)
+        
         logger.info("📊 Logged trial #%d  dist≈%.2f", len(self.history), d)
 
     # ---------- calibration ----------
@@ -392,6 +399,12 @@ class ColorOptimizer:
             "current_distance": d[-1] if d else None,
             "std_error_absorb": self.std_error
         }
+
+    def get_hue_series(self):
+        return [h["measured_hue_deg"] for h in self.history if "measured_hue_deg" in h]
+
+    def get_hue_error_series(self):
+        return [h["hue_error_deg"] for h in self.history if "hue_error_deg" in h]
 
 # ╔══════════════════════════════════════╗
 # ║    H I D D E N   B O T T L E   M O D E L     ║
@@ -799,6 +812,19 @@ async def api_color_space_data():
     except Exception as e:
         logger.error(f"Error generating color space data: {e}")
         return {"status": "success", "data": {"available": False}}
+
+@app.get("/api/hue-visual-data")
+async def api_hue_visual_data():
+    if color_optimizer.hue_target_deg is None or len(color_optimizer.history) == 0:
+        return {"status": "success", "available": False}
+    return {
+        "status": "success",
+        "available": True,
+        "target_hue_deg": color_optimizer.hue_target_deg,
+        "hue_series_deg": color_optimizer.get_hue_series(),
+        "hue_error_deg": color_optimizer.get_hue_error_series(),
+        "rgb_series": [h["measured_rgb"] for h in color_optimizer.history]
+    }
 
 # ╔══════════════════════════════════════╗
 # ║        Robot & Vision Proxy Endpoints        ║

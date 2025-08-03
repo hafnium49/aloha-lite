@@ -410,6 +410,13 @@ img {
 .mt-1 { margin-top: 1rem; }
 .mb-1 { margin-bottom: 1rem; }
 .p-1 { padding: 1rem; }
+
+/* Tab Styles */
+.tab-buttons{display:flex;gap:6px;margin-bottom:.5rem}
+.tab-btn{background:#eee;border:1px solid #ccc;border-radius:6px;padding:.4rem .8rem;cursor:pointer}
+.tab-btn.active{background:#007bff;color:#fff}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 </style>
 <div class="container">
 <h1>🎨 色混合 + ビーカー分析 + ML最適化</h1>
@@ -507,11 +514,30 @@ img {
         </div>
         
         <div id="perceptual-chart" style="margin-top: 1.5rem;">
-          <h4>🎨 知覚的色空間での進捗</h4>
+          <h4>🎨 色相最適化の視覚化</h4>
           <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
-            CAM02-UCS a'b' 平面での最適化の軌跡（知覚的に均一な色空間）
+            CIELAB色空間での色相ベース最適化の進捗
           </p>
-          <canvas id="perceptual-canvas" width="500" height="400"></canvas>
+          
+          <!-- 🔥 NEW hue-only visual tabs -->
+          <div class="tab-container">
+            <div class="tab-buttons">
+              <button class="tab-btn active" data-tab="dial">Hue Gauge</button>
+              <button class="tab-btn" data-tab="ab">a*-b* Scatter</button>
+              <button class="tab-btn" data-tab="error">Δh vs Trial</button>
+              <button class="tab-btn" data-tab="strip">Colour Timeline</button>
+            </div>
+
+            <div id="dial"   class="tab-panel active"><canvas id="dial-canvas"   width="320" height="320"></canvas></div>
+            <div id="ab"     class="tab-panel">
+              <canvas id="ab-canvas" width="500" height="400"></canvas>
+              <canvas id="perceptual-canvas" width="500" height="400" style="display: none;"></canvas>
+            </div>
+            <div id="error"  class="tab-panel"><canvas id="error-canvas"  width="500" height="250"></canvas></div>
+            <div id="strip"  class="tab-panel"><canvas id="strip-canvas"  width="500" height="60"></canvas></div>
+          </div>
+          
+          <!-- Keep original perceptual canvas for a*-b* scatter tab -->
         </div>
       </div>
 
@@ -921,8 +947,8 @@ function updateOptimizationStats(stats) {
     document.getElementById('current-distance').textContent = stats.current_distance ? stats.current_distance.toFixed(1) : '-'
     document.getElementById('average-distance').textContent = stats.average_distance ? stats.average_distance.toFixed(1) : '-'
     
-    // Draw perceptual color space chart
-    drawPerceptualChart()
+    // Draw all hue-based charts
+    drawAllHueCharts()
   }
 }
 
@@ -1455,6 +1481,164 @@ function rgbToHex(r, g, b) {
     const hex = x.toString(16)
     return hex.length === 1 ? "0" + hex : hex
   }).join("")
+}
+
+async function drawAllHueCharts(){
+  const res = await fetch('/api/hue-visual-data')
+  const d   = await res.json()
+  if(d.status!=='success'||!d.available)return
+
+  const target = d.target_hue_deg
+  const hues   = d.hue_series_deg
+  const errs   = d.hue_error_deg
+  const rgbs   = d.rgb_series
+
+  /* ---- (1) Polar Dial ---- */
+  {
+    const ctx = document.getElementById('dial-canvas').getContext('2d')
+    ctx.clearRect(0,0,320,320)
+    const cx=160, cy=160, R=120
+    ctx.lineWidth=6
+    // dial circle
+    ctx.strokeStyle='#ccc'; ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.stroke()
+    // target tick
+    ctx.strokeStyle='#000'; ctx.beginPath()
+    const th = (target-90)*Math.PI/180
+    ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(th), cy+R*Math.sin(th)); ctx.stroke()
+    // history dots
+    hues.forEach((h,i)=>{
+      const ang=(h-90)*Math.PI/180
+      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang)
+      ctx.fillStyle=`rgb(${rgbs[i].join(',')})`
+      ctx.beginPath(); ctx.arc(x,y,8,0,2*Math.PI); ctx.fill()
+    })
+  }
+
+  /* ---- (2) a*b* scatter re-uses existing drawPerceptualChart ---- */
+  drawPerceptualChart()   // keeps old LAB view in the 2nd tab
+
+  /* ---- (3) Error line ---- */
+  {
+    const ctx  = document.getElementById('error-canvas').getContext('2d')
+    ctx.clearRect(0,0,500,250)
+    ctx.strokeStyle='#000'; ctx.beginPath()
+    errs.forEach((e,i)=>{
+      const x = 40 + i*(460/(Math.max(errs.length-1,1)))
+      const y = 200 - e*4          // 1 deg → 4 px; adjust as you like
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y)
+    })
+    ctx.stroke()
+    // success band
+    ctx.fillStyle='rgba(40,167,69,.15)'
+    ctx.fillRect(40, 200-3*4, 460, 6*4)
+  }
+
+  /* ---- (4) Colour strip ---- */
+  {
+    const ctx = document.getElementById('strip-canvas').getContext('2d')
+    const W=500, H=60
+    ctx.clearRect(0,0,W,H)
+    const w=W/rgbs.length
+    rgbs.forEach((rgb,i)=>{
+      ctx.fillStyle=`rgb(${rgb.join(',')})`
+      ctx.fillRect(i*w,0,w,H)
+    })
+  }
+}
+
+// Tab switching functionality
+// Tab switching functionality
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.onclick=()=>{ 
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'))
+    btn.classList.add('active')
+    document.getElementById(btn.dataset.tab).classList.add('active')
+    
+    // For a*-b* scatter tab, show the original perceptual canvas
+    if(btn.dataset.tab === 'ab'){
+      document.getElementById('perceptual-canvas').style.display = 'block'
+      document.getElementById('ab-canvas').style.display = 'none'
+      drawPerceptualChart()
+    } else {
+      document.getElementById('perceptual-canvas').style.display = 'none'
+      if(document.getElementById('ab-canvas')) {
+        document.getElementById('ab-canvas').style.display = 'block'
+      }
+    }
+  }
+})
+
+// Hue-based visualization function
+async function drawAllHueCharts(){
+  const res = await fetch('/api/hue-visual-data')
+  const d   = await res.json()
+  if(d.status!=='success'||!d.available)return
+
+  const target = d.target_hue_deg
+  const hues   = d.hue_series_deg
+  const errs   = d.hue_error_deg
+  const rgbs   = d.rgb_series
+
+  /* ---- (1) Polar Dial ---- */
+  {
+    const ctx = document.getElementById('dial-canvas').getContext('2d')
+    ctx.clearRect(0,0,320,320)
+    const cx=160, cy=160, R=120
+    ctx.lineWidth=6
+    // dial circle
+    ctx.strokeStyle='#ccc'; ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.stroke()
+    // target tick
+    ctx.strokeStyle='#000'; ctx.beginPath()
+    const th = (target-90)*Math.PI/180
+    ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(th), cy+R*Math.sin(th)); ctx.stroke()
+    // history dots
+    hues.forEach((h,i)=>{
+      const ang=(h-90)*Math.PI/180
+      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang)
+      ctx.fillStyle=`rgb(${rgbs[i].join(',')})`
+      ctx.beginPath(); ctx.arc(x,y,8,0,2*Math.PI); ctx.fill()
+    })
+  }
+
+  /* ---- (2) a*b* scatter re-uses existing drawPerceptualChart ---- */
+  drawPerceptualChart()   // keeps old LAB view in the 2nd tab
+
+  /* ---- (3) Error line ---- */
+  {
+    const ctx  = document.getElementById('error-canvas').getContext('2d')
+    ctx.clearRect(0,0,500,250)
+    if(errs.length > 0) {
+      ctx.strokeStyle='#007bff'; ctx.lineWidth=2; ctx.beginPath()
+      errs.forEach((e,i)=>{
+        const x = 40 + i*(420/(Math.max(errs.length-1,1)))
+        const y = 200 - e*4          // 1 deg → 4 px; adjust as you like
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y)
+      })
+      ctx.stroke()
+      // success band
+      ctx.fillStyle='rgba(40,167,69,.15)'
+      ctx.fillRect(40, 200-3*4, 420, 6*4)
+      // labels
+      ctx.fillStyle='#666'; ctx.font='12px sans-serif'
+      ctx.fillText('±3° success zone', 45, 185)
+      ctx.fillText('Hue Error (°)', 200, 240)
+    }
+  }
+
+  /* ---- (4) Colour strip ---- */
+  {
+    const ctx = document.getElementById('strip-canvas').getContext('2d')
+    const W=500, H=60
+    ctx.clearRect(0,0,W,H)
+    if(rgbs.length > 0) {
+      const w=W/rgbs.length
+      rgbs.forEach((rgb,i)=>{
+        ctx.fillStyle=`rgb(${rgb.join(',')})`
+        ctx.fillRect(i*w,0,w,H)
+      })
+    }
+  }
 }
 </script>
 
