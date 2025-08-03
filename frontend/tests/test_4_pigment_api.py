@@ -70,14 +70,20 @@ def test_4_pigment_api():
     assert set(new_ratios.keys()) == expected_keys
     print(f"✅ Updated ratios: {new_ratios}")
     
-    # Test 4: Check statistics
+    # Test 4: Check statistics - should now track hue-based distances
     print("\n📊 Testing optimization statistics...")
     assert "statistics" in data
     stats = data["statistics"]
     
     assert "total_attempts" in stats
     assert stats["total_attempts"] >= 1
-    print(f"✅ Statistics: {stats['total_attempts']} attempts")
+    
+    # With hue-based optimization, distances should be in degrees (0-180)
+    if stats.get("current_distance") is not None:
+        print(f"🎯 Current hue distance: {stats['current_distance']:.1f}° (should be 0-180°)")
+        assert 0 <= stats["current_distance"] <= 180, "Hue distance should be 0-180°"
+    
+    print(f"✅ Statistics: {stats['total_attempts']} attempts, hue optimization active")
     
     # Test 5: Test multiple iterations
     print("\n🔄 Testing multiple optimization iterations...")

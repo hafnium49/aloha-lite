@@ -96,10 +96,11 @@ def test_bottle_model_functionality():
     
     import numpy as np
     
-    # Create test matrix
+    # Create test matrix - updated for 4-pigment system
     test_matrix = np.array([[0.8, 0.1, 0.05],
                            [0.2, 0.9, 0.1], 
-                           [0.05, 0.2, 0.9]])
+                           [0.05, 0.2, 0.9],
+                           [0.0, 0.0, 0.0]])  # White pigment row
     
     # Create BottleModel
     bottle = BottleModel(test_matrix)
@@ -117,7 +118,7 @@ def test_bottle_model_functionality():
         assert all(0 <= c <= 255 for c in rgb), f"Invalid RGB: {rgb}"
         
         # Validate weights
-        assert len(weights) == 3, "Should have 3 weights"
+        assert len(weights) == 4, "Should have 4 weights"  # Updated for 4-pigment system
         assert all(w >= 0 for w in weights), "Weights should be non-negative"
         assert sum(weights) <= 6.5, "Total weight should be reasonable"  # Allow some tolerance
     

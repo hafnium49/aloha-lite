@@ -50,12 +50,12 @@ def test_optimization_evolution():
             print("🔍 Phase N=1: Bayesian GP only")
         elif N == 2:
             print("⚖️  Phase N=2: Rough α-calibration + GP (60% cal / 40% GP)")
-        elif 3 <= N <= 11:
-            cal_weight = 0.25 + 0.60 * (N - 3) / 8.0
+        elif 3 <= N <= 8:  # Updated for default white-locked system (hybrid_end = 8)
+            cal_weight = 0.25 + 0.60 * (N - 3) / 5.0  # Updated range calculation
             gp_weight = 1.0 - cal_weight
-            print(f"🧮 Phase N={N}: Full NNLS (12-param) + GP ({cal_weight:.2f} cal / {gp_weight:.2f} GP)")
+            print(f"🧮 Phase N={N}: Full NNLS (9-param, white locked) + GP ({cal_weight:.2f} cal / {gp_weight:.2f} GP)")
         else:
-            print(f"🎯 Phase N≥12: NNLS only")
+            print(f"🎯 Phase N≥9: NNLS only")  # Updated threshold
             
         print(f"📋 Recommended ratios: {ratios}")
         
@@ -70,11 +70,10 @@ def test_optimization_evolution():
         # Check statistics
         stats = optimizer.get_statistics()
         if stats['current_distance'] is not None:
-            print(f"📊 Distance: {stats['current_distance']:.2f}, Best: {stats['best_distance']:.2f}")
+            # Distance is now in hue degrees, not RGB distance
+            print(f"📊 Hue distance: {stats['current_distance']:.1f}°, Best: {stats['best_distance']:.1f}°")
             if hasattr(optimizer, 'std_error') and optimizer.std_error is not None:
-                print(f"🎛️  Standard Error: {optimizer.std_error:.4f}")
-    
-    # Analyze results
+                print(f"🎛️  Standard Error: {optimizer.std_error:.4f}")    # Analyze results
     print("\n" + "="*50)
     print("📈 NEW PHASE OPTIMIZATION ANALYSIS")
     print("="*50)
@@ -103,15 +102,15 @@ def test_optimization_evolution():
     if len(recommendations) >= 3:
         print("✅ Phase N=2: Rough calibration + GP blend implemented")
     
-    # Phase 3-11: Should show gradual weight shift
-    blended_phases = [i for i, n in enumerate(phases) if 3 <= n <= 11]
+    # Phase 3-8: Should show gradual weight shift (updated for white-locked system)
+    blended_phases = [i for i, n in enumerate(phases) if 3 <= n <= 8]
     if blended_phases:
-        print(f"✅ Phase N=3-11: Blended NNLS + GP phases: {len(blended_phases)} iterations")
+        print(f"✅ Phase N=3-8: Blended NNLS + GP phases: {len(blended_phases)} iterations")
     
-    # Phase ≥12: Should be calibration only
-    pure_calibration_phases = [i for i, n in enumerate(phases) if n >= 12]
+    # Phase ≥9: Should be calibration only (updated threshold)
+    pure_calibration_phases = [i for i, n in enumerate(phases) if n >= 9]
     if pure_calibration_phases:
-        print(f"✅ Phase N≥12: Pure calibration phases: {len(pure_calibration_phases)} iterations")
+        print(f"✅ Phase N≥9: Pure calibration phases: {len(pure_calibration_phases)} iterations")
     
     # Check for evolution (recommendations should not be identical)
     unique_recommendations = []
@@ -140,7 +139,7 @@ def test_optimization_evolution():
         best_distance = min(distances)
         improvement = (initial_distance - best_distance) / initial_distance
         
-        print(f"📈 Improvement: {improvement*100:.1f}% (from {initial_distance:.2f} to {best_distance:.2f})")
+        print(f"📈 Improvement: {improvement*100:.1f}% (from {initial_distance:.1f}° to {best_distance:.1f}°)")
         
         if improvement > 0.05:  # At least 5% improvement
             print("✅ GOOD: Significant improvement achieved")
