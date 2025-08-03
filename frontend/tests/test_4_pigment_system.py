@@ -52,7 +52,7 @@ class Test4PigmentSystem(unittest.TestCase):
         
         # Test case 1: Normal case
         test_ratios = {'red': 1.0, 'yellow': 1.0, 'blue': 1.0}
-        normalized = self.optimizer._normalize(test_ratios, max_total=3.0)
+        normalized = self.optimizer._normalize(test_ratios, max_total=10.0)
         
         # Should have 4 keys including white
         self.assertEqual(len(normalized), 4)
@@ -60,7 +60,7 @@ class Test4PigmentSystem(unittest.TestCase):
         
         # Total should be max_total
         total = sum(normalized.values())
-        self.assertAlmostEqual(total, 3.0, places=2)
+        self.assertAlmostEqual(total, 10.0, places=2)
         
         # White should be non-negative
         self.assertGreaterEqual(normalized['white'], 0.0)
@@ -68,16 +68,16 @@ class Test4PigmentSystem(unittest.TestCase):
         
         # Test case 2: Large ratios (should scale down colored pigments)
         test_ratios = {'red': 5.0, 'yellow': 5.0, 'blue': 5.0}
-        normalized = self.optimizer._normalize(test_ratios, max_total=3.0)
+        normalized = self.optimizer._normalize(test_ratios, max_total=10.0)
         
         total = sum(normalized.values())
-        self.assertAlmostEqual(total, 3.0, places=2)
+        self.assertAlmostEqual(total, 10.0, places=2)
         self.assertGreaterEqual(normalized['white'], 0.1)  # Minimum white volume
         print(f"✅ Large ratios case: {normalized}")
         
         # Test case 3: Ensure minimum white volume
-        test_ratios = {'red': 2.9, 'yellow': 0.05, 'blue': 0.05}  # Almost max_total in colored
-        normalized = self.optimizer._normalize(test_ratios, max_total=3.0)
+        test_ratios = {'red': 9.6, 'yellow': 0.2, 'blue': 0.2}  # Almost max_total in colored
+        normalized = self.optimizer._normalize(test_ratios, max_total=10.0)
         
         self.assertGreaterEqual(normalized['white'], 0.1)  # Should enforce minimum
         print(f"✅ Minimum white volume enforced: {normalized}")

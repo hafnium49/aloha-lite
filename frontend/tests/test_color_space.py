@@ -111,7 +111,7 @@ def test_bottle_model_functionality():
     
     # Test _sample_reachable_rgb function
     for i in range(5):
-        rgb, weights = _sample_reachable_rgb(bottle.P_est, max_total=6.0)
+        rgb, weights = _sample_reachable_rgb(bottle.P_est, max_total=10.0)
         print(f"   Sample {i+1}: RGB{rgb}, weights=[{weights[0]:.2f}, {weights[1]:.2f}, {weights[2]:.2f}]")
         
         # Validate RGB output

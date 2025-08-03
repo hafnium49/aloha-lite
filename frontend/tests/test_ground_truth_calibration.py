@@ -455,8 +455,8 @@ class TestColorOptimizationIntegration(unittest.TestCase):
             self.assertGreaterEqual(component, 0)
             self.assertLessEqual(component, 255)
         
-        # Verify weights sum to approximately 3.0 (max_total)
-        self.assertAlmostEqual(np.sum(weights), 3.0, places=1)
+        # Verify weights sum to approximately 10.0 (max_total)
+        self.assertAlmostEqual(np.sum(weights), 10.0, places=1)
         
         # Verify all weights are non-negative
         self.assertTrue(np.all(weights >= 0))
