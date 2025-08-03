@@ -1,0 +1,53 @@
+[
+  {
+    "solution": "red",
+    "source_file": "frontend/washing_bottle_calibration/washing_bottle_red_calibration.json",
+    "poly_order": 3,
+    "coefficients": [
+      -1.5541062584837417e-18,
+      -1.7856933593096205e-16,
+      1.000000000000001,
+      -2.3873667586321564e-15
+    ],
+    "std_errors": [
+      1.7592896996015434e-17,
+      2.9338496531438414e-16,
+      1.4223615140085423e-15,
+      1.897626989773193e-15
+    ]
+  },
+  {
+    "solution": "yellow",
+    "source_file": "frontend/washing_bottle_calibration/washing_bottle_yellow_calibration.json",
+    "poly_order": 3,
+    "coefficients": [
+      -1.770656498552683e-17,
+      1.7856933593096205e-16,
+      0.9699999999999993,
+      1.4043333874306804e-16
+    ],
+    "std_errors": [
+      4.578307291982498e-18,
+      7.634936567644863e-17,
+      3.7014984472969187e-16,
+      4.938310891440512e-16
+    ]
+  },
+  {
+    "solution": "blue",
+    "source_file": "frontend/washing_bottle_calibration/washing_bottle_blue_calibration.json",
+    "poly_order": 3,
+    "coefficients": [
+      1.9617737527938026e-17,
+      -5.580291747842564e-16,
+      1.0300000000000027,
+      -5.898200227208857e-15
+    ],
+    "std_errors": [
+      1.3828218733191593e-17,
+      2.306039462583103e-16,
+      1.1179924567192312e-15,
+      1.4915565693663098e-15
+    ]
+  }
+]

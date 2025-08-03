@@ -1,48 +1,48 @@
 {
   "solution": "blue",
   "calibration_sequence": "calibration blue washing bottle",
-  "timestamp": "2025-08-03T20:35:18",
-  "description": "Blue solution washing\u2011bottle squeeze calibration",
+  "timestamp": "2025-08-03T21:19:26",
+  "description": "Blue solution washing-bottle squeeze calibration",
   "measurements": [
     {
       "duration_s": 1,
-      "weight_g": 1.03
+      "weight_g": 1.051
     },
     {
       "duration_s": 2,
-      "weight_g": 2.06
+      "weight_g": 2.131
     },
     {
       "duration_s": 3,
-      "weight_g": 3.09
+      "weight_g": 3.396
     },
     {
       "duration_s": 4,
-      "weight_g": 4.12
+      "weight_g": 4.506
     },
     {
       "duration_s": 5,
-      "weight_g": 5.15
+      "weight_g": 5.726
     },
     {
       "duration_s": 6,
-      "weight_g": 6.18
+      "weight_g": 7.03
     },
     {
       "duration_s": 7,
-      "weight_g": 7.21
+      "weight_g": 8.525
     },
     {
       "duration_s": 8,
-      "weight_g": 8.24
+      "weight_g": 9.912
     },
     {
       "duration_s": 9,
-      "weight_g": 9.27
+      "weight_g": 11.388
     },
     {
       "duration_s": 10,
-      "weight_g": 10.3
+      "weight_g": 12.91
     }
   ]
 }

@@ -1,48 +1,48 @@
 {
   "solution": "yellow",
   "calibration_sequence": "calibration yellow washing bottle",
-  "timestamp": "2025-08-03T20:35:18",
-  "description": "Yellow solution washing\u2011bottle squeeze calibration",
+  "timestamp": "2025-08-03T21:19:26",
+  "description": "Yellow solution washing-bottle squeeze calibration",
   "measurements": [
     {
       "duration_s": 1,
-      "weight_g": 0.97
+      "weight_g": 1.002
     },
     {
       "duration_s": 2,
-      "weight_g": 1.94
+      "weight_g": 2.031
     },
     {
       "duration_s": 3,
-      "weight_g": 2.91
+      "weight_g": 3.049
     },
     {
       "duration_s": 4,
-      "weight_g": 3.88
+      "weight_g": 4.213
     },
     {
       "duration_s": 5,
-      "weight_g": 4.85
+      "weight_g": 5.274
     },
     {
       "duration_s": 6,
-      "weight_g": 5.82
+      "weight_g": 6.251
     },
     {
       "duration_s": 7,
-      "weight_g": 6.79
+      "weight_g": 7.58
     },
     {
       "duration_s": 8,
-      "weight_g": 7.76
+      "weight_g": 8.553
     },
     {
       "duration_s": 9,
-      "weight_g": 8.73
+      "weight_g": 10.12
     },
     {
       "duration_s": 10,
-      "weight_g": 9.7
+      "weight_g": 11.189
     }
   ]
 }
