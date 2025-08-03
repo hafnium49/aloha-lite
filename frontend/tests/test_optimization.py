@@ -17,7 +17,14 @@ import numpy as np  # Add numpy import
 # Add parent directory to path to import main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import ColorOptimizer, BottleModel, generate_random_target_color, _sample_reachable_rgb
+from main import (
+    ColorOptimizer, 
+    BottleModel, 
+    generate_random_target_color, 
+    _sample_reachable_rgb,
+    _hue_history,
+    _cum_vol
+)
 
 def test_optimization_evolution():
     """Test the new phase optimization evolution (N=0 through N≥8)"""

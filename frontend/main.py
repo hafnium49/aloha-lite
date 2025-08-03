@@ -668,11 +668,11 @@ def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
 
         # — rule ③ pigment balance metric (smaller is better) —
         projected_totals = _cum_vol + colored
-        imbalance = np.std(projected_totals / projected_totals.sum())
+        imbalance = np.std(projected_totals / (projected_totals.sum() + 1e-10))
 
-        cand_key = (difficulty, -hue_gap, imbalance, rgb, vols, hue)
-        if best is None or cand_key < best:
-            best = cand_key
+        cand_key = (difficulty, -hue_gap, imbalance)
+        if best is None or cand_key < best[:3]:
+            best = (difficulty, -hue_gap, imbalance, rgb, vols, hue)
 
     # If every candidate was filtered out, fall back to one reachable sample
     if best is None:

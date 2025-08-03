@@ -21,7 +21,16 @@ import math
 # Add parent directory to path to import main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from main import ColorOptimizer, generate_random_target_color
+from main import (
+    ColorOptimizer, 
+    generate_random_target_color, 
+    _hue_gap_deg,
+    PRIMARY_HUES,
+    HUE_EXCLUSION,
+    MAX_DIFFICULTY,
+    _hue_history,
+    _cum_vol
+)
 
 class TestHueOptimization(unittest.TestCase):
     """Test the hue-only optimization implementation."""
@@ -96,8 +105,60 @@ class TestHueOptimization(unittest.TestCase):
         print("✅ Hue angle calculation working")
     
     def test_angular_distance_calculation(self):
-        """Test angular distance calculation."""
+        """Test angular distance calculation using _hue_gap_deg."""
         print("\n🧪 Testing angular distance calculation...")
+        
+        # Test cases for angular distance
+        test_cases = [
+            (0, 0, 0),       # Same angle
+            (0, 90, 90),     # 90° apart
+            (0, 180, 180),   # 180° apart (maximum)
+            (0, 270, 90),    # 270° apart = 90° (shorter path)
+            (350, 10, 20),   # Across zero wraparound
+            (10, 350, 20),   # Reverse wraparound
+            (45, 315, 90),   # 270° apart = 90° (shorter path)
+        ]
+        
+        for h1, h2, expected in test_cases:
+            # Test both the ColorOptimizer method and the module function
+            distance_opt = self.optimizer._ang_diff(h1, h2)
+            distance_func = _hue_gap_deg(h1, h2)
+            
+            print(f"  Hue gap {h1}° ↔ {h2}°: {distance_opt:.1f}° (optimizer), {distance_func:.1f}° (function)")
+            
+            self.assertAlmostEqual(distance_opt, expected, places=1)
+            self.assertAlmostEqual(distance_func, expected, places=1)
+            # Both methods should give same result
+            self.assertAlmostEqual(distance_opt, distance_func, places=1)
+        
+        print("✅ Angular distance calculation working")
+    
+    def test_four_rule_integration(self):
+        """Test integration with the four-rule target generation system."""
+        print("\n🧪 Testing four-rule integration...")
+        
+        # Reset state
+        _hue_history.clear()
+        _cum_vol[:] = 0
+        
+        # Generate targets and test rule compliance
+        targets = []
+        for i in range(10):
+            rgb = generate_random_target_color()
+            hue = self.optimizer._hue_deg(rgb)
+            targets.append((rgb, hue))
+            
+            # Test primary exclusion (Rule 4)
+            min_primary_dist = min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES)
+            self.assertGreaterEqual(min_primary_dist, HUE_EXCLUSION - 1,  # Allow small tolerance
+                f"Target {i+1} RGB{rgb} hue {hue:.1f}° too close to primaries (min dist: {min_primary_dist:.1f}°)")
+        
+        print(f"  Generated {len(targets)} targets with proper primary exclusion")
+        print("✅ Four-rule integration working")
+    
+    def test_original_angular_distance_calculation(self):
+        """Test original angular distance calculation (for backwards compatibility).""" 
+        print("\n🧪 Testing original angular distance calculation...")
         
         # Test cases for angular distance
         test_cases = [
