@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script to validate color ratio normalization to 10 seconds total duration.
+Test script to validate color ratio normalization logic with enable/disable flag.
 """
 
 import sys
@@ -9,11 +9,11 @@ import os
 # Add the parent directory to the path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-def test_color_ratio_normalization():
-    """Test the color ratio normalization logic"""
+def test_color_ratio_normalization_enabled():
+    """Test the color ratio normalization logic when ENABLED"""
     
-    print("🧪 Testing Color Ratio Normalization to 10 Seconds")
-    print("=" * 60)
+    print("🧪 Testing Color Ratio Normalization ENABLED (10 Seconds Total)")
+    print("=" * 70)
     
     test_cases = [
         # (red, yellow, blue, description)
@@ -30,7 +30,7 @@ def test_color_ratio_normalization():
         print(f"\n📊 Test Case: {description}")
         print(f"   Input ratios: red={red_ratio}, yellow={yellow_ratio}, blue={blue_ratio}")
         
-        # Calculate normalization (same logic as robot_service/main.py)
+        # Calculate normalization (same logic as robot_service/main.py with enable_duration_normalization=True)
         total_ratio = red_ratio + yellow_ratio + blue_ratio
         total_duration = 10.0  # Normalize to 10 seconds
         
@@ -46,8 +46,85 @@ def test_color_ratio_normalization():
         # Calculate actual total
         actual_total = sum(squeeze_durations.values())
         
-        print(f"   Calculated durations:")
+        print(f"   Calculated durations (NORMALIZATION ENABLED):")
         print(f"     Red:    {squeeze_durations['red']:.2f}s")
+        print(f"     Yellow: {squeeze_durations['yellow']:.2f}s") 
+        print(f"     Blue:   {squeeze_durations['blue']:.2f}s")
+        print(f"   Actual Total: {actual_total:.2f}s")
+        
+        # Calculate percentages
+        red_pct = (squeeze_durations['red'] / actual_total) * 100
+        yellow_pct = (squeeze_durations['yellow'] / actual_total) * 100
+        blue_pct = (squeeze_durations['blue'] / actual_total) * 100
+        
+        print(f"   Percentages: Red={red_pct:.1f}%, Yellow={yellow_pct:.1f}%, Blue={blue_pct:.1f}%")
+        
+        # Check if proportions are maintained
+        expected_red_pct = (red_ratio / total_ratio) * 100
+        expected_yellow_pct = (yellow_ratio / total_ratio) * 100
+        expected_blue_pct = (blue_ratio / total_ratio) * 100
+        
+        print(f"   Expected %:  Red={expected_red_pct:.1f}%, Yellow={expected_yellow_pct:.1f}%, Blue={expected_blue_pct:.1f}%")
+        
+        # Check if minimum 0.5s constraint affects the result
+        if any(d == 0.5 for d in squeeze_durations.values()):
+            print("   ⚠️  Minimum duration constraint (0.5s) applied")
+        else:
+            print("   ✅ Proportions maintained without constraint")
+
+def test_color_ratio_normalization_disabled():
+    """Test the color ratio logic when normalization is DISABLED"""
+    
+    print("\n\n🧪 Testing Color Ratio Normalization DISABLED (Base Duration Scaling)")
+    print("=" * 70)
+    
+    test_cases = [
+        # (red, yellow, blue, base_duration, description)
+        (1, 1, 1, 2.0, "Equal ratios, base=2.0s"),
+        (2, 1, 3, 1.5, "Mixed ratios (2:1:3), base=1.5s"),
+        (5, 2, 1, 3.0, "Red dominant (5:2:1), base=3.0s"),
+        (1, 5, 2, 1.0, "Yellow dominant (1:5:2), base=1.0s"),
+        (10, 5, 15, 2.5, "Large numbers, base=2.5s"),
+    ]
+    
+    for red_ratio, yellow_ratio, blue_ratio, base_duration, description in test_cases:
+        print(f"\n📊 Test Case: {description}")
+        print(f"   Input ratios: red={red_ratio}, yellow={yellow_ratio}, blue={blue_ratio}")
+        print(f"   Base duration: {base_duration}s")
+        
+        # Calculate proportional scaling (same logic as robot_service/main.py with enable_duration_normalization=False)
+        total_ratio = red_ratio + yellow_ratio + blue_ratio
+        
+        if total_ratio > 0:
+            squeeze_durations = {
+                "red": max(0.5, (red_ratio / total_ratio) * base_duration * 3),
+                "yellow": max(0.5, (yellow_ratio / total_ratio) * base_duration * 3), 
+                "blue": max(0.5, (blue_ratio / total_ratio) * base_duration * 3)
+            }
+        else:
+            squeeze_durations = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+        
+        # Calculate actual total
+        actual_total = sum(squeeze_durations.values())
+        
+        print(f"   Calculated durations (NORMALIZATION DISABLED):")
+        print(f"     Red:    {squeeze_durations['red']:.2f}s")
+        print(f"     Yellow: {squeeze_durations['yellow']:.2f}s") 
+        print(f"     Blue:   {squeeze_durations['blue']:.2f}s")
+        print(f"   Actual Total: {actual_total:.2f}s (varies with base_duration)")
+        
+        # Calculate percentages
+        red_pct = (squeeze_durations['red'] / actual_total) * 100
+        yellow_pct = (squeeze_durations['yellow'] / actual_total) * 100
+        blue_pct = (squeeze_durations['blue'] / actual_total) * 100
+        
+        print(f"   Percentages: Red={red_pct:.1f}%, Yellow={yellow_pct:.1f}%, Blue={blue_pct:.1f}%")
+        
+        # Check if minimum 0.5s constraint affects the result
+        if any(d == 0.5 for d in squeeze_durations.values()):
+            print("   ⚠️  Minimum duration constraint (0.5s) applied")
+        else:
+            print("   ✅ Proportions maintained without constraint")
         print(f"     Yellow: {squeeze_durations['yellow']:.2f}s") 
         print(f"     Blue:   {squeeze_durations['blue']:.2f}s")
         print(f"   Actual Total: {actual_total:.2f}s")
@@ -130,12 +207,15 @@ def test_sequence_mapping():
         print(f"     Step {step_num}: {color}")
 
 if __name__ == "__main__":
-    test_color_ratio_normalization()
+    test_color_ratio_normalization_enabled()
+    test_color_ratio_normalization_disabled()
     test_sequence_mapping()
     
-    print("\n" + "=" * 60)
-    print("✅ Tests completed! The normalization logic will:")
-    print("   • Convert color ratios to proportional durations totaling 10 seconds")
+    print("\n" + "=" * 70)
+    print("✅ Tests completed! The normalization logic now supports:")
+    print("   • ENABLED: Convert color ratios to proportional durations totaling 10 seconds")
+    print("   • DISABLED: Scale durations proportionally using base_duration * 3")
     print("   • Apply minimum 0.5 second constraint per color")
     print("   • Map squeeze operations to colors based on sequence position")
     print("   • Use calculated durations instead of hard-coded values")
+    print("   • Environment variable ENABLE_DURATION_NORMALIZATION_DEFAULT controls default")

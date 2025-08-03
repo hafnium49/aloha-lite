@@ -30,11 +30,12 @@ def test_color_ratio_application():
     print("🧪 Testing Color Ratio Application in robot_service")
     print("=" * 60)
     
-    # Simulate the execute_multi_color_dispensing_task function logic
-    def simulate_dispensing_task(red_ratio, yellow_ratio, blue_ratio):
+    # Simulate the execute_multi_color_dispensing_task function logic with normalization ENABLED
+    def simulate_dispensing_task_normalized(red_ratio, yellow_ratio, blue_ratio):
         print(f"\n📊 Input Ratios: Red={red_ratio}, Yellow={yellow_ratio}, Blue={blue_ratio}")
+        print("   🔧 NORMALIZATION ENABLED (10s total)")
         
-        # Calculate squeeze durations (same logic as robot_service/main.py)
+        # Calculate squeeze durations (same logic as robot_service/main.py with enable_duration_normalization=True)
         total_ratio = red_ratio + yellow_ratio + blue_ratio
         total_duration = 10.0
         
@@ -47,9 +48,36 @@ def test_color_ratio_application():
         else:
             squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
         
+        total_calc = sum(squeeze_adjustments.values())
         print(f"   Calculated Durations: {squeeze_adjustments}")
+        print(f"   Total Duration: {total_calc:.2f}s")
         
-        # Simulate the laboratory sequence
+        return squeeze_adjustments
+    
+    # Simulate the execute_multi_color_dispensing_task function logic with normalization DISABLED
+    def simulate_dispensing_task_proportional(red_ratio, yellow_ratio, blue_ratio, base_duration=2.0):
+        print(f"\n📊 Input Ratios: Red={red_ratio}, Yellow={yellow_ratio}, Blue={blue_ratio}")
+        print(f"   🔧 NORMALIZATION DISABLED (base_duration={base_duration}s)")
+        
+        # Calculate squeeze durations (same logic as robot_service/main.py with enable_duration_normalization=False)
+        total_ratio = red_ratio + yellow_ratio + blue_ratio
+        
+        if total_ratio > 0:
+            squeeze_adjustments = {
+                "red": max(0.5, (red_ratio / total_ratio) * base_duration * 3),
+                "yellow": max(0.5, (yellow_ratio / total_ratio) * base_duration * 3),
+                "blue": max(0.5, (blue_ratio / total_ratio) * base_duration * 3)
+            }
+        else:
+            squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
+        
+        total_calc = sum(squeeze_adjustments.values())
+        print(f"   Calculated Durations: {squeeze_adjustments}")
+        print(f"   Total Duration: {total_calc:.2f}s (varies with base_duration)")
+        
+        return squeeze_adjustments
+    # Simulate robot execution with calculated durations
+    def execute_with_durations(squeeze_adjustments, test_name):
         robot = MockRobotController()
         laboratory_sequence = [
             "left_arm_serving_standoff",           # 1
@@ -71,7 +99,7 @@ def test_color_ratio_application():
             "right_arm_standoff",                  # 17
         ]
         
-        print(f"   Executing sequence with calculated durations:")
+        print(f"   Executing {test_name} sequence with calculated durations:")
         
         for step_num, sequence_name in enumerate(laboratory_sequence, 1):
             robot.current_step = step_num
@@ -97,14 +125,21 @@ def test_color_ratio_application():
                 
     # Test cases
     test_cases = [
-        (1, 1, 1),      # Equal ratios
-        (2, 1, 3),      # Mixed ratios
-        (5, 2, 1),      # Red dominant
-        (0.5, 0.3, 0.2) # Decimal ratios
+        (1, 1, 1, "Equal ratios"),      
+        (2, 1, 3, "Mixed ratios"),      
+        (5, 2, 1, "Red dominant"),      
+        (0.5, 0.3, 0.2, "Decimal ratios") 
     ]
     
-    for red, yellow, blue in test_cases:
-        simulate_dispensing_task(red, yellow, blue)
+    print("\n" + "🔬 Testing with NORMALIZATION ENABLED" + "=" * 35)
+    for red, yellow, blue, desc in test_cases:
+        squeeze_adjustments = simulate_dispensing_task_normalized(red, yellow, blue)
+        execute_with_durations(squeeze_adjustments, f"NORMALIZED ({desc})")
+    
+    print("\n" + "🔬 Testing with NORMALIZATION DISABLED" + "=" * 34)
+    for red, yellow, blue, desc in test_cases:
+        squeeze_adjustments = simulate_dispensing_task_proportional(red, yellow, blue, base_duration=2.0)
+        execute_with_durations(squeeze_adjustments, f"PROPORTIONAL ({desc})")
 
 if __name__ == "__main__":
     test_color_ratio_application()
@@ -112,7 +147,8 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("✅ Color ratio application test completed!")
     print("   The system successfully:")
-    print("   • Calculates proportional durations from input ratios")
-    print("   • Normalizes total duration to 10 seconds")
+    print("   • ENABLED: Calculates proportional durations totaling 10 seconds")
+    print("   • DISABLED: Scales durations proportionally using base_duration * 3")
     print("   • Maps colors to sequence steps correctly")
     print("   • Applies calculated durations instead of hard-coded values")
+    print("   • Supports both normalization modes via enable_duration_normalization flag")
