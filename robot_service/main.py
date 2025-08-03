@@ -18,6 +18,7 @@ TARGET_POSE = json.loads(os.getenv("TARGET_POSE", "[0,0,0,0,0,0]"))
 TOL        = float(os.getenv("TOL", "0.03"))
 REQUIRE_MODEL = os.getenv("REQUIRE_MODEL", "true").lower() == "true"
 REQUIRE_ROBOT = os.getenv("REQUIRE_ROBOT", "true").lower() == "true"
+ENABLE_DURATION_NORMALIZATION_DEFAULT = os.getenv("ENABLE_DURATION_NORMALIZATION_DEFAULT", "false").lower() == "true"
 
 # Validate required environment variables (only if REQUIRE_MODEL is true)
 if REQUIRE_MODEL and not MODEL_ID:
@@ -47,6 +48,7 @@ class DispenseRequest(BaseModel):
     # New fields for multi-color support
     color_ratios: dict = Field(default=None, description="Color ratios for red, yellow, blue")
     normalized_percentages: dict = Field(default=None, description="Normalized percentages")
+    enable_duration_normalization: bool = Field(default_factory=lambda: ENABLE_DURATION_NORMALIZATION_DEFAULT, description="Enable 10-second total duration normalization")
 
 class ErrorResponse(BaseModel):
     error: str
@@ -85,11 +87,13 @@ class MultiColorDispenseRequest(BaseModel):
     color_ratios: ColorRatios
     normalized_percentages: Optional[NormalizedPercentages] = None
     base_duration: float = Field(default=3.0, gt=0.0, le=10.0, description="Base duration in seconds")
+    enable_duration_normalization: bool = Field(default_factory=lambda: ENABLE_DURATION_NORMALIZATION_DEFAULT, description="Enable 10-second total duration normalization")
 
 class SimpleMultiColorRequest(BaseModel):
     """Simplified request model for direct multi-color dispensing endpoint."""
     color_ratios: Dict[str, float] = Field(description="Color ratios as dict (red, yellow, blue)")
     base_duration: float = Field(default=1.0, gt=0.0, le=10.0, description="Base duration in seconds")
+    enable_duration_normalization: bool = Field(default_factory=lambda: ENABLE_DURATION_NORMALIZATION_DEFAULT, description="Enable 10-second total duration normalization")
 
 class ColorOperation(BaseModel):
     color: str
@@ -229,7 +233,7 @@ async def execute_squeeze_operation(color: str, duration: float, config: str) ->
         logger.error(f"Error during {color} squeeze operation: {e}")
         return False
 
-async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float):
+async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float, enable_duration_normalization: bool = False):
     """
     Background task to execute the complete timed laboratory procedure with multi-color dispensing.
     Creates a temporary modified sequence with dynamic squeeze durations and uses sequential_execute.py.
@@ -238,6 +242,7 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
         cmd_id: Unique command identifier
         color_ratios: Color ratios from frontend (used to customize squeeze durations)
         base_duration: Base duration for scaling (affects squeeze timing)
+        enable_duration_normalization: If True, normalize total squeeze duration to 10 seconds
     """
     try:
         async with TASKS_LOCK:
@@ -261,19 +266,28 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
             logger.error(f"Failed to load sequential_sequences.json: {e}")
             raise RuntimeError(f"Could not load timed_laboratory_procedure: {e}")
         
-        # Calculate adjusted squeeze durations based on color ratios
+        # Calculate adjusted squeeze durations based on color ratios and normalization setting
         squeeze_adjustments = {}
         if color_ratios:
             total_ratio = color_ratios.red + color_ratios.yellow + color_ratios.blue
             if total_ratio > 0:
-                # Normalize to 10 seconds total duration
-                total_duration = 10.0
-                squeeze_adjustments = {
-                    "red": max(0.5, (color_ratios.red / total_ratio) * total_duration),
-                    "yellow": max(0.5, (color_ratios.yellow / total_ratio) * total_duration), 
-                    "blue": max(0.5, (color_ratios.blue / total_ratio) * total_duration)
-                }
-                logger.info(f"Normalized squeeze durations (10s total): {squeeze_adjustments}")
+                if enable_duration_normalization:
+                    # Normalize to 10 seconds total duration
+                    total_duration = 10.0
+                    squeeze_adjustments = {
+                        "red": max(0.5, (color_ratios.red / total_ratio) * total_duration),
+                        "yellow": max(0.5, (color_ratios.yellow / total_ratio) * total_duration), 
+                        "blue": max(0.5, (color_ratios.blue / total_ratio) * total_duration)
+                    }
+                    logger.info(f"Normalized squeeze durations (10s total): {squeeze_adjustments}")
+                else:
+                    # Use base_duration scaling without normalization
+                    squeeze_adjustments = {
+                        "red": max(0.5, (color_ratios.red / total_ratio) * base_duration * 3),
+                        "yellow": max(0.5, (color_ratios.yellow / total_ratio) * base_duration * 3), 
+                        "blue": max(0.5, (color_ratios.blue / total_ratio) * base_duration * 3)
+                    }
+                    logger.info(f"Proportional squeeze durations (base: {base_duration}s): {squeeze_adjustments}")
             else:
                 # Use default durations if no valid ratios
                 squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
@@ -496,11 +510,13 @@ async def _dispense_impl(req: DispenseRequest, background_tasks: BackgroundTasks
             
             # Start background task with base_duration from request or default
             base_duration = getattr(req, 'base_duration', 3.0)
+            enable_normalization = getattr(req, 'enable_duration_normalization', ENABLE_DURATION_NORMALIZATION_DEFAULT)
             background_tasks.add_task(
                 execute_multi_color_dispensing_task,  # Now executes full laboratory procedure
                 cmd_id,
                 color_ratios,
-                base_duration
+                base_duration,
+                enable_normalization
             )
             
             logger.info(f"Timed laboratory procedure started with cmd_id={cmd_id}")
@@ -604,7 +620,8 @@ async def multi_color_dispensing(req: SimpleMultiColorRequest, background_tasks:
             execute_multi_color_dispensing_task,
             cmd_id,
             color_ratios,
-            req.base_duration
+            req.base_duration,
+            req.enable_duration_normalization
         )
         
         logger.info(f"Multi-color dispensing task started with cmd_id={cmd_id}")
@@ -618,7 +635,8 @@ async def multi_color_dispensing(req: SimpleMultiColorRequest, background_tasks:
                 "yellow": color_ratios.yellow,
                 "blue": color_ratios.blue
             },
-            "base_duration": req.base_duration
+            "base_duration": req.base_duration,
+            "enable_duration_normalization": req.enable_duration_normalization
         }
         
     except Exception as e:
