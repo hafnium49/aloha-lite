@@ -927,6 +927,18 @@ function hslToRgb(h, s, l) {
   }
 }
 
+// Helper function to convert RGB to hex (handles both array and individual arguments)
+function rgbToHex(r, g = null, b = null) {
+  // If first argument is an array, use it
+  if (Array.isArray(r)) {
+    [r, g, b] = r;
+  }
+  return "#" + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  }).join("");
+}
+
 function updateTargetColorDisplay(rgb, hex) {
   // Convert original RGB to HSL to extract hue
   const [hue, originalS, originalL] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
