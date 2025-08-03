@@ -53,6 +53,9 @@ logger = logging.getLogger(__name__)
 ROBOT_SERVICE_URL  = os.getenv("ROBOT_SERVICE_URL",  "http://localhost:8000")
 VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
 
+# Washing bottle calibration control
+ENABLE_WASHING_BOTTLE_CALIBRATION = os.getenv("ENABLE_WASHING_BOTTLE_CALIBRATION", "true").lower() == "true"
+
 # ── NEW GLOBALS (add near the other module‑level constants) ──────────
 PIGMENTS = ("red", "yellow", "blue", "white")   # 4 liquids; white = solvent
 N_PIG    = len(PIGMENTS)
@@ -65,6 +68,95 @@ HUE_HISTORY_LEN = 60                # how many past targets we remember
 
 _hue_history = deque(maxlen=HUE_HISTORY_LEN)   # rolling list of past hues
 _cum_vol     = np.zeros(3)                     # Σ of red, yellow, blue mL
+
+# ── Washing-bottle calibration helper ─────────────────────────────────────────
+import warnings
+from numpy.polynomial.polynomial import Polynomial
+from numpy import roots, isreal
+
+_CALIB_PATH = Path(__file__).parent / "washing_bottle_calibration" / \
+              "washing_bottle_calibration_summary.json"
+
+def _load_washing_bottle_fits() -> Dict[str, Polynomial]:
+    """
+    Read cubic-fit coefficients from the calibration summary.
+
+    Returns
+    -------
+    dict :  {"red": Polynomial, "yellow": Polynomial, "blue": Polynomial}
+            where each Polynomial p(dur) ≈ dispensed_mass_g.
+    """
+    if not _CALIB_PATH.exists():
+        raise FileNotFoundError(f"Calibration summary not found: {_CALIB_PATH}")
+
+    with _CALIB_PATH.open() as fp:
+        summary = json.load(fp)
+
+    fits = {}
+    for entry in summary:
+        sol = entry["solution"]          # "red" / "yellow" / "blue"
+        # NOTE: numpy.polyfit gave coeffs [a,b,c,d] for a·x³+b·x²+c·x+d
+        # The Polynomial class expects coefficients in ascending order.
+        a, b, c, d = entry["coefficients"]
+        fits[sol] = Polynomial([d, c, b, a])   # p(x) = d + c x + b x² + a x³
+    return fits
+
+def _volume_to_duration_memo(colour: str, vol_mL: float) -> float:
+    """
+    Invert the fitted cubic to find the squeeze duration that yields vol_mL.
+
+    Uses real, positive root closest to zero.  Falls back to linear Newton
+    iteration if the cubic inversion fails (rare for monotonic fits).
+    """
+    fit = _WB_FITS[colour]
+    # Solve p(dur) - vol = 0
+    r = roots(list((fit - vol_mL).coef[::-1]))  # Polynomial -> numpy.roots expects descending
+    real_pos = [float(z.real) for z in r if isreal(z) and z.real > 0]
+    if real_pos:
+        return min(real_pos)      # the physically valid root
+    # Fallback – one Newton step from vol/linear_slope
+    lin = fit.coef[1] if len(fit.coef) >= 2 else 1.0
+    guess = max(1e-3, vol_mL / lin)
+    for _ in range(6):
+        f  = fit(guess) - vol_mL
+        fp = fit.deriv()(guess)
+        guess -= f / (fp or 1e-6)
+        if guess > 0 and abs(f) < 1e-3:
+            return guess
+    warnings.warn(f"[{colour}] duration solve fallback; returning {guess:.3f}s")
+    return max(0.05, guess)
+
+def colour_ratios_to_durations(ratios: Dict[str, float],
+                               *, total_mL: float = 10.0
+                               ) -> Dict[str, float]:
+    """
+    Convert a {'red':…, 'yellow':…, 'blue':…} colour-ratio dict to
+    {'red': dur_s, 'yellow': dur_s, 'blue': dur_s}.
+
+    Steps
+    -----
+    1. Compute scale so Σvol = total_mL.
+    2. For each colour, invert its cubic fit to find the duration.
+    3. Return {'red': …, 'yellow': …, 'blue': …}.
+    """
+    coloured = {k: ratios.get(k, 0.0) for k in ('red', 'yellow', 'blue')}
+    s = sum(coloured.values()) or 1.0
+    scale = total_mL / s
+    scaled_vols = {k: v * scale for k, v in coloured.items()}
+
+    durations = {k: _volume_to_duration_memo(k, v) for k, v in scaled_vols.items()}
+    return durations
+
+# Initialize washing bottle fits if calibration is enabled
+_WB_FITS = {}
+if ENABLE_WASHING_BOTTLE_CALIBRATION:
+    try:
+        _WB_FITS = _load_washing_bottle_fits()
+        logger.info("✅ Washing bottle calibration loaded successfully")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load washing bottle calibration: {e}")
+        logger.info("🔄 Washing bottle calibration disabled")
+        ENABLE_WASHING_BOTTLE_CALIBRATION = False
 
 # ╔══════════════════════════════════════╗
 # ║          C O L O R  O P T I M I S E R          ║  (UPDATED)
@@ -864,15 +956,41 @@ async def proxy_robot_service(request: Request, path: str):
         try:
             # Get request body if present
             body = await request.body() if request.method in ["POST", "PUT"] else None
-            if body:
-                logger.info(f"Request body: {body.decode()}")
+            
+            # Process washing bottle calibration for color ratio requests
+            processed_body = body
+            if body and ENABLE_WASHING_BOTTLE_CALIBRATION and request.method in ["POST", "PUT"]:
+                try:
+                    body_data = json.loads(body.decode())
+                    
+                    # Check if the request contains color ratios
+                    if "ratios" in body_data or "color_ratios" in body_data:
+                        ratios = body_data.get("ratios") or body_data.get("color_ratios")
+                        
+                        # Convert ratios to durations using washing bottle calibration
+                        durations = colour_ratios_to_durations(ratios, total_mL=10.0)
+                        
+                        # Add durations to the request payload
+                        body_data["washing_bottle_durations"] = durations
+                        processed_body = json.dumps(body_data).encode()
+                        
+                        logger.info(f"🧪 Applied washing bottle calibration:")
+                        logger.info(f"   Original ratios: {ratios}")
+                        logger.info(f"   Calculated durations: {durations}")
+                        
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    logger.debug(f"Request body not processed for washing bottle calibration: {e}")
+                    processed_body = body
+            
+            if processed_body:
+                logger.info(f"Request body: {processed_body.decode()}")
 
             # Forward the request
             response = await client.request(
                 method=request.method,
                 url=url,
                 headers=dict(request.headers),
-                content=body
+                content=processed_body
             )
 
             logger.info(f"Robot service response status: {response.status_code}")
@@ -967,6 +1085,11 @@ async def system_status():
     """Check the status of all backend services."""
     status = {
         "frontend": "healthy",
+        "washing_bottle_calibration": {
+            "enabled": ENABLE_WASHING_BOTTLE_CALIBRATION,
+            "calibration_loaded": bool(_WB_FITS),
+            "available_colors": list(_WB_FITS.keys()) if _WB_FITS else []
+        },
         "services": {}
     }
 
@@ -995,4 +1118,8 @@ if __name__ == "__main__":
     logger.info("🎯 Initial target RGB%s", rgb0)
     logger.info("🔧 White-solvent absorbance mode: %s", 
                 "learnable" if ALLOW_WHITE_ABSORBANCE else "locked to zero")
+    logger.info("🧪 Washing bottle calibration: %s", 
+                "enabled" if ENABLE_WASHING_BOTTLE_CALIBRATION else "disabled")
+    if ENABLE_WASHING_BOTTLE_CALIBRATION and _WB_FITS:
+        logger.info("📊 Loaded calibration for colors: %s", list(_WB_FITS.keys()))
     uvicorn.run(app, host="0.0.0.0", port=3000)
