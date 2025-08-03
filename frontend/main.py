@@ -20,6 +20,7 @@ from math import atan2, degrees
 from typing import List, Tuple, Dict, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
+from collections import deque
 
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
@@ -55,6 +56,15 @@ VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:5000")
 # ── NEW GLOBALS (add near the other module‑level constants) ──────────
 PIGMENTS = ("red", "yellow", "blue", "white")   # 4 liquids; white = solvent
 N_PIG    = len(PIGMENTS)
+
+# ── GLOBAL CONSTANTS & RUNTIME STATE ────────────────────
+PRIMARY_HUES    = (0, 60, 240)      # rough LAB-hue angles for R, Y, B
+HUE_EXCLUSION   = 15                # degrees to exclude around primaries
+MAX_DIFFICULTY  = 0.75              # ≤ 0.75 means "easy-to-reach"
+HUE_HISTORY_LEN = 60                # how many past targets we remember
+
+_hue_history = deque(maxlen=HUE_HISTORY_LEN)   # rolling list of past hues
+_cum_vol     = np.zeros(3)                     # Σ of red, yellow, blue mL
 
 # ╔══════════════════════════════════════╗
 # ║          C O L O R  O P T I M I S E R          ║  (UPDATED)
@@ -406,6 +416,10 @@ class ColorOptimizer:
     def get_hue_error_series(self):
         return [h["hue_error_deg"] for h in self.history if "hue_error_deg" in h]
 
+def _hue_gap_deg(h1, h2):
+    d = abs(h1 - h2) % 360
+    return min(d, 360 - d)
+
 # ╔══════════════════════════════════════╗
 # ║    H I D D E N   B O T T L E   M O D E L     ║
 # ╚══════════════════════════════════════╝
@@ -615,61 +629,63 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
     return rgb8, w
 
-def generate_random_target_color() -> Tuple[int,int,int]:
+def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
     """
-    Generate target colors by sampling from the reachable color space.
-    This ensures all targets are achievable with the available pigment concentrations.
-    Uses the bottle model to sample realistic, reachable color combinations.
+    Pick a reachable colour that obeys the four design rules.
+
+    1.  Easy-to-reach  →  balanced pigment volumes  (difficulty ≤ MAX_DIFFICULTY)
+    2.  Even coverage  →  maximise min. hue distance from recent targets
+    3.  Equal usage    →  favour choice that balances cumulative R/Y/B usage
+    4.  Not a primary  →  exclude hues too close to pure R, Y, B
     """
-    if bottle_model.P_est is not None:
-        # Generate multiple candidate colors and pick one that represents the desired color family
-        candidates = []
-        primary_colors = ["red", "yellow", "blue"]
-        
-        # Choose which primary color family we want
-        target_primary = random.choice(primary_colors)
-        
-        # Generate several reachable candidates
-        for _ in range(20):  # Try 20 different combinations
-            rgb, ratios = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
-            
-            # Calculate which primary color dominates this combination
-            primary_volumes = {
-                "red": ratios[0],     # red pigment volume
-                "yellow": ratios[1],  # yellow pigment volume  
-                "blue": ratios[2]     # blue pigment volume
-            }
-            
-            dominant_color = max(primary_volumes, key=primary_volumes.get)
-            
-            # If this candidate matches our target primary, add it
-            if dominant_color == target_primary:
-                # Calculate how "pure" this color is (higher ratio = more pure)
-                purity = primary_volumes[dominant_color] / sum(primary_volumes.values())
-                candidates.append((rgb, ratios, purity))
-        
-        if candidates:
-            # Pick a reasonably pure color (not too muddy, not too extreme)
-            # Sort by purity and pick from the middle-high range
-            candidates.sort(key=lambda x: x[2])  # Sort by purity
-            mid_start = len(candidates) // 3    # Skip bottom third (too muddy)
-            mid_end = min(len(candidates), int(len(candidates) * 0.8))  # Skip top 20% (too extreme)
-            
-            if mid_start < mid_end:
-                chosen = random.choice(candidates[mid_start:mid_end])
-                rgb, ratios, purity = chosen
-                logger.info(f"🎯 Generated reachable {target_primary}ish target: RGB{rgb} (purity={purity:.2f})")
-                return rgb
-    
-    # Fallback: use the existing reachable color sampling
-    if bottle_model.P_est is not None:
-        rgb, _ = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
-        logger.info(f"🎯 Generated fallback reachable target: RGB{rgb}")
+    global _hue_history, _cum_vol
+
+    if bottle_model.P_est is None:                      # last-chance fallback
+        rgb, _ = _sample_reachable_rgb(np.eye(4, 3))    # should never happen
         return rgb
 
-    # Final fallback (should never be used after first start)
-    safe_palette = [(255,0,0),(255,255,0),(0,0,255)]
-    return random.choice(safe_palette)
+    best = None     # holds (difficulty, -hue_gap, imbalance, rgb, vols, hue)
+
+    for _ in range(n_samples):
+        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
+        hue = ColorOptimizer._hue_deg(rgb)
+
+        # — rule ① difficulty —
+        colored = vols[:3]
+        difficulty = colored.max() / colored.sum()
+        if difficulty > MAX_DIFFICULTY:
+            continue
+
+        # — rule ④ skip primaries —
+        if min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES) < HUE_EXCLUSION:
+            continue
+
+        # — rule ② hue spacing —
+        if _hue_history:
+            hue_gap = min(_hue_gap_deg(hue, h) for h in _hue_history)
+        else:
+            hue_gap = 180                                    # first target
+
+        # — rule ③ pigment balance metric (smaller is better) —
+        projected_totals = _cum_vol + colored
+        imbalance = np.std(projected_totals / projected_totals.sum())
+
+        cand_key = (difficulty, -hue_gap, imbalance, rgb, vols, hue)
+        if best is None or cand_key < best:
+            best = cand_key
+
+    # If every candidate was filtered out, fall back to one reachable sample
+    if best is None:
+        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
+        hue       = ColorOptimizer._hue_deg(rgb)
+    else:
+        _, _, _, rgb, vols, hue = best
+
+    # update running statistics for next call
+    _hue_history.append(hue)
+    _cum_vol[:3] += vols[:3]
+
+    return rgb
 
 # ╔══════════════════════════════════════╗
 # ║     FastAPI   +  endpoints (UNCHANGED)    ║
@@ -740,8 +756,11 @@ async def api_history():
 
 @app.post("/api/reset-optimization")
 async def api_reset():
-    color_optimizer.history.clear(); color_optimizer.gp_model=None
-    return {"status":"success","message":"history reset"}
+    color_optimizer.history.clear()
+    color_optimizer.gp_model = None
+    _hue_history.clear()
+    _cum_vol[:] = 0
+    return {"status": "success", "message": "history reset"}
 
 @app.get("/api/color-space-data")
 async def api_color_space_data():
