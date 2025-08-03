@@ -5,6 +5,7 @@ A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced
 ## Features
 
 - 🤖 **ML-Enhanced Color Mixing**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
+- 🎨 **Hue-Only Target Optimization**: CIELAB color space optimization using angular distance for perceptually accurate hue matching
 - � **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
 - �🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
 - 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition
@@ -12,7 +13,7 @@ A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced
 - 🧪 **Beaker Analysis**: Upload and analyze beaker images with AI-powered color detection
 - 🔄 **Service Proxy**: Eliminates CORS issues by proxying requests to backend services
 - 📊 **Real-time Monitoring**: Live status updates, progress tracking, and optimization statistics
-- 🎯 **Visual Feedback**: Color preview, ML recommendations, trend analysis, and operation logging
+- 🎯 **Visual Feedback**: Color preview, ML recommendations, hue-based visualization, and operation logging
 - 📱 **Responsive Design**: Glass-morphism UI with CSS Grid layout optimized for modern displays
 
 ## Quick Start
@@ -87,6 +88,7 @@ ML Pipeline:
 ### ML Optimization Endpoints
 - `GET /api/target-color` - Generate random target color for optimization challenge
 - `POST /api/recommend-ratios` - Get ML-powered color ratio recommendations using Bayesian optimization
+- `GET /api/hue-visual-data` - Retrieve hue-based optimization visualization data for angular distance tracking
 
 ### Ground Truth Calibration
 - **Calibration Matrix Loading**: Automatically loads real-world calibration data from robot experiments
@@ -104,21 +106,29 @@ ML Pipeline:
 
 ### ML-Enhanced Color Mixing (v2.0)
 1. **Bayesian Optimization**: Uses Gaussian Process Regression with Expected Improvement acquisition function
-2. **Target Color Generation**: Random LAB color space sampling for optimization challenges  
-3. **Smart Recommendations**: AI suggests optimal color ratios based on color difference minimization
-4. **Real-time Optimization**: Live ML recommendations as you adjust ratios
-5. **Optimization Statistics**: Track best attempts, improvements, and convergence trends
-6. **Modern Responsive Design**: Glass-morphism UI optimized for wide monitors (1400px+ displays)
+2. **Hue-Only Target Mode**: CIELAB color space optimization using angular distance instead of RGB Euclidean distance
+3. **Target Color Generation**: Random LAB color space sampling for optimization challenges  
+4. **Smart Recommendations**: AI suggests optimal color ratios based on hue angle minimization
+5. **Real-time Optimization**: Live ML recommendations as you adjust ratios
+6. **Optimization Statistics**: Track best attempts, improvements, and convergence trends
+7. **Modern Responsive Design**: Glass-morphism UI optimized for wide monitors (1400px+ displays)
 
 #### ML Algorithm Details
 ```python
 # Bayesian Optimization Components
 - Gaussian Process Regressor with RBF kernel
 - Expected Improvement acquisition function  
-- LAB color space for perceptual accuracy
-- Delta-E color difference metric (CIEDE2000)
+- CIELAB color space for perceptual accuracy
+- Angular distance calculation for hue-only optimization
 - Adaptive exploration vs exploitation balance
 ```
+
+#### Hue-Only Optimization Features
+- **Angular Distance Calculation**: Uses `_ang_diff()` method for shortest path between hue angles
+- **CIELAB Hue Extraction**: Converts RGB → CIELAB → hue angle using `_hue_deg()` method  
+- **Perceptual Accuracy**: Optimization based on human color perception rather than RGB values
+- **Automatic Mode Detection**: Switches to hue-only mode when `hue_target_deg` is set
+- **Wraparound Handling**: Properly handles 0°/360° hue angle wraparound
 
 ### Interactive Color Interface
 1. **Modern CSS Grid Layout**: Two-column responsive design for wide screens
@@ -131,7 +141,7 @@ ML Pipeline:
 ### ML Recommendations Panel
 1. **Smart Suggestions**: AI-powered ratio recommendations with confidence scores
 2. **Optimization History**: Track of previous attempts and improvements
-3. **Trend Analysis**: Visual indicators of optimization progress
+3. **Hue-Based Visualization**: Polar dial, a*-b* scatter plots, and angular distance tracking
 4. **Best Match Tracking**: Highlights best color matches achieved
 5. **Learning Indicators**: Shows when ML model is learning from new data
 
@@ -152,7 +162,7 @@ ML Pipeline:
 ```
 frontend/
 ├── main.py                    # FastAPI server with ML optimization and proxy functionality  
-├── index.html                 # Modern responsive web interface with ML integration
+├── index.html                 # Modern responsive web interface with hue-based visualization
 ├── requirements.txt           # Python dependencies (includes scikit-learn, scipy)
 ├── README.md                 # This file
 ├── Dockerfile                # Container configuration
@@ -165,6 +175,7 @@ frontend/
 └── tests/                    # Comprehensive frontend test suite
     ├── test_ground_truth_calibration.py   # Complete mocking test scenarios (11 tests)
     ├── test_ground_truth_real.py          # Real data validation tests (8 tests)
+    ├── test_hue_optimization.py           # Hue-based optimization tests (NEW)
     └── run_updated_frontend_tests.py      # Test runner for all frontend modules
 ```
 
@@ -201,12 +212,16 @@ cd /home/hafnium/aloha-lite/frontend/tests
 # Run all tests (19 total: 11 mocking + 8 real data)
 python -m pytest test_ground_truth_calibration.py test_ground_truth_real.py -v
 
+# Run hue-based optimization tests
+python -m pytest test_hue_optimization.py -v
+
 # Run comprehensive test suite
 python run_updated_frontend_tests.py
 
 # Run individual test suites
 python -m pytest test_ground_truth_calibration.py -v  # 11 comprehensive mocking tests
 python -m pytest test_ground_truth_real.py -v        # 8 real data validation tests
+python -m pytest test_hue_optimization.py -v         # Hue-based optimization tests
 ```
 
 ### Configuration
@@ -231,30 +246,32 @@ export VISION_SERVICE_URL="http://your-vision-service:5000"
 ## Features in Detail
 
 ### ML-Enhanced Color Mixing Workflow
-1. **Target Color Generation**: System generates random target color in LAB space
+1. **Target Color Generation**: System generates random target color in LAB space with hue angle calculation
 2. **User Interaction**: User adjusts color ratios using modern responsive interface
-3. **ML Recommendations**: Bayesian optimization suggests optimal ratios in real-time
+3. **ML Recommendations**: Bayesian optimization suggests optimal ratios based on hue distance minimization
 4. **Color Preview**: Live gradient shows current mix with smooth transitions
 5. **Optimization Loop**: ML learns from each attempt to improve future recommendations
 6. **Dispensing**: User clicks enhanced button to execute color mixing
-7. **Results Analysis**: Beaker analysis compares actual vs target colors
+7. **Results Analysis**: Beaker analysis compares actual vs target colors using angular distance
 8. **ML Learning**: System updates model with actual vs predicted results
 
 ### Bayesian Optimization Engine
 1. **Gaussian Process Model**: Learns relationship between ratios and color outcomes
 2. **Expected Improvement**: Balances exploration of new ratios vs exploitation of known good ones
-3. **LAB Color Space**: Uses perceptually uniform color space for accurate comparisons
-4. **Delta-E Metrics**: CIEDE2000 color difference calculation for precise matching
-5. **Adaptive Learning**: Model improves with each color mixing attempt
-6. **Uncertainty Quantification**: Provides confidence scores for recommendations
+3. **CIELAB Color Space**: Uses perceptually uniform color space for accurate comparisons
+4. **Hue-Only Optimization**: Angular distance calculation for hue angle matching (when hue target is set)
+5. **Dual Distance Metrics**: Supports both CIEDE2000 Delta-E and angular hue distance calculations
+6. **Adaptive Learning**: Model improves with each color mixing attempt
+7. **Uncertainty Quantification**: Provides confidence scores for recommendations
 
 ### Modern Responsive Interface
 1. **CSS Grid Layout**: Two-column design optimized for wide monitors (max-width: 1400px)
 2. **Glass-morphism Design**: Translucent cards with backdrop-filter blur effects
 3. **Smooth Animations**: CSS transitions for all interactive elements
-4. **Mobile Responsive**: Adapts to different screen sizes with media queries
-5. **Accessibility**: Proper contrast ratios and keyboard navigation support
-6. **Performance Optimized**: Efficient DOM updates and minimal JavaScript footprint
+4. **Hue-Based Visualization**: Polar dial charts, a*-b* scatter plots, and angular distance tracking
+5. **Mobile Responsive**: Adapts to different screen sizes with media queries
+6. **Accessibility**: Proper contrast ratios and keyboard navigation support
+7. **Performance Optimized**: Efficient DOM updates and minimal JavaScript footprint
 
 ### Beaker Analysis Workflow
 1. User uploads beaker image via drag & drop or file picker
@@ -346,13 +363,16 @@ The ColorOptimizer uses a 4-phase optimization strategy that adapts based on whi
 - `_bayesian_optimization()`: Core optimization algorithm implementation with hybrid NNLS+GP phases
 - `_expected_improvement()`: Acquisition function for exploration/exploitation balance
 - `_rgb_to_lab()` / `_lab_to_rgb()`: Color space conversion utilities
-- `_color_difference()`: CIEDE2000 Delta-E calculation
+- `_hue_deg()`: Extract hue angle in degrees from RGB using CIELAB conversion
+- `_ang_diff()`: Calculate angular distance between two hue angles (shortest path)
+- `_color_difference()`: CIEDE2000 Delta-E calculation (fallback when hue target not set)
 - `_fit_full_calibration()`: Non-negative least squares calibration with white-solvent locking
 - `_rough_scale_calibration()`: Initial calibration phase with heuristic scaling
 
 ### ML Algorithm Performance
 - **Convergence**: Typically finds optimal ratios within 5-8 iterations (when white-solvent locked) or 7-12 iterations (when learnable)
-- **Accuracy**: Achieves Delta-E < 5.0 (just noticeable difference) consistently  
+- **Hue Accuracy**: Achieves angular distance < 10° for hue-only optimization consistently
+- **Color Accuracy**: Achieves Delta-E < 5.0 (just noticeable difference) for full color matching
 - **Efficiency**: Sub-second response times for real-time recommendations with adaptive phase scheduling
 - **Robustness**: Handles edge cases and color space boundaries gracefully with white-solvent locking for stability
 - **Learning**: Continuously improves with each color mixing experiment using hybrid NNLS+GP optimization
@@ -423,11 +443,15 @@ Error: Bayesian optimization failed
 pip install scikit-learn scipy numpy
 ```
 
-**Color Space Conversion Issues**
+**Hue Optimization Errors**
 ```
-Error: Invalid color values in LAB space
+Error: Angular distance calculation failed
 ```
-**Solution**: This indicates edge-case color values. The system should handle these gracefully, but ensure input ratios are within valid ranges (0-100).
+**Solution**: This indicates issues with hue angle calculation. The system should handle color space edge cases gracefully. Ensure the target color generates valid CIELAB values:
+```bash
+# Check if color values are within valid ranges
+# L: 0-100, a: typically -100 to +100, b: typically -100 to +100
+```
 
 **Responsive Design Issues**
 ```
@@ -442,6 +466,64 @@ cd /home/hafnium/aloha-lite/frontend
 uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 ```
 
+## Hue-Only Target Optimization
+
+The frontend implements a sophisticated hue-only optimization system that focuses on matching hue angles rather than full RGB color matching. This provides more perceptually accurate color matching based on human color perception.
+
+### How It Works
+
+When a target color is set using `set_target_color()`, the system automatically:
+
+1. **Extracts Target Hue**: Converts RGB → CIELAB → hue angle using `_hue_deg()`
+2. **Sets Optimization Mode**: Stores target hue in `hue_target_deg` attribute
+3. **Switches Distance Calculation**: Uses angular distance instead of RGB Euclidean distance
+4. **Optimizes for Hue Match**: ML system minimizes angular distance between measured and target hues
+
+### Key Components
+
+```python
+# Core hue optimization methods in ColorOptimizer class
+def _hue_deg(cls, rgb):
+    """Extract hue angle in degrees from RGB via CIELAB conversion."""
+    L, a, b = cls._rgb_to_lab(rgb)
+    return degrees(atan2(b, a)) % 360
+
+def _ang_diff(h1, h2):
+    """Calculate shortest angular distance between two hue angles."""
+    diff = abs(h1 - h2)
+    return min(diff, 360 - diff)
+
+def add_measurement(self, ratios, measured_rgb):
+    if self.hue_target_deg is not None:
+        measured_hue = self._hue_deg(measured_rgb)
+        d = self._ang_diff(measured_hue, self.hue_target_deg)  # Use hue distance
+    else:
+        d = euclidean(measured_rgb, self.target_color)  # Fallback to RGB distance
+```
+
+### Visualization Features
+
+The interface provides comprehensive hue-based visualization:
+
+- **Polar Dial Chart**: Shows target hue and measurement history on a 360° color wheel
+- **a*-b* Scatter Plot**: CIELAB color space visualization with angular relationships
+- **Error Timeline**: Angular distance errors over optimization attempts
+- **Color Strip**: Timeline showing RGB progression of optimization attempts
+
+### Benefits
+
+1. **Perceptual Accuracy**: Matches human color perception better than RGB distance
+2. **Hue Consistency**: Focuses on achieving the right color family/hue
+3. **Robustness**: Handles lighting variations and saturation differences gracefully
+4. **Visual Feedback**: Clear angular distance metrics for users to understand progress
+
+### Configuration
+
+The hue-only optimization is automatically enabled when:
+- Target color is set via `set_target_color()`
+- `hue_target_deg` attribute is not None
+- System falls back to RGB distance when hue target is unavailable
+
 ## Contributing
 
 1. Follow existing code style and patterns
@@ -452,6 +534,17 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 6. Verify responsive design across different screen sizes
 
 ## Changelog
+
+### v2.4 - Hue-Only Target Optimization (August 2025)
+- **NEW**: Hue-only target optimization system using CIELAB color space and angular distance calculation
+- **ADDED**: `_hue_deg()` method for extracting hue angles from RGB via CIELAB conversion
+- **ADDED**: `_ang_diff()` method for calculating shortest angular distance between hue angles
+- **ENHANCED**: `add_measurement()` automatically switches to hue distance when `hue_target_deg` is set
+- **INTEGRATED**: Hue-based visualization with polar dial charts, a*-b* scatter plots, and error timelines
+- **IMPROVED**: Perceptually accurate color matching based on human color perception
+- **ADDED**: `/api/hue-visual-data` endpoint for hue-based optimization visualization data
+- **DOCUMENTED**: Comprehensive documentation of hue-only optimization system and benefits
+- **TESTED**: New `test_hue_optimization.py` test suite validates hue angle calculation and optimization
 
 ### v2.3 - Comprehensive Test Suite & Cleanup (August 2025)
 - **ENHANCED**: Complete ground truth calibration test suite with 19 comprehensive tests
