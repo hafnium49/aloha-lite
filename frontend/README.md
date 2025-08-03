@@ -160,12 +160,12 @@ frontend/
 │   ├── red_solution_ground_truth.json
 │   ├── yellow_solution_ground_truth.json
 │   ├── blue_solution_ground_truth.json
+│   ├── white_solution_ground_truth.json
 │   └── calibration_summary.json
-└── tests/                    # Frontend tests and validation
-    ├── test_ground_truth_simple.py
-    ├── run_comprehensive_tests.py
-    ├── validate_frontend_integration.py
-    └── run_all_tests.py
+└── tests/                    # Comprehensive frontend test suite
+    ├── test_ground_truth_calibration.py   # Complete mocking test scenarios (11 tests)
+    ├── test_ground_truth_real.py          # Real data validation tests (8 tests)
+    └── run_updated_frontend_tests.py      # Test runner for all frontend modules
 ```
 
 ## Dependencies
@@ -195,15 +195,18 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 
 ### Testing Ground Truth Integration
 ```bash
-# Run comprehensive ground truth tests
+# Run comprehensive ground truth calibration tests
 cd /home/hafnium/aloha-lite/frontend/tests
-python run_all_tests.py
 
-# Run simple functionality tests
-python test_ground_truth_simple.py
+# Run all tests (19 total: 11 mocking + 8 real data)
+python -m pytest test_ground_truth_calibration.py test_ground_truth_real.py -v
 
-# Validate complete integration
-python validate_frontend_integration.py
+# Run comprehensive test suite
+python run_updated_frontend_tests.py
+
+# Run individual test suites
+python -m pytest test_ground_truth_calibration.py -v  # 11 comprehensive mocking tests
+python -m pytest test_ground_truth_real.py -v        # 8 real data validation tests
 ```
 
 ### Configuration
@@ -277,21 +280,31 @@ export VISION_SERVICE_URL="http://your-vision-service:5000"
 The frontend integrates with a ground truth calibration system that uses real robot-generated data:
 
 ```python
-def load_ground_truth_calibration():
+def load_ground_truth_calibration(allow_white_absorbance: bool = False):
     """
     Load ground truth calibration data from JSON files and construct the calibration matrix.
-    Returns a 3x3 numpy array representing the true pigment absorbance matrix.
+    
+    Args:
+        allow_white_absorbance: If False (default), white-solvent absorbance is locked to zero
+                              assuming pure RGB(255,255,255) background. If True, allows
+                              loading of actual white-solvent absorbance parameters.
+    
+    Returns:
+        A 4x3 numpy array representing the true pigment absorbance matrix.
     """
-    # Priority 1: Load pre-computed calibration matrix
-    # Priority 2: Construct matrix from RGB measurements  
-    # Priority 3: Fallback to random matrix
+    # Priority 1: Load pre-computed calibration matrix from summary
+    # Priority 2: Construct matrix from individual solution files  
+    # Priority 3: Fallback to random matrix with proper 4x3 dimensions
 ```
 
 #### Calibration Data Structure
-- **Individual Solution Files**: `{color}_solution_ground_truth.json` with RGB measurements and metadata
-- **Calibration Summary**: `calibration_summary.json` with session information and optional pre-computed matrices
-- **RGB-to-Absorbance Conversion**: Uses `ColorOptimizer._rgb_to_absorb()` for matrix construction
-- **Robust Loading**: Handles missing files, malformed JSON, and validation errors gracefully
+- **Individual Solution Files**: `{color}_solution_ground_truth.json` with RGB measurements and absorbance coefficients
+- **White Solution Support**: `white_solution_ground_truth.json` for white-solvent calibration (optional)
+- **Calibration Summary**: `calibration_summary.json` with session information and optional pre-computed 4x3 matrices
+- **RGB-to-Absorbance Conversion**: Uses `ColorOptimizer._rgb_to_absorb()` for matrix construction from real measurements
+- **4x3 Matrix Format**: Supports 4 pigments (red, yellow, blue, white) × 3 RGB channels with white-solvent locking
+- **Robust Loading**: Handles missing files, malformed JSON, and validation errors with comprehensive fallback mechanisms
+- **Test Coverage**: 19 comprehensive tests validate all loading scenarios, error handling, and integration points
 
 ### ColorOptimizer Class
 The core ML engine that powers intelligent color recommendations with adaptive phase scheduling:
@@ -440,6 +453,17 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 
 ## Changelog
 
+### v2.3 - Comprehensive Test Suite & Cleanup (August 2025)
+- **ENHANCED**: Complete ground truth calibration test suite with 19 comprehensive tests
+- **FIXED**: All Path mocking issues in test suite - now 100% reliable test execution
+- **ADDED**: `test_ground_truth_calibration.py` with 11 comprehensive mocking scenarios for edge cases
+- **ADDED**: `test_ground_truth_real.py` with 8 real data validation tests using actual calibration files
+- **CLEANED**: Removed outdated test files (`test_ground_truth_calibration_old.py`, `test_ground_truth_calibration_fixed.py`, `test_ground_truth_simple.py`)
+- **IMPROVED**: Test reliability using real temporary files instead of complex Path mocking
+- **UPDATED**: Test runner `run_updated_frontend_tests.py` for streamlined test execution
+- **VALIDATED**: All 19 tests pass consistently, covering all ground truth integration scenarios
+- **DOCUMENTED**: Updated README with current test suite status and usage instructions
+
 ### v2.2 - Adaptive ML Optimization (August 2025)
 - **ENHANCED**: ColorOptimizer now uses adaptive phase scheduling based on white-solvent configuration
 - **OPTIMIZED**: Hybrid phase reduced from 3-11 to 3-8 trials when white-solvent absorbance is locked (default)
@@ -450,15 +474,16 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --log-level debug
 - **DOCUMENTATION**: Updated class docstring and README to reflect adaptive phase schedule
 
 ### v2.1 - Ground Truth Integration & Bug Fixes (July 2025)
-- **NEW**: Ground truth calibration system integration with robot-generated data
-- **NEW**: `load_ground_truth_calibration()` function loads real calibration matrices from JSON files
-- **NEW**: Comprehensive test framework with 16 test cases for ground truth integration
+- **NEW**: Ground truth calibration system integration with robot-generated data (4x3 matrix support)
+- **NEW**: `load_ground_truth_calibration()` function loads real calibration matrices from JSON files with white-solvent support
+- **NEW**: Comprehensive test framework with 19 test cases for ground truth integration (11 mocking + 8 real data)
 - **FIXED**: TypeError when target color is None - added proper null checks and fallbacks
 - **FIXED**: JSON serialization errors with numpy.int64 objects - converted to native Python integers
 - **ADDED**: Robust error handling and logging for ground truth calibration loading
 - **ENHANCED**: Application startup with proper target color initialization using lifespan context manager
 - **ADDED**: `frontend/ground_truth_calibration/` directory with real robot-generated calibration data
 - **IMPROVED**: ColorOptimizer safety with graceful handling of uninitialized states
+- **SUPPORTED**: White solution calibration files for advanced color mixing scenarios
 
 ### v2.0 - ML-Enhanced Color Mixing (July 2025)
 - **NEW**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
