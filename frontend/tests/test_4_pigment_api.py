@@ -122,9 +122,54 @@ def test_4_pigment_api():
     
     print(f"✅ History contains {len(history)} entries, all with 4-pigment ratios")
     
+    # Test 5: Hue visualization data API endpoint
+    print("\n🎨 Testing hue visualization data API...")
+    response = client.get("/api/hue-visual-data")
+    assert response.status_code == 200
+    data = response.json()
+    
+    assert "status" in data
+    assert data["status"] == "success"
+    assert "available" in data
+    
+    if data["available"]:
+        # If data is available, check structure
+        assert "target_hue_deg" in data
+        assert "hue_series_deg" in data
+        assert "hue_error_deg" in data
+        assert "rgb_series" in data
+        
+        # Verify data types
+        assert isinstance(data["target_hue_deg"], (int, float))
+        assert isinstance(data["hue_series_deg"], list)
+        assert isinstance(data["hue_error_deg"], list)
+        assert isinstance(data["rgb_series"], list)
+        
+        # If we have measurements, verify lengths match
+        if len(data["hue_series_deg"]) > 0:
+            assert len(data["hue_series_deg"]) == len(data["rgb_series"])
+            assert len(data["hue_error_deg"]) == len(data["rgb_series"])
+            
+            print(f"✅ Hue data: target={data['target_hue_deg']:.1f}°, {len(data['hue_series_deg'])} measurements")
+            
+            # Check hue values are in valid range
+            for i, hue in enumerate(data["hue_series_deg"]):
+                assert 0 <= hue <= 360, f"Hue {i} should be in range 0-360°"
+            
+            # Check RGB values are valid
+            for i, rgb in enumerate(data["rgb_series"]):
+                assert len(rgb) == 3, f"RGB {i} should have 3 components"
+                for component in rgb:
+                    assert 0 <= component <= 255, f"RGB component should be in range 0-255"
+        else:
+            print("✅ Hue visualization API available but no measurement data yet")
+    else:
+        print("✅ Hue visualization API indicates no data available (expected for fresh optimizer)")
+    
     print("\n" + "=" * 50)
     print("🎉 All 4-Pigment API tests passed!")
     print("✅ The system correctly handles 4-pigment ratios including white solvent")
+    print("✅ Hue visualization data API is working correctly")
     return True
 
 if __name__ == "__main__":

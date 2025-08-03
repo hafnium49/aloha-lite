@@ -226,6 +226,85 @@ class TestHueOptimization(unittest.TestCase):
         print(f"  Statistics: {stats['total_attempts']} attempts, best: {stats['best_distance']:.1f}°")
         print("✅ Hue-based optimization integration working")
 
+    def test_hue_series_data_methods(self):
+        """Test the new get_hue_series and get_hue_error_series methods for visualization."""
+        print("\n🧪 Testing hue series data methods for visualization...")
+        
+        # Initially empty
+        self.assertEqual(len(self.optimizer.get_hue_series()), 0)
+        self.assertEqual(len(self.optimizer.get_hue_error_series()), 0)
+        
+        # Add measurements with hue data
+        test_measurements = [
+            ({"red": 1.0, "yellow": 0.5, "blue": 0.2, "white": 1.3}, (220, 180, 120)),
+            ({"red": 1.2, "yellow": 0.8, "blue": 0.1, "white": 0.9}, (240, 200, 110)), 
+            ({"red": 0.8, "yellow": 1.0, "blue": 0.3, "white": 0.9}, (200, 210, 130))
+        ]
+        
+        expected_hues = []
+        expected_errors = []
+        
+        for ratios, rgb in test_measurements:
+            self.optimizer.add_measurement(ratios, rgb)
+            expected_hues.append(self.optimizer._hue_deg(rgb))
+            if self.optimizer.hue_target_deg is not None:
+                expected_errors.append(self.optimizer._ang_diff(self.optimizer._hue_deg(rgb), self.optimizer.hue_target_deg))
+        
+        # Test hue series
+        hue_series = self.optimizer.get_hue_series()
+        self.assertEqual(len(hue_series), 3)
+        
+        # Verify hue values are correct
+        for i, expected_hue in enumerate(expected_hues):
+            self.assertAlmostEqual(hue_series[i], expected_hue, places=1, 
+                                   msg=f"Hue series value {i} should match calculated hue")
+        
+        # Test hue error series (only if target is set)
+        if self.optimizer.hue_target_deg is not None:
+            error_series = self.optimizer.get_hue_error_series()
+            self.assertEqual(len(error_series), 3)
+            
+            for i, expected_error in enumerate(expected_errors):
+                self.assertAlmostEqual(error_series[i], expected_error, places=1,
+                                       msg=f"Hue error series value {i} should match calculated error")
+        
+        print(f"   ✅ Hue series: {[f'{h:.1f}°' for h in hue_series]}")
+        if self.optimizer.hue_target_deg is not None:
+            error_series = self.optimizer.get_hue_error_series()
+            print(f"   ✅ Error series: {[f'{e:.1f}°' for e in error_series]}")
+        
+        print("✅ Hue series data methods working correctly")
+    
+    def test_measurement_hue_data_storage(self):
+        """Test that measurements now store hue data for visualization."""
+        print("\n🧪 Testing measurement hue data storage...")
+        
+        test_rgb = (200, 150, 100)
+        test_ratios = {"red": 1.0, "yellow": 0.5, "blue": 0.3, "white": 1.2}
+        
+        # Add measurement
+        self.optimizer.add_measurement(test_ratios, test_rgb)
+        
+        # Check that history contains hue data
+        self.assertEqual(len(self.optimizer.history), 1)
+        measurement = self.optimizer.history[0]
+        
+        # Should have measured_hue_deg
+        self.assertIn("measured_hue_deg", measurement)
+        expected_hue = self.optimizer._hue_deg(test_rgb)
+        self.assertAlmostEqual(measurement["measured_hue_deg"], expected_hue, places=1)
+        
+        # Should have hue_error_deg if target is set
+        if self.optimizer.hue_target_deg is not None:
+            self.assertIn("hue_error_deg", measurement)
+            expected_error = self.optimizer._ang_diff(expected_hue, self.optimizer.hue_target_deg)
+            self.assertAlmostEqual(measurement["hue_error_deg"], expected_error, places=1)
+            print(f"   ✅ Stored hue: {measurement['measured_hue_deg']:.1f}°, error: {measurement['hue_error_deg']:.1f}°")
+        else:
+            print(f"   ✅ Stored hue: {measurement['measured_hue_deg']:.1f}° (no target set)")
+        
+        print("✅ Measurement hue data storage working correctly")
+
 def run_hue_optimization_tests():
     """Run all hue optimization tests."""
     print("🎨 Testing Hue-Only Optimization System")
@@ -248,6 +327,8 @@ def run_hue_optimization_tests():
         print("✅ Hue-based target setting functional")
         print("✅ Hue-based measurement logging operational")
         print("✅ Optimization system using hue distance")
+        print("✅ Hue series data methods for visualization")
+        print("✅ Measurement hue data storage working")
         return True
     else:
         print(f"\n❌ {len(result.failures + result.errors)} tests FAILED")
