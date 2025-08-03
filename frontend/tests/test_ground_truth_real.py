@@ -95,8 +95,8 @@ class TestGroundTruthCalibrationReal(unittest.TestCase):
         # Load real calibration matrix
         test_matrix = load_ground_truth_calibration()
         
-        # Test reachable RGB sampling
-        rgb, weights = _sample_reachable_rgb(test_matrix)
+        # Test reachable RGB sampling with explicit 10.0 mL max_total
+        rgb, weights = _sample_reachable_rgb(test_matrix, max_total=10.0)
         
         # Verify output format
         self.assertIsInstance(rgb, tuple)
@@ -110,8 +110,8 @@ class TestGroundTruthCalibrationReal(unittest.TestCase):
             self.assertGreaterEqual(component, 0)
             self.assertLessEqual(component, 255)
         
-        # Verify weights sum to approximately 3.0 (max_total)
-        self.assertAlmostEqual(np.sum(weights), 3.0, places=1)
+        # Verify weights sum to approximately 10.0 (updated max_total)
+        self.assertAlmostEqual(np.sum(weights), 10.0, places=1)
         
         # Verify all weights are non-negative
         self.assertTrue(np.all(weights >= 0))
@@ -147,9 +147,9 @@ class TestGroundTruthCalibrationReal(unittest.TestCase):
             self.assertIsInstance(ratio, (int, float))
             self.assertGreaterEqual(ratio, 0)
         
-        # Check that ratios sum to approximately 3.0
+        # Check that ratios sum to approximately 10.0 (updated normalization)
         total = sum(ratios.values())
-        self.assertAlmostEqual(total, 3.0, places=1)
+        self.assertAlmostEqual(total, 10.0, places=1)
         
         print(f"✅ Optimizer ratios: {ratios}")
         print(f"✅ Total volume: {total:.2f}")
