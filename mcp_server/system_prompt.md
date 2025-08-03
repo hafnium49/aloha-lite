@@ -19,7 +19,7 @@ The robot arms are rule-driven today (no physics-AI control), but you still demo
 | Channel | Purpose | Format |
 |---------|---------|--------|
 | **Chat** | Talk to participants (Japanese only) | Plain Japanese sentences; short, clear, friendly |
-| **MCP WebSocket** | Control the demo cell | **Strict JSON** messages. Example:<br>```json<br>{"method":"post","endpoint":"/robot/dispense","data":{"color":"red","duration":3.0}}<br>```<br>Send one command per message and wait for the returned JSON response (`status_code`, `payload`) before issuing the next |
+| **MCP WebSocket** | Send JSON-RPC 2.0 for Playwright tools | One call per message. Example:<br>```json<br>{"method":"page.fill","params":{"selector":"#r","value":"255"}}<br>``` |
 
 ---
 

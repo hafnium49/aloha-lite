@@ -1,31 +1,37 @@
-# Aloha-Lite MCP Server
+# Aloha-Lite MCP Bridge (Playwright)
 
-A lightweight bridge that exposes the Aloha-Lite frontend over the Model Context Protocol (MCP). It allows Anthropic Claude Desktop to control the robotics stack through simple HTTP and WebSocket commands.
+This service exposes a WebSocket bridge so Anthropic Claude Desktop can drive the
+Aloha-Lite demo through the **Playwright MCP server**.
 
 ## Features
 
-- 🔌 **WebSocket Command Channel** for real-time communication with Claude Desktop
-- 🌐 **HTTP Proxy** that forwards requests to the Aloha-Lite frontend
-- 💓 **Health Check** endpoint for monitoring
-- 🛠️ **Minimal Dependencies**: FastAPI, httpx, websockets, uvicorn
+- 🔌 **WebSocket JSON-RPC** – one message per Playwright tool call
+- 📡 **Live view streaming** at `/stream.mjpeg` (HTTP MJPEG) and `/stream_ws` (WebSocket PNG)
+- 💓 **Health check** at `/health`
 
 ## Quick Start
 
 ```bash
+# 1. Install Python deps
 uv sync
+
+# 2. Start the Playwright MCP server (defaults to ws://localhost:9010)
+uvx playwright-mcp --port 9010
+
+# 3. Run the bridge on port 8900
 cd mcp_server
-python -m uvicorn main:app --host 0.0.0.0 --port 8900
+uv run server.py
 ```
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FRONTEND_URL` | URL of the Aloha-Lite frontend service | `http://frontend` |
+| Variable            | Description                                             | Default              |
+|---------------------|---------------------------------------------------------|----------------------|
+| `PLAYWRIGHT_MCP_WS` | WebSocket URL where the Playwright MCP server is running | `ws://localhost:9010` |
 
 ## Claude Desktop Integration
 
-Add the MCP server to your `claude_desktop_config.json`:
+Add the server to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -44,22 +50,5 @@ Add the MCP server to your `claude_desktop_config.json`:
 ```
 
 1. Ensure dependencies are installed with `uv sync`.
-2. Update the path above to the location of your `aloha-lite` checkout.
+2. Start the Playwright MCP server separately (step 2 above) or set `PLAYWRIGHT_MCP_WS`.
 3. Restart Claude Desktop to load the new tools.
-
-## API Endpoints
-
-### `GET /health`
-Simple health check returning `{ "status": "ok" }`.
-
-### `WS /ws`
-Bidirectional channel for sending commands to the frontend.
-
-### `/{path}` (HTTP Proxy)
-Proxies arbitrary HTTP requests to `FRONTEND_URL`.
-
-## Architecture
-
-```
-Claude Desktop → MCP Server → Aloha-Lite Frontend → Robot Service → Vision Bridge
-```
