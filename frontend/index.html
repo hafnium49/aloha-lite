@@ -431,14 +431,14 @@ img {
   <div class="left-column">
     <!-- Target Color Section -->
     <section class="target-color">
-      <h2>🎯 目標色</h2>
+      <h2>🎯 目標色相</h2>
       <div id="target-color-display">
         <div id="target-color-swatch" style="background:#ff0000"></div>
         <div>
           <div id="target-color-text">RGB(255, 0, 0)</div>
           <div id="target-color-hex">#FF0000</div>
         </div>
-        <button onclick="generateNewTarget()">新しい目標色を生成</button>
+        <button onclick="generateNewTarget()">新しい目標色相を生成</button>
       </div>
     </section>
 
@@ -855,10 +855,10 @@ async function loadTargetColor() {
     
     if (data.status === 'success') {
       updateTargetColorDisplay(data.target_rgb, data.target_hex)
-      log(`🎯 目標色が設定されました: ${data.target_hex}`)
+      log(`🎯 目標色相が設定されました: ${data.target_hex}`)
     }
   } catch (e) {
-    log('目標色の読み込みエラー: ' + e.message)
+    log('目標色相の読み込みエラー: ' + e.message)
   }
 }
 
@@ -869,14 +869,14 @@ async function generateNewTarget() {
     
     if (data.status === 'success') {
       updateTargetColorDisplay(data.target_rgb, data.target_hex)
-      log(`🎯 新しい目標色: ${data.target_hex}`)
+      log(`🎯 新しい目標色相: ${data.target_hex}`)
       
       // Reset optimization and get new recommendation
       await resetOptimization()
       await getRecommendation()
     }
   } catch (e) {
-    log('新しい目標色の生成エラー: ' + e.message)
+    log('新しい目標色相の生成エラー: ' + e.message)
   }
 }
 
@@ -1307,7 +1307,7 @@ async function drawPerceptualChart() {
     ctx.fillStyle = '#666'
     const legendY = canvas.height - 40
     ctx.fillText('● 測定色（番号付き）', padding, legendY)
-    ctx.fillText('● 目標色', padding + 150, legendY)
+    ctx.fillText('● 目標色相', padding + 150, legendY)
     ctx.fillText('--- 最適化経路', padding + 250, legendY)
     
   } catch (error) {
