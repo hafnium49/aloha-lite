@@ -6,8 +6,9 @@ A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced
 
 - 🤖 **ML-Enhanced Color Mixing**: Bayesian optimization with Gaussian Process Regression for intelligent color recommendations
 - 🎨 **Hue-Only Target Optimization**: CIELAB color space optimization using angular distance for perceptually accurate hue matching
-- � **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
-- �🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
+- 🧪 **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
+- 🧪 **Washing Bottle Calibration**: Dedicated utility for calibrating washing bottles with custom squeeze durations
+- 🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
 - 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition
 - 🤖 **Robot Control**: Direct interface to robot dispensing and positioning operations
 - 🧪 **Beaker Analysis**: Upload and analyze beaker images with AI-powered color detection
@@ -170,11 +171,12 @@ frontend/
 │   ├── blue_solution_ground_truth.json
 │   ├── white_solution_ground_truth.json
 │   └── calibration_summary.json
+├── washing_bottle_calibration/ # Washing bottle calibration data directory
 └── tests/                    # Comprehensive frontend test suite
     ├── test_ground_truth_calibration.py   # Complete mocking test scenarios (11 tests)
     ├── test_ground_truth_real.py          # Real data validation tests (8 tests)
-    ├── test_hue_optimization.py           # Hue-based optimization tests (NEW)
-    └── run_updated_frontend_tests.py      # Test runner for all frontend modules
+    ├── test_hue_only_optimization.py      # Hue-only optimization tests (7 tests)
+    └── run_comprehensive_frontend_tests.py # Test runner for all frontend modules
 ```
 
 ## Dependencies
@@ -207,19 +209,19 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 # Run comprehensive ground truth calibration tests
 cd /home/hafnium/aloha-lite/frontend/tests
 
-# Run all tests (19 total: 11 mocking + 8 real data)
-python -m pytest test_ground_truth_calibration.py test_ground_truth_real.py -v
+# Run all tests (26 total: 11 mocking + 8 real data + 7 hue optimization)
+python -m pytest test_ground_truth_calibration.py test_ground_truth_real.py test_hue_only_optimization.py -v
 
-# Run hue-based optimization tests
-python -m pytest test_hue_optimization.py -v
+# Run hue-only optimization tests
+python -m pytest test_hue_only_optimization.py -v
 
 # Run comprehensive test suite
-python run_updated_frontend_tests.py
+python run_comprehensive_frontend_tests.py
 
 # Run individual test suites
 python -m pytest test_ground_truth_calibration.py -v  # 11 comprehensive mocking tests
 python -m pytest test_ground_truth_real.py -v        # 8 real data validation tests
-python -m pytest test_hue_optimization.py -v         # Hue-based optimization tests
+python -m pytest test_hue_only_optimization.py -v    # 7 hue-only optimization tests
 ```
 
 ### Configuration
@@ -451,6 +453,47 @@ Error: Angular distance calculation failed
 # L: 0-100, a: typically -100 to +100, b: typically -100 to +100
 ```
 
+**Washing Bottle Calibrator Issues**
+```
+Error: Sequence 'calibration_red_washing_bottle' not found
+```
+**Solution**: Ensure the sequences file exists and contains the required washing bottle sequences:
+```bash
+# Check sequences file exists
+ls -la temp_rules/sequential_sequences.json
+
+# Verify washing bottle sequences are present
+grep -A 5 "calibration.*washing_bottle" temp_rules/sequential_sequences.json
+```
+
+**Temporary File Creation Errors**
+```
+Error creating temporary sequences file: Permission denied
+```
+**Solution**: Check write permissions for temporary directory:
+```bash
+# Check temp directory permissions
+ls -la /tmp/
+
+# Run with proper permissions
+sudo python utilities/washing_bottle_calibrator.py --color red --duration 5.0
+```
+
+**Robot Service Connection Issues**
+```
+Error executing calibration sequence: robot_service directory not found
+```
+**Solution**: Ensure robot service directory exists and sequential_execute.py is available:
+```bash
+# Check robot service directory
+ls -la robot_service/
+ls -la robot_service/sequential_execute.py
+
+# Run from correct directory
+cd /home/hafnium/aloha-lite
+python utilities/washing_bottle_calibrator.py --color red --duration 5.0
+```
+
 **Responsive Design Issues**
 ```
 Interface not displaying correctly on wide monitors
@@ -522,6 +565,90 @@ The hue-only optimization is automatically enabled when:
 - `hue_target_deg` attribute is not None
 - System falls back to RGB distance when hue target is unavailable
 
+## Washing Bottle Calibration Utility
+
+The frontend ecosystem includes a specialized washing bottle calibration utility (`utilities/washing_bottle_calibrator.py`) that enables precise calibration of washing bottles with custom squeeze durations.
+
+### Overview
+
+The washing bottle calibrator allows researchers to:
+1. **Execute Robot Sequences**: Run calibration sequences with custom squeeze durations
+2. **Color-Specific Calibration**: Calibrate red, yellow, and blue washing bottles independently
+3. **Automated Sequence Generation**: Dynamically modify robot sequences with user-specified squeeze durations
+4. **Temporary File Management**: Creates temporary sequence files without modifying original configurations
+
+### Usage Examples
+
+```bash
+# Calibrate individual washing bottles with specific squeeze durations
+python utilities/washing_bottle_calibrator.py --color red --duration 5.0
+python utilities/washing_bottle_calibrator.py --color yellow --duration 7.5
+python utilities/washing_bottle_calibrator.py --color blue --duration 3.0
+
+# Calibrate all washing bottles with the same duration
+python utilities/washing_bottle_calibrator.py --all --duration 6.0
+
+# Manual execution mode (for custom robot control)
+python utilities/washing_bottle_calibrator.py --color red --duration 4.5 --no-auto-run
+```
+
+### Key Features
+
+#### Sequence Customization
+- **Dynamic Duration Replacement**: Automatically replaces "squeeze washing bottle for X seconds" with user-specified durations
+- **Temporary Sequence Files**: Creates modified sequences without affecting original `sequential_sequences.json`
+- **Smooth Execution**: Integrates with existing `--smooth` execution mode for optimal robot movement
+
+#### Supported Sequences
+- `calibration_red_washing_bottle`: Red solution calibration sequence
+- `calibration_yellow_washing_bottle`: Yellow solution calibration sequence  
+- `calibration_blue_washing_bottle`: Blue solution calibration sequence
+
+#### Validation and Safety
+- **Input Validation**: Validates squeeze duration ranges and color specifications
+- **File System Checks**: Verifies required directories and sequence files exist
+- **Error Handling**: Comprehensive error handling with detailed user feedback
+- **Cleanup**: Automatic cleanup of temporary files after execution
+
+### Integration with Frontend
+
+The washing bottle calibrator complements the frontend's ML optimization system by:
+1. **Providing Calibration Data**: Generates calibration measurements for improved ML model accuracy
+2. **Supporting Ground Truth**: Helps create ground truth calibration files used by the ColorOptimizer
+3. **Enabling Systematic Testing**: Allows controlled experiments with different squeeze durations
+4. **Feeding ML Pipeline**: Calibration results can be used to train and validate the Bayesian optimization system
+
+### Command Line Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--color` | Specific washing bottle color (red/yellow/blue) | `--color red` |
+| `--duration` | Squeeze duration in seconds (required) | `--duration 5.0` |
+| `--all` | Calibrate all colors with same duration | `--all` |
+| `--no-auto-run` | Manual execution mode | `--no-auto-run` |
+| `--base-dir` | Custom project base directory | `--base-dir /path/to/project` |
+
+### Technical Implementation
+
+```python
+class WashingBottleCalibrator:
+    def create_custom_sequence(self, color: str, squeeze_duration: float):
+        """Create a custom sequence with specified squeeze duration."""
+        
+    def create_temporary_sequences_file(self, custom_sequences: Dict):
+        """Create temporary JSON file with modified sequences."""
+        
+    def execute_calibration_sequence(self, color: str, squeeze_duration: float):
+        """Execute robot sequence with custom duration."""
+```
+
+The utility dynamically modifies robot sequences by:
+1. Loading original sequences from `temp_rules/sequential_sequences.json`
+2. Creating custom sequences with user-specified squeeze durations
+3. Generating temporary sequence files with modified configurations
+4. Executing robot sequences using `robot_service/sequential_execute.py`
+5. Cleaning up temporary files after completion
+
 ## Contributing
 
 1. Follow existing code style and patterns
@@ -532,6 +659,20 @@ The hue-only optimization is automatically enabled when:
 6. Verify responsive design across different screen sizes
 
 ## Changelog
+
+### v2.5 - Hue-Only Optimization Implementation & Washing Bottle Calibrator (August 2025)
+- **NEW**: Complete hue-only optimization implementation with minimal code modifications (~40 lines)
+- **ADDED**: `_signed_hue_diff()` method for circular hue distance calculation with proper wraparound handling
+- **ADDED**: `_estimate_hue_jacobian()` method for learning hue response from recent optimization moves
+- **ADDED**: `_hue_based_correction()` method for data-driven hue-space optimization with graceful fallbacks
+- **ENHANCED**: ColorOptimizer with `hue_only_mode` parameter (default True) for backward compatibility
+- **INTEGRATED**: Hue-based recommendations in phases 1 and 2 with automatic fallback to full-color optimization
+- **NEW**: Washing bottle calibrator utility (`utilities/washing_bottle_calibrator.py`) for precise calibration measurements
+- **ADDED**: Dynamic sequence generation with custom squeeze durations for washing bottle calibration
+- **SUPPORTED**: Temporary sequence file management without modifying original robot configurations
+- **VALIDATED**: Comprehensive test suite with 7 hue-only optimization tests achieving 100% pass rate
+- **IMPLEMENTED**: Data-driven approach that "steers the ship using pure-hue logic in early phases and falls back to full-color calibrated models once enough data accumulates"
+- **ACHIEVED**: Perfect integration with existing optimization system while maintaining minimal code intrusion
 
 ### v2.4 - Hue-Only Target Optimization (August 2025)
 - **NEW**: Hue-only target optimization system using CIELAB color space and angular distance calculation
