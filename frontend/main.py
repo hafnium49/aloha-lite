@@ -176,7 +176,7 @@ class ColorOptimizer:
     """
 
     # ---------- init ----------
-    def __init__(self, allow_white_absorbance: bool = False):
+    def __init__(self, allow_white_absorbance: bool = False, hue_only_mode: bool = True):
         """
         Initialize ColorOptimizer.
         
@@ -184,6 +184,8 @@ class ColorOptimizer:
             allow_white_absorbance: If False (default), white-solvent absorbance is locked to zero
                                   assuming pure RGB(255,255,255) background. If True, allows
                                   the optimizer to learn white-solvent absorbance parameters.
+            hue_only_mode: If True (default), use hue-only optimization for early phases.
+                          If False, use RGB-based optimization.
         """
         self.history: List[Dict] = []
         self.target_color: Optional[Tuple[int, int, int]] = None
@@ -193,6 +195,7 @@ class ColorOptimizer:
         self.gp_model: Optional[GaussianProcessRegressor] = None
         self.epsilon_rgb = 10.0                   # diagnostic only
         self.allow_white_absorbance = allow_white_absorbance
+        self.hue_only_mode = hue_only_mode
 
     # ---------- low‑level helpers ----------
     @staticmethod
@@ -243,6 +246,12 @@ class ColorOptimizer:
         """Extract hue angle in degrees from RGB."""
         L, a, b = cls._rgb_to_lab(rgb)
         return degrees(atan2(b, a)) % 360
+
+    @staticmethod
+    def _signed_hue_diff(h_from, h_to):
+        """Return signed shortest distance h_from → h_to  (deg, –180…+180)."""
+        d = (h_to - h_from + 180) % 360 - 180
+        return d
 
     @staticmethod
     def _ang_diff(h1, h2):
@@ -428,6 +437,58 @@ class ColorOptimizer:
         choice = best_x if best_x is not None else starts[0]
         return self._normalize(self._array_to_ratios(choice))
 
+    def _estimate_hue_jacobian(self, k: int = 4) -> Optional[np.ndarray]:
+        """
+        Return approximate ∂hue/∂w  (shape 3) using the last k≳3 distinct moves.
+        Least-squares fit:  Δhue ≈ J · Δw_coloured
+        """
+        if len(self.history) < 2:
+            return None
+
+        # build lists of Δw (R,Y,B only) and Δhue between successive trials
+        dw, dh = [], []
+        for h_prev, h_next in zip(self.history[-k-1:-1], self.history[-k:]):
+            w_prev = self._ratios_to_array(h_prev["ratios"])[:3]
+            w_next = self._ratios_to_array(h_next["ratios"])[:3]
+            hue_prev = h_prev["measured_hue_deg"]
+            hue_next = h_next["measured_hue_deg"]
+            # skip near-zero moves
+            if np.linalg.norm(w_next - w_prev) < 1e-3:
+                continue
+            dw.append(w_next - w_prev)
+            dh.append(self._signed_hue_diff(hue_prev, hue_next))
+
+        if len(dw) < 3:      # under-determined
+            return None
+
+        # LSQ:  minimise ||DW·J - dH||²
+        DW = np.vstack(dw)             # (m,3)
+        dH = np.array(dh)              # (m,)
+        J, *_ = np.linalg.lstsq(DW, dH, rcond=None)
+        return J          # shape (3,)
+
+    def _hue_based_correction(self) -> Optional[Dict[str, float]]:
+        if self.hue_target_deg is None or not self.history:
+            return None
+
+        J = self._estimate_hue_jacobian()
+        if J is None:
+            return None
+
+        last = self.history[-1]
+        w_old = self._ratios_to_array(last["ratios"])[:3]
+        hue_old = last["measured_hue_deg"]
+        d_hue   = self._signed_hue_diff(hue_old, self.hue_target_deg)
+
+        # Solve   J·Δw  ≈  d_hue        (1×3 LS, bound –Δmax … +Δmax)
+        try:
+            Δw, *_ = np.linalg.lstsq(J.reshape(1, -1), np.array([d_hue]), rcond=None)
+        except Exception:
+            return None
+
+        w_new_coloured = np.clip(w_old + Δw, 0.0, 25.0)
+        return self._normalize(dict(zip(('red', 'yellow', 'blue'), w_new_coloured)))
+
     # ---------- misc helpers ----------
     def _get_random(self):
         coloured = {c: random.uniform(0.1, 10.0) for c in ('red', 'yellow', 'blue')}
@@ -453,14 +514,20 @@ class ColorOptimizer:
 
         # --- phase 1 (after the very first measurement) ---
         if N == 1:
-            step = self._first_order_correction()
+            if self.hue_only_mode:
+                step = self._hue_based_correction() or self._first_order_correction()
+            else:
+                step = self._first_order_correction()
             return step if step else self._get_random()
 
         # --- phase 2 (after two measurements) ---
         if N == 2:
             self._rough_scale_calibration()
             w_cal = self._inverse_weights()               # 3‑α rough calib
-            w_lin = self._first_order_correction()        # deterministic step
+            if self.hue_only_mode:
+                w_lin = self._hue_based_correction() or self._first_order_correction()
+            else:
+                w_lin = self._first_order_correction()        # deterministic step
             if w_cal is None and w_lin is None:
                 return self._get_random()
             if w_cal is None:                 # fall back if inverse failed
@@ -517,8 +584,8 @@ def _hue_gap_deg(h1, h2):
 # ╚══════════════════════════════════════╝
 class BottleModel(ColorOptimizer):
     """Fixed pigment matrix known only to the backend (for target sampling)."""
-    def __init__(self, P_true: np.ndarray, allow_white_absorbance: bool = False):
-        super().__init__(allow_white_absorbance=allow_white_absorbance)
+    def __init__(self, P_true: np.ndarray, allow_white_absorbance: bool = False, hue_only_mode: bool = True):
+        super().__init__(allow_white_absorbance=allow_white_absorbance, hue_only_mode=hue_only_mode)
         self.P_est = P_true.copy()   # never changes
 
 def load_ground_truth_calibration(allow_white_absorbance: bool = False):
@@ -678,7 +745,7 @@ def load_ground_truth_calibration(allow_white_absorbance: bool = False):
 ALLOW_WHITE_ABSORBANCE = False  # Default: lock white to zero for pure RGB(255,255,255) background
 
 _P_TRUE = load_ground_truth_calibration(allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
-bottle_model = BottleModel(_P_TRUE, allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
+bottle_model = BottleModel(_P_TRUE, allow_white_absorbance=ALLOW_WHITE_ABSORBANCE, hue_only_mode=True)
 
 # ╔══════════════════════════════════════╗
 # ║     Target-colour helper functions     ║
@@ -782,7 +849,7 @@ def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
 # ╔══════════════════════════════════════╗
 # ║     FastAPI   +  endpoints (UNCHANGED)    ║
 # ╚══════════════════════════════════════╝
-color_optimizer = ColorOptimizer(allow_white_absorbance=ALLOW_WHITE_ABSORBANCE)
+color_optimizer = ColorOptimizer(allow_white_absorbance=ALLOW_WHITE_ABSORBANCE, hue_only_mode=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
