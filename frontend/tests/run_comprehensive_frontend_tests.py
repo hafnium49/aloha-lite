@@ -48,6 +48,7 @@ def main():
         ("test_washing_bottle_calibration.py", "Washing Bottle Calibration Functionality"),
         ("test_api_endpoints.py", "API Endpoints with 10.0 mL Normalization"),
         ("test_normalization_10.py", "10.0 mL Normalization Tests"),
+        ("test_hue_only_optimization.py", "Hue-Only Optimization Features"),
     ]
     
     # Run each test file
@@ -81,6 +82,7 @@ def main():
         print("✅ Normalization updates working correctly")
         print("✅ Washing bottle calibration implemented successfully")
         print("✅ API endpoints functioning properly")
+        print("✅ Hue-only optimization features working correctly")
         return True
     else:
         print("❌ Some tests failed - please review the output above")
