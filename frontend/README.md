@@ -62,7 +62,6 @@ Ground Truth Integration:
 │ Calibration     │    │ RGB/Hex Data    │    │ Frontend        │
 │ Utility         │    │ Collection      │    │ Integration     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-```
 
 ML Pipeline:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
