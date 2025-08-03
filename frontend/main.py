@@ -167,7 +167,7 @@ class ColorOptimizer:
 
     # volume‐normalisation: coloured liquids are rescaled to ≤ max_total;
     # leftover volume is assigned to "white" (never <0.1 mL)
-    def _normalize(self, d, *, max_total: float = 3.0):
+    def _normalize(self, d, *, max_total: float = 10.0):
         coloured = {k: v for k, v in d.items() if k != "white"}
         s = sum(coloured.values()) or 1.0
         f = min(1.0, max_total / s)
@@ -272,7 +272,7 @@ class ColorOptimizer:
         if not res.success:
             return None
 
-        w_new_coloured = np.clip(w_old + res.x, 0.0, 5.0)           # keep ≥0
+        w_new_coloured = np.clip(w_old + res.x, 0.0, 15.0)           # keep ≥0
         ratios = dict(zip(('red', 'yellow', 'blue'), w_new_coloured))
         return self._normalize(ratios)                              # adds white
 
@@ -299,7 +299,7 @@ class ColorOptimizer:
             return None
         res = lsq_linear(self.P_est.T,
                          self._rgb_to_absorb(self.target_color),
-                         bounds=(0, 8))
+                         bounds=(0, 25))
         return self._normalize(self._array_to_ratios(res.x))
 
     # ---------- GP helper ----------
@@ -322,14 +322,14 @@ class ColorOptimizer:
             z = (f_best - m - xi) / (s + 1e-9)
             return -(f_best - m - xi) * norm.cdf(z) - s * norm.pdf(z)
 
-        starts = [np.random.uniform(0.1, 5.0, (N_PIG,)) for _ in range(6)]
+        starts = [np.random.uniform(0.1, 15.0, (N_PIG,)) for _ in range(6)]
         if seed is not None:
             starts.append(self._ratios_to_array(seed))
 
         best_x, best_v = None, np.inf
         for s0 in starts:
             res = minimize(acq, s0, method='L-BFGS-B',
-                           bounds=[(0.05, 8.0)] * N_PIG)
+                           bounds=[(0.05, 25.0)] * N_PIG)
             if res.success and res.fun < best_v:
                 best_v, best_x = res.fun, res.x
 
@@ -338,7 +338,7 @@ class ColorOptimizer:
 
     # ---------- misc helpers ----------
     def _get_random(self):
-        coloured = {c: random.uniform(0.1, 3.0) for c in ('red', 'yellow', 'blue')}
+        coloured = {c: random.uniform(0.1, 10.0) for c in ('red', 'yellow', 'blue')}
         return self._normalize(coloured)
 
     # ---------- main decision ----------
@@ -534,15 +534,15 @@ def load_ground_truth_calibration(allow_white_absorbance: bool = False):
         white_rgb = rgb_colors[3] if len(rgb_colors) > 3 and rgb_colors[3] is not None else None
         
         if len(rgb_source) == 3:
-            # Ground truth calibration uses single solutions at total volume 3.0
-            # For w = [3.0, 0.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
-            # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 3.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 3.0, etc.
+            # Ground truth calibration uses single solutions at total volume 10.0
+            # For w = [10.0, 0.0, 0.0, 0.0], we want A = w @ P_est = rgb_to_absorb(red_rgb)
+            # This means P_est[0,0] = rgb_to_absorb(red_rgb)[0] / 10.0, P_est[0,1] = rgb_to_absorb(red_rgb)[1] / 10.0, etc.
             # The matrix now includes white pigment as the 4th row
             
             # Calculate white row: use white solution data if available and allowed, 
             # otherwise lock to zero absorbance for pure RGB(255,255,255) background
             if allow_white_absorbance and white_rgb is not None:
-                white_absorbance_row = ColorOptimizer._rgb_to_absorb(white_rgb) / 3.0
+                white_absorbance_row = ColorOptimizer._rgb_to_absorb(white_rgb) / 10.0
                 logger.info("✅ Using white solution RGB measurement: RGB%s", white_rgb)
             else:
                 # Lock white absorbance to zero for ideal white background RGB(255,255,255)
@@ -553,13 +553,13 @@ def load_ground_truth_calibration(allow_white_absorbance: bool = False):
                     logger.info("📝 White solution file not found, using zero absorbance")
             
             P_true = np.array([
-                ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 3.0,    # Row 0: red color's absorbance per unit volume
-                ColorOptimizer._rgb_to_absorb(rgb_source["yellow"]) / 3.0, # Row 1: yellow color's absorbance per unit volume  
-                ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 3.0,   # Row 2: blue color's absorbance per unit volume
-                white_absorbance_row                                       # Row 3: white solvent absorbance
+                ColorOptimizer._rgb_to_absorb(rgb_source["red"]) / 10.0,    # Row 0: red color's absorbance per unit volume
+                ColorOptimizer._rgb_to_absorb(rgb_source["yellow"]) / 10.0, # Row 1: yellow color's absorbance per unit volume  
+                ColorOptimizer._rgb_to_absorb(rgb_source["blue"]) / 10.0,   # Row 2: blue color's absorbance per unit volume
+                white_absorbance_row                                        # Row 3: white solvent absorbance
             ])  # Shape: (4,3) where rows are pigments (including white), columns are RGB channels
             
-            logger.info("🔧 Constructed ground truth matrix from RGB measurements (normalized for volume 3.0)")
+            logger.info("🔧 Constructed ground truth matrix from RGB measurements (normalized for volume 10.0)")
             logger.info("📊 Matrix:\n%s", P_true)
             return P_true
             
@@ -592,10 +592,10 @@ bottle_model = BottleModel(_P_TRUE, allow_white_absorbance=ALLOW_WHITE_ABSORBANC
 # ║     Target-colour helper functions     ║
 # ╚══════════════════════════════════════╝
 def _sample_reachable_rgb(P_est: np.ndarray,
-                          max_total: float = 3.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
+                          max_total: float = 10.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
     """Return (rgb8, weights) inside the reachable gamut of P_est.
     
-    Generates normalized color ratios for 4 pigments that sum to max_total (default 3.0)
+    Generates normalized color ratios for 4 pigments that sum to max_total (default 10.0)
     to match the ColorOptimizer's normalization scheme and ground truth calibration.
     P_est is now (4,3) including white pigment.
     """
@@ -647,7 +647,7 @@ def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
     best = None     # holds (difficulty, -hue_gap, imbalance, rgb, vols, hue)
 
     for _ in range(n_samples):
-        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
+        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=10.0)
         hue = ColorOptimizer._hue_deg(rgb)
 
         # — rule ① difficulty —
@@ -676,7 +676,7 @@ def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
 
     # If every candidate was filtered out, fall back to one reachable sample
     if best is None:
-        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=3.0)
+        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=10.0)
         hue       = ColorOptimizer._hue_deg(rgb)
     else:
         _, _, _, rgb, vols, hue = best
