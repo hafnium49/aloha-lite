@@ -129,8 +129,12 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 
 **MCP Server (Port 8900):**
 ```bash
+# Start Playwright MCP server (WebSocket JSON-RPC)
+uvx playwright-mcp --port 9010 &
+
+# Run the FastAPI bridge
 cd /home/hafnium/aloha-lite/mcp_server
-python -m uvicorn main:app --host 0.0.0.0 --port 8900
+uv run server.py
 ```
 
 **Access the System:**
