@@ -135,13 +135,20 @@ class TestGroundTruthCalibration(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
 
     @patch('main.Path')
-    def test_load_from_calibration_summary_success(self, mock_path):
+    def test_load_from_calibration_summary_success(self, mock_path_class):
         """Test successful loading from calibration summary file."""
-        # Mock Path to return our test directory
-        mock_path.return_value.parent = self.ground_truth_dir.parent
-        mock_file_path = MagicMock()
-        mock_file_path.exists.return_value = True
-        mock_path.return_value.parent.__truediv__ = MagicMock(return_value=mock_file_path)
+        # Create a mock path instance
+        mock_path_instance = MagicMock()
+        mock_path_class.return_value = mock_path_instance
+        
+        # Mock the parent directory and file operations
+        mock_parent = MagicMock()
+        mock_path_instance.parent = mock_parent
+        
+        # Mock the calibration summary file
+        mock_summary_file = MagicMock()
+        mock_summary_file.exists.return_value = True
+        mock_parent.__truediv__.return_value = mock_summary_file
         
         with patch('builtins.open', mock_open(read_data=json.dumps(self.valid_summary_data))):
             result = load_ground_truth_calibration()
@@ -156,57 +163,76 @@ class TestGroundTruthCalibration(unittest.TestCase):
             ])
             np.testing.assert_array_almost_equal(result, expected_matrix)
 
-    @patch('main.Path')
-    def test_load_from_individual_files_fallback(self, mock_path):
+    def test_load_from_individual_files_fallback(self):
         """Test fallback to individual solution files when summary is missing."""
-        # Mock Path behavior - summary doesn't exist, individual files do
-        mock_path.return_value.parent = self.ground_truth_dir.parent
-        
-        def path_side_effect(filename):
-            mock_file = MagicMock()
-            if "calibration_summary.json" in str(filename):
-                mock_file.exists.return_value = False
-            else:
-                mock_file.exists.return_value = True
-            return mock_file
-        
-        mock_path.return_value.parent.__truediv__ = MagicMock(side_effect=path_side_effect)
-        
-        # Mock file contents for individual files
-        file_contents = {
-            "red_solution_ground_truth.json": json.dumps(self.red_solution_data),
-            "yellow_solution_ground_truth.json": json.dumps(self.yellow_solution_data),
-            "blue_solution_ground_truth.json": json.dumps(self.blue_solution_data),
-            "white_solution_ground_truth.json": json.dumps(self.white_solution_data)
-        }
-        
-        def open_side_effect(filename, mode='r'):
-            for file_key, content in file_contents.items():
-                if file_key in str(filename):
-                    return mock_open(read_data=content).return_value
-            return mock_open(read_data="{}").return_value
-        
-        with patch('builtins.open', side_effect=open_side_effect):
-            result = load_ground_truth_calibration()
+        # Create actual temporary files for this test
+        temp_dir = tempfile.mkdtemp()
+        try:
+            ground_truth_dir = Path(temp_dir) / "ground_truth_calibration"
+            ground_truth_dir.mkdir()
             
-            # Verify the result is a valid 4x3 matrix
-            self.assertEqual(result.shape, (4, 3))
+            # Create individual solution files (no summary file)
+            red_file = ground_truth_dir / "red_solution_ground_truth.json"
+            yellow_file = ground_truth_dir / "yellow_solution_ground_truth.json"
+            blue_file = ground_truth_dir / "blue_solution_ground_truth.json"
+            white_file = ground_truth_dir / "white_solution_ground_truth.json"
             
-            # Check that absorbance coefficients are used in the diagonal
-            self.assertAlmostEqual(result[0, 0], 0.85, places=2)  # red coefficient
-            self.assertAlmostEqual(result[1, 1], 0.72, places=2)  # yellow coefficient  
-            self.assertAlmostEqual(result[2, 2], 0.78, places=2)  # blue coefficient
-            self.assertEqual(result[3, 0], 0.0)  # white locked to zero by default
+            with open(red_file, 'w') as f:
+                json.dump(self.red_solution_data, f)
+            with open(yellow_file, 'w') as f:
+                json.dump(self.yellow_solution_data, f)
+            with open(blue_file, 'w') as f:
+                json.dump(self.blue_solution_data, f)
+            with open(white_file, 'w') as f:
+                json.dump(self.white_solution_data, f)
+            
+            # Mock the ground truth directory path
+            with patch('main.Path') as mock_path_class:
+                mock_path_instance = MagicMock()
+                mock_path_instance.parent = ground_truth_dir.parent
+                mock_path_class.return_value = mock_path_instance
+                
+                result = load_ground_truth_calibration()
+                
+                # Verify the result is a valid 4x3 matrix
+                self.assertEqual(result.shape, (4, 3))
+                
+                # Check that the function constructed a matrix using the absorbance coefficients
+                # The actual construction uses:
+                # P_true = np.array([
+                #     [red_coeff, 0.1, 0.08],
+                #     [0.15, yellow_coeff, 0.1],
+                #     [0.12, 0.15, blue_coeff],
+                #     [white_absorbance, white_absorbance, white_absorbance]
+                # ])
+                self.assertAlmostEqual(result[0, 0], 0.85, places=2)  # red coefficient in position [0,0]
+                self.assertAlmostEqual(result[1, 1], 0.72, places=2)  # yellow coefficient in position [1,1]
+                self.assertAlmostEqual(result[2, 2], 0.78, places=2)  # blue coefficient in position [2,2]
+                self.assertEqual(result[3, 0], 0.0)  # white locked to zero by default
+                
+                # Check some of the hardcoded off-diagonal elements
+                self.assertAlmostEqual(result[0, 1], 0.1, places=2)   # hardcoded cross-term
+                self.assertAlmostEqual(result[0, 2], 0.08, places=2)  # hardcoded cross-term
+                
+        finally:
+            shutil.rmtree(temp_dir)
 
     @patch('main.Path')
     @patch('main.logger')
-    def test_missing_calibration_files_fallback(self, mock_logger, mock_path):
+    def test_missing_calibration_files_fallback(self, mock_logger, mock_path_class):
         """Test fallback to random matrix when all files are missing."""
-        # Mock Path behavior - no files exist
-        mock_path.return_value.parent = self.ground_truth_dir.parent
+        # Create a mock path instance
+        mock_path_instance = MagicMock()
+        mock_path_class.return_value = mock_path_instance
+        
+        # Mock the parent directory and file operations
+        mock_parent = MagicMock()
+        mock_path_instance.parent = mock_parent
+        
+        # Mock that no files exist
         mock_file = MagicMock()
         mock_file.exists.return_value = False
-        mock_path.return_value.parent.__truediv__.return_value = mock_file
+        mock_parent.__truediv__.return_value = mock_file
         
         with patch('numpy.random.seed') as mock_seed, \
              patch('numpy.random.normal') as mock_normal:
@@ -232,13 +258,20 @@ class TestGroundTruthCalibration(unittest.TestCase):
 
     @patch('main.Path')
     @patch('main.logger')
-    def test_malformed_summary_file(self, mock_logger, mock_path):
+    def test_malformed_summary_file(self, mock_logger, mock_path_class):
         """Test handling of malformed calibration summary file."""
-        # Mock Path behavior
-        mock_path.return_value.parent = self.ground_truth_dir.parent
+        # Create a mock path instance
+        mock_path_instance = MagicMock()
+        mock_path_class.return_value = mock_path_instance
+        
+        # Mock the parent directory and file operations
+        mock_parent = MagicMock()
+        mock_path_instance.parent = mock_parent
+        
+        # Mock that the summary file exists
         mock_file_path = MagicMock()
         mock_file_path.exists.return_value = True
-        mock_path.return_value.parent.__truediv__.return_value = mock_file_path
+        mock_parent.__truediv__.return_value = mock_file_path
         
         with patch('builtins.open', mock_open(read_data=json.dumps(self.malformed_summary_data))):
             with patch('numpy.random.seed') as mock_seed, \
@@ -259,7 +292,7 @@ class TestGroundTruthCalibration(unittest.TestCase):
 
     @patch('main.Path')
     @patch('main.logger')
-    def test_missing_matrix_in_summary(self, mock_logger, mock_path):
+    def test_missing_matrix_in_summary(self, mock_logger, mock_path_class):
         """Test handling when calibration matrix is missing from summary."""
         # Summary data without calibration matrix
         summary_without_matrix = {
@@ -270,11 +303,18 @@ class TestGroundTruthCalibration(unittest.TestCase):
             }
         }
         
-        # Mock Path behavior
-        mock_path.return_value.parent = self.ground_truth_dir.parent
+        # Create a mock path instance
+        mock_path_instance = MagicMock()
+        mock_path_class.return_value = mock_path_instance
+        
+        # Mock the parent directory and file operations
+        mock_parent = MagicMock()
+        mock_path_instance.parent = mock_parent
+        
+        # Mock that the summary file exists
         mock_file_path = MagicMock()
         mock_file_path.exists.return_value = True
-        mock_path.return_value.parent.__truediv__.return_value = mock_file_path
+        mock_parent.__truediv__.return_value = mock_file_path
         
         with patch('builtins.open', mock_open(read_data=json.dumps(summary_without_matrix))):
             with patch('numpy.random.seed') as mock_seed, \
@@ -294,12 +334,18 @@ class TestGroundTruthCalibration(unittest.TestCase):
                 mock_seed.assert_called_once_with(42)
 
     @patch('main.Path')
-    def test_partial_solution_files(self, mock_path):
+    def test_partial_solution_files(self, mock_path_class):
         """Test handling when only some solution files exist."""
-        # Mock Path behavior - only red and yellow files exist
-        mock_path.return_value.parent = self.ground_truth_dir.parent
+        # Create a mock path instance
+        mock_path_instance = MagicMock()
+        mock_path_class.return_value = mock_path_instance
         
-        def path_side_effect(filename):
+        # Mock the parent directory
+        mock_parent = MagicMock()
+        mock_path_instance.parent = mock_parent
+        
+        # Mock file existence behavior - only red and yellow files exist
+        def mock_truediv_side_effect(filename):
             mock_file = MagicMock()
             if "red_solution" in str(filename) or "yellow_solution" in str(filename):
                 mock_file.exists.return_value = True
@@ -307,7 +353,7 @@ class TestGroundTruthCalibration(unittest.TestCase):
                 mock_file.exists.return_value = False
             return mock_file
         
-        mock_path.return_value.parent.__truediv__ = MagicMock(side_effect=path_side_effect)
+        mock_parent.__truediv__.side_effect = mock_truediv_side_effect
         
         # Mock file contents for available files
         file_contents = {
@@ -420,7 +466,7 @@ class TestEndToEndIntegration(unittest.TestCase):
     """Test end-to-end integration with real file loading."""
     
     @patch('main.Path')
-    def test_complete_calibration_workflow(self, mock_path):
+    def test_complete_calibration_workflow(self, mock_path_class):
         """Test the complete calibration loading workflow with real files."""
         # Create a temporary directory structure
         temp_dir = tempfile.mkdtemp()
@@ -450,11 +496,18 @@ class TestEndToEndIntegration(unittest.TestCase):
             with open(summary_file, 'w') as f:
                 json.dump(summary_data, f)
             
-            # Mock Path to point to our temp directory
-            mock_path.return_value.parent = ground_truth_dir.parent
+            # Create a mock path instance
+            mock_path_instance = MagicMock()
+            mock_path_class.return_value = mock_path_instance
+            
+            # Mock the parent directory and file operations
+            mock_parent = MagicMock()
+            mock_path_instance.parent = mock_parent
+            
+            # Mock that the summary file exists
             mock_file_path = MagicMock()
             mock_file_path.exists.return_value = True
-            mock_path.return_value.parent.__truediv__.return_value = mock_file_path
+            mock_parent.__truediv__.return_value = mock_file_path
             
             with patch('builtins.open', mock_open(read_data=json.dumps(summary_data))):
                 result = load_ground_truth_calibration()
