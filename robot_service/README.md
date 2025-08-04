@@ -6,9 +6,10 @@ A FastAPI-based laboratory automation service for controlling robotic arms in mu
 
 ### 🤖 Complete Laboratory Automation
 - **29-step timed laboratory procedure** with full workflow automation
-- **Multi-color dispensing** support (red, yellow, blue)
+- **Multi-color dispensing** support (red, yellow, blue) with automatic volume splitting
 - **Precise arm positioning** and coordination between left and right arms
-- **Automated squeeze bottle operations** with configurable durations
+- **Automated squeeze bottle operations** with configurable durations and volume splitting
+- **Volume splitting system** for >4mL dispensing operations to maintain calibration accuracy
 - **Stirring capabilities** with timed execution
 - **AI-powered beaker color analysis** 
 - **Real-time progress tracking** with step-by-step status updates
@@ -57,7 +58,7 @@ A FastAPI-based laboratory automation service for controlling robotic arms in mu
 ### Core Dispensing
 
 #### `POST /robot/dispense`
-Execute laboratory procedures with multi-color dispensing support.
+Execute laboratory procedures with multi-color dispensing support and automatic volume splitting.
 
 **Request Body:**
 ```json
@@ -75,9 +76,21 @@ Execute laboratory procedures with multi-color dispensing support.
     "yellow": 35.0,
     "blue": 25.0
   },
-  "base_duration": 3.0
+  "base_duration": 3.0,
+  "squeeze_plan": {
+    "red": [2.456, 2.456],
+    "yellow": [1.823],
+    "blue": [1.234, 1.234, 1.234]
+  }
 }
 ```
+
+**Volume Splitting Features:**
+- **Automatic Splitting**: Volumes >4mL are split into equal segments for accuracy
+- **Smart Distribution**: 5mL becomes 2×2.5mL (not 4mL+1mL) for consistent performance
+- **Calibration Compliance**: Each segment stays within 0-4mL calibrated range
+- **Multi-Squeeze Generation**: Creates multiple squeeze steps in laboratory sequence
+- **Backward Compatibility**: Works with legacy requests that don't include squeeze_plan
 
 **Response:**
 ```json
@@ -232,29 +245,47 @@ The frontend automatically displays beaker analysis results when the "analyze be
 
 ## Laboratory Procedure Sequence
 
-The timed laboratory procedure implements a comprehensive 29-step workflow:
+The timed laboratory procedure implements a comprehensive 29-step workflow with automatic volume splitting:
 
-### Phase 1: Setup & Red Dispensing (Steps 1-6)
+### Volume Splitting Implementation
+
+When dispensing volumes >4mL, the system automatically:
+1. **Calculates Split Segments**: Divides volume into equal parts ≤4mL each
+2. **Generates Multiple Squeeze Steps**: Creates separate squeeze commands for each segment  
+3. **Maintains Sequence Order**: Preserves original procedure flow with additional steps
+4. **Preserves Accuracy**: Each squeeze stays within calibrated 0-4mL range
+
+#### Example: 6mL Red Dispensing
+```bash
+# Original single squeeze (inaccurate for >4mL):
+squeeze washing bottle for 6.123 seconds
+
+# New split approach (accurate):
+squeeze washing bottle for 3.061 seconds  # First 3mL segment
+squeeze washing bottle for 3.061 seconds  # Second 3mL segment
+```
+
+### Phase 1: Setup & Red Dispensing (Steps 1-6+)
 1. `left_arm_serving_standoff` - Initial positioning
 2. `left_arm_standoff_with_beaker` - Position for dispensing
 3. `dispensing_red_to_beaker` - Red color dispensing
-4. `squeeze washing bottle for 1.5 seconds` - Cleaning operation
+4. `squeeze washing bottle for X seconds` - **Split into multiple squeezes if >4mL**
 5. `right_arm_standoff` - Right arm positioning
 6. `left_arm_standoff_with_beaker` - Return to dispensing position
 
-### Phase 2: Yellow Dispensing (Steps 7-13)
+### Phase 2: Yellow Dispensing (Steps 7-13+)
 7. `left_arm_standoff_yellow` - Position for yellow
 8. `right_arm_standoff_yellow` - Right arm coordination
 9. `dispensing_yellow_to_beaker` - Yellow color dispensing
-10. `squeeze washing bottle for 2.5 seconds` - Extended cleaning
+10. `squeeze washing bottle for X seconds` - **Split into multiple squeezes if >4mL**
 11. `right_arm_standoff_yellow` - Coordination
 12. `right_arm_standoff` - Reset right arm
 13. `left_arm_standoff_yellow` - Maintain yellow position
 
-### Phase 3: Blue Dispensing (Steps 14-19)
+### Phase 3: Blue Dispensing (Steps 14-19+)
 14. `left_arm_standoff_blue` - Position for blue
 15. `dispensing_blue_to_beaker` - Blue color dispensing
-16. `squeeze washing bottle for 1 seconds` - Quick cleaning
+16. `squeeze washing bottle for X seconds` - **Split into multiple squeezes if >4mL**
 17. `right_arm_standoff` - Right arm coordination
 18. `left_arm_standoff_blue` - Maintain blue position
 19. `left_arm_standoff_yellow` - Transition positioning
@@ -473,6 +504,38 @@ python squeeze_bottle.py --duration 2.0
 # Monitor real-time status
 curl http://localhost:8000/robot/{cmd_id}/status
 ```
+
+## Changelog
+
+### v1.3 - Volume Splitting System (August 2025)
+- **NEW**: Automatic volume splitting for dispensing operations >4mL
+- **ADDED**: `squeeze_plan` field to `DispenseRequest` model for split squeeze durations  
+- **ENHANCED**: `execute_multi_color_dispensing_task()` now supports multi-squeeze sequence generation
+- **IMPLEMENTED**: Even distribution algorithm ensuring each squeeze stays ≤4mL for calibration accuracy
+- **GENERATED**: Dynamic sequence modification replacing single squeeze steps with multiple split steps
+- **MAINTAINED**: Full backward compatibility with legacy single-squeeze requests
+- **OPTIMIZED**: Laboratory procedure now adapts step count based on volume splitting requirements
+- **VALIDATED**: Comprehensive integration testing showing accurate multi-squeeze execution
+- **PRESERVED**: All existing sequence logic while adding smart volume handling capabilities
+
+### v1.2 - Enhanced Laboratory Procedures (July 2025)
+- **ADDED**: 29-step timed laboratory procedure with full automation
+- **ENHANCED**: Multi-color dispensing support with configurable ratios
+- **INTEGRATED**: AI-powered beaker analysis with real-time results
+- **IMPROVED**: Progress tracking and status monitoring
+- **ADDED**: Prometheus metrics and observability features
+
+### v1.1 - Trajectory Planning & Monitoring (June 2025)
+- **ENHANCED**: Smooth trajectory generation with joint waypoint optimization
+- **ADDED**: Real-time monitoring and background task management
+- **IMPROVED**: Error handling and timeout management
+- **INTEGRATED**: ZMQ state listening for real-time robot coordination
+
+### v1.0 - Initial Release (May 2025)
+- **CORE**: FastAPI-based robot control service
+- **BASIC**: Single-color dispensing operations
+- **SIMPLE**: Robot positioning and basic trajectory execution
+- **FOUNDATION**: REST API for robot communication
 
 ## License
 

@@ -8,6 +8,7 @@ A FastAPI-based web interface for the ALOHA Lite robot system with **ML-enhanced
 - 🎨 **Hue-Only Target Optimization**: CIELAB color space optimization using angular distance for perceptually accurate hue matching
 - 🧪 **Ground Truth Calibration**: Real-world calibration matrix integration from robot-generated ground truth data
 - 🧪 **Washing Bottle Calibration**: Dedicated utility for calibrating washing bottles with custom squeeze durations
+- 🧪 **Volume Splitting System**: Automatic splitting of >4mL dispensing volumes into equal segments for improved accuracy
 - 🎨 **Interactive Color Interface**: Modern responsive design optimized for wide monitors with real-time color preview
 - 🧠 **Smart Recommendations**: AI-powered suggestions for optimal color ratios using Expected Improvement acquisition
 - 🤖 **Robot Control**: Direct interface to robot dispensing and positioning operations
@@ -96,10 +97,17 @@ ML Pipeline:
 - **Test Integration**: Comprehensive test suite validates ground truth integration functionality
 
 ### Proxy Endpoints
-- `POST /robot/dispense` - Proxy to robot service for color mixing operations
+- `POST /robot/dispense` - Proxy to robot service for color mixing operations (includes automatic volume splitting)
 - `GET /robot/{cmd_id}/status` - Proxy to robot service for operation status
 - `GET /robot/{cmd_id}/pose-snapshot` - Proxy to robot service for snapshots
 - `POST /vision/analyze-beaker` - Proxy to vision service for beaker analysis
+
+### Washing Bottle Volume Splitting
+- **Automatic Volume Splitting**: Volumes >4mL are automatically split into equal segments
+- **Calibration Range Compliance**: Each segment stays within the 0-4mL calibrated linear range
+- **Even Distribution**: Large volumes split evenly (e.g., 5mL → 2×2.5mL) instead of uneven splits
+- **Transparent Operation**: Splitting happens automatically without user intervention
+- **Optional Control**: Can be disabled with `enable_splitting=False` parameter
 
 ## Web Interface Features
 
@@ -120,6 +128,7 @@ ML Pipeline:
 - CIELAB color space for perceptual accuracy
 - Angular distance calculation for hue-only optimization
 - Adaptive exploration vs exploitation balance
+- Volume splitting for >4mL dispensing accuracy
 ```
 
 #### Hue-Only Optimization Features
@@ -659,6 +668,18 @@ The utility dynamically modifies robot sequences by:
 6. Verify responsive design across different screen sizes
 
 ## Changelog
+
+### v2.6 - Washing Bottle Volume Splitting System (August 2025)
+- **NEW**: Automatic volume splitting for dispensing >4mL to maintain calibration accuracy
+- **ADDED**: `_split_volumes()` function that splits large volumes into equal segments ≤4mL
+- **ADDED**: `colour_ratios_to_squeeze_plan()` function that generates split squeeze duration plans
+- **ENHANCED**: Proxy service now sends both legacy `washing_bottle_durations` and new `squeeze_plan` data
+- **IMPLEMENTED**: Even distribution algorithm (5mL → 2×2.5mL, not 4mL+1mL) for consistent accuracy
+- **ENABLED**: Splitting enabled by default with optional `enable_splitting=False` parameter for disable
+- **OPTIMIZED**: Each squeeze operation stays within 0-4mL linear range of washing bottle calibration
+- **MAINTAINED**: Full backward compatibility - existing clients continue working unchanged
+- **TESTED**: Comprehensive validation showing perfect volume segmentation and duration calculation
+- **INTEGRATED**: Seamless integration with existing color optimization and ML recommendation systems
 
 ### v2.5 - Hue-Only Optimization Implementation & Washing Bottle Calibrator (August 2025)
 - **NEW**: Complete hue-only optimization implementation with minimal code modifications (~40 lines)
