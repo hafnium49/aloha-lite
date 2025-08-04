@@ -1365,6 +1365,10 @@ async def proxy_robot_service(request: Request, path: str):
             # Get request body if present
             body = await request.body() if request.method in ["POST", "PUT"] else None
             
+            # Prepare headers (exclude Content-Length as httpx will set it correctly)
+            headers = {k: v for k, v in request.headers.items() 
+                      if k.lower() not in ['content-length', 'host']}
+            
             # Process washing bottle calibration for color ratio requests
             processed_body = body
             if body and ENABLE_WASHING_BOTTLE_CALIBRATION and request.method in ["POST", "PUT"]:
@@ -1382,6 +1386,9 @@ async def proxy_robot_service(request: Request, path: str):
                         body_data["washing_bottle_durations"] = durations
                         processed_body = json.dumps(body_data).encode()
                         
+                        # Update content-type to ensure proper JSON handling
+                        headers["content-type"] = "application/json"
+                        
                         logger.info(f"🧪 Applied washing bottle calibration:")
                         logger.info(f"   Original ratios: {ratios}")
                         logger.info(f"   Calculated durations: {durations}")
@@ -1393,11 +1400,11 @@ async def proxy_robot_service(request: Request, path: str):
             if processed_body:
                 logger.info(f"Request body: {processed_body.decode()}")
 
-            # Forward the request
+            # Forward the request with corrected headers
             response = await client.request(
                 method=request.method,
                 url=url,
-                headers=dict(request.headers),
+                headers=headers,
                 content=processed_body
             )
 
