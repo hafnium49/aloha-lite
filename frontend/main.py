@@ -79,6 +79,19 @@ from numpy import roots, isreal
 _CALIB_PATH = Path(__file__).parent / "washing_bottle_calibration" / \
               "washing_bottle_calibration_summary.json"
 
+# ── Washing-bottle helpers ──────────────────────────────────────────────
+_MAX_SEG_ML = 4.0                                    # valve's linear range
+
+def _split_volumes(vol: float, *, max_seg: float = _MAX_SEG_ML) -> list[float]:
+    """
+    Break `vol` (mL) into N ≈ equal segments, each ≤ max_seg.
+    """
+    if vol <= max_seg:
+        return [vol]
+    n = int(np.ceil(vol / max_seg))                  # how many chunks we need
+    seg = vol / n
+    return [seg] * n                                 # perfectly even
+
 def _load_washing_bottle_fits() -> Dict[str, Polynomial]:
     """
     Read cubic-fit coefficients from the calibration summary.
@@ -149,46 +162,28 @@ def colour_ratios_to_durations(ratios: Dict[str, float],
     durations = {k: _volume_to_duration_memo(k, v) for k, v in scaled_vols.items()}
     return durations
 
-MAX_PER_SQUEEZE_ML = 4.0          # hardware limit
-
-def _volumes_to_plan(volumes: Dict[str, float], enable_splitting: bool = True) -> List[Dict]:
+def colour_ratios_to_squeeze_plan(ratios: Dict[str, float],
+                                  *, total_mL: float = 10.0,
+                                  enable_splitting: bool = True
+                                  ) -> Dict[str, List[float]]:
     """
-    Split each colour's volume into ≤ 4 mL chunks and convert each chunk
-    into a duration using the cubic fit.
-
-    Parameters
-    ----------
-    volumes : Dict[str, float]
-        Volume in mL for each color
-    enable_splitting : bool
-        If True (default), split volumes > 4mL into equal chunks. 
-        If False, use single squeeze regardless of volume.
-
-    Returns
-    -------
-    List[dict]  e.g.  [
-        {"color": "red",    "duration_s": 1.42},
-        {"color": "red",    "duration_s": 1.42},   # second chunk (if any)
-        {"color": "yellow", "duration_s": 0.97},
-        ...
-    ]
-    Ordered R→Y→B to keep the sequence deterministic.
+    ►  normalise ratios  →  volumes (mL)  →  split big ones
+    ►  convert each segment to a duration (seconds)
+    Returns  {"red": [d1, d2, …], …}
     """
-    plan: List[Dict] = []
-    for col in ("red", "yellow", "blue"):
-        vol = float(volumes.get(col, 0.0))
-        if vol <= 0:
-            continue
-        
-        if enable_splitting and vol > MAX_PER_SQUEEZE_ML:
-            n = int(np.ceil(vol / MAX_PER_SQUEEZE_ML))
-            chunk = vol / n                              # equal-split
+    # 1. scale to exactly total_mL
+    coloured = {k: ratios.get(k, 0.0) for k in ('red', 'yellow', 'blue')}
+    scale = total_mL / (sum(coloured.values()) or 1.0)
+    scaled = {k: v * scale for k, v in coloured.items()}
+
+    # 2. split + convert
+    plan: Dict[str, List[float]] = {}
+    for c, vol in scaled.items():
+        if enable_splitting:
+            segments = _split_volumes(vol)
         else:
-            n = 1
-            chunk = vol
-            
-        dur = _volume_to_duration_memo(col, chunk)
-        plan.extend({"color": col, "duration_s": dur} for _ in range(n))
+            segments = [vol]
+        plan[c] = [_volume_to_duration_memo(c, v) for v in segments]
     return plan
 
 # Initialize washing bottle fits if calibration is enabled
@@ -1421,20 +1416,15 @@ async def proxy_robot_service(request: Request, path: str):
                     if "ratios" in body_data or "color_ratios" in body_data:
                         ratios = body_data.get("ratios") or body_data.get("color_ratios")
                         
-                        # Check for enable_volume_splitting parameter (default: True)
-                        enable_splitting = body_data.get("enable_volume_splitting", True)
-                        
-                        # Convert ratios to volumes (10 mL total) and create squeeze plan
-                        volumes = {k: ratios[k] * (10.0 / sum(ratios.values())) 
-                                  for k in ('red', 'yellow', 'blue')}
-                        plan = _volumes_to_plan(volumes, enable_splitting=enable_splitting)
-                        
-                        # Also keep legacy durations for backward compatibility
+                        # Convert ratios to durations using washing bottle calibration (legacy)
                         durations = colour_ratios_to_durations(ratios, total_mL=10.0)
                         
-                        # Add both plan and durations to the request payload
-                        body_data["washing_bottle_plan"] = plan
+                        # NEW: Generate squeeze plan with splitting for >4mL volumes
+                        squeeze_plan = colour_ratios_to_squeeze_plan(ratios, total_mL=10.0)
+                        
+                        # Add both legacy durations and new squeeze plan to the request payload
                         body_data["washing_bottle_durations"] = durations
+                        body_data["squeeze_plan"] = squeeze_plan
                         processed_body = json.dumps(body_data).encode()
                         
                         # Update content-type to ensure proper JSON handling
@@ -1442,9 +1432,8 @@ async def proxy_robot_service(request: Request, path: str):
                         
                         logger.info(f"🧪 Applied washing bottle calibration:")
                         logger.info(f"   Original ratios: {ratios}")
-                        logger.info(f"   Volume splitting enabled: {enable_splitting}")
-                        logger.info(f"   Squeeze plan: {plan}")
-                        logger.info(f"   Legacy durations: {durations}")
+                        logger.info(f"   Calculated durations: {durations}")
+                        logger.info(f"   Generated squeeze plan: {squeeze_plan}")
                         
                 except (json.JSONDecodeError, KeyError, TypeError) as e:
                     logger.debug(f"Request body not processed for washing bottle calibration: {e}")
