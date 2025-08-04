@@ -1,6 +1,10 @@
 # Aloha Lite
 
-This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, configuration-based robot control, **smooth trajectory planning** using the ModernRobotics library from PyPI, and **ML-enhanced color optimization with hue-only target matching** for perceptually accurate color mixing.
+This repository provides a comprehensive robotics stack for controlling SO-101 arms with Phosphobot, featuring advanced dataset processing, precise joint extraction, configuration-based robot c- **🎯 Smooth Trajectory Planning** - ModernRobotics-based joint trajectory generation with velocity control
+- **🧠 ML-Enhanced Color Optimization** - Bayesian optimization with Gaussian Process Regression for intelligent color mixing
+- **🎨 Hue-Only Target Optimization** - CIELAB color space optimization using angular distance for perceptually accurate hue matching
+- **🧪 Volume Splitting System** - Automatic splitting of >4mL dispensing volumes into equal segments for improved calibration accuracy
+- **🤖 Flexible Arm Control** - Support for dual-arm, left-arm-only, or right-arm-only configurationsol, **smooth trajectory planning** using the ModernRobotics library from PyPI, and **ML-enhanced color optimization with hue-only target matching** for perceptually accurate color mixing.
 
 ## Quick Start
 
@@ -41,7 +45,7 @@ python3 robot_service/execute_rules.py --config your_config_name --duration 5.0 
 # Sequential multi-step procedures
 python3 robot_service/sequential_execute.py standoff_to_dispensing
 
-# Bottle operations
+# Bottle operations with automatic volume splitting
 python3 robot_service/squeeze_bottle.py --duration 2.0
 python3 robot_service/bottle_operations.py --quick-squeeze
 ```
@@ -519,6 +523,14 @@ The frontend service provides sophisticated machine learning capabilities for in
 - **Fallback Mechanisms**: Graceful handling of missing or malformed calibration data
 - **Comprehensive Testing**: 19+ test cases validate all calibration scenarios
 
+### Volume Splitting System
+- **Automatic Volume Division**: Volumes >4mL are automatically split into equal segments ≤4mL
+- **Calibration Range Compliance**: Each squeeze operation stays within validated 0-4mL linear range
+- **Even Distribution Algorithm**: 5mL becomes 2×2.5mL (not 4mL+1mL) for consistent accuracy
+- **Multi-Squeeze Sequence Generation**: Creates multiple squeeze steps in laboratory procedures
+- **Transparent Operation**: Splitting happens automatically without user intervention
+- **Backward Compatibility**: Existing clients continue working unchanged
+
 ### Visual Feedback and Analytics
 - **Hue-Based Visualization**: Polar dial charts showing target and measurement history
 - **a*-b* Scatter Plots**: CIELAB color space visualization with angular relationships
@@ -981,6 +993,40 @@ docker-compose -f docker-compose.prod.yml up -d
   curl http://localhost:8000/health  # Robot service
   curl http://localhost:5000/health  # Vision service
   ```
+
+## Changelog
+
+### v3.1 - Washing Bottle Volume Splitting System (August 2025)
+- **NEW**: Automatic volume splitting for dispensing operations >4mL to maintain calibration accuracy
+- **ENHANCED**: Frontend proxy service now generates `squeeze_plan` data for split volume operations
+- **IMPROVED**: Robot service laboratory procedures support multi-squeeze sequence generation
+- **IMPLEMENTED**: Even distribution algorithm (5mL → 2×2.5mL, not 4mL+1mL) for consistent accuracy
+- **MAINTAINED**: Full backward compatibility with existing color mixing workflows
+- **OPTIMIZED**: Each squeeze operation stays within 0-4mL calibrated linear range
+- **VALIDATED**: Comprehensive testing showing perfect volume segmentation and accurate dispensing
+- **INTEGRATED**: Seamless integration with ML-enhanced color optimization and hue-only targeting
+
+### v3.0 - ML-Enhanced Color Optimization & Hue-Only Targeting (July 2025)
+- **NEW**: Complete ML-enhanced color optimization system with Bayesian optimization
+- **ADDED**: Hue-only target optimization using CIELAB color space and angular distance
+- **ENHANCED**: Ground truth calibration integration with robot-generated data
+- **IMPLEMENTED**: Adaptive phase scheduling for efficient ML convergence
+- **INTEGRATED**: Real-time ML recommendations with confidence scoring
+- **VALIDATED**: Comprehensive test suite with 26+ tests for ML and hue optimization
+
+### v2.5 - Laboratory Automation & Vision Integration (June 2025)
+- **ENHANCED**: 29-step timed laboratory procedure with full workflow automation
+- **ADDED**: AI-powered beaker analysis with real-time color detection
+- **IMPROVED**: Multi-color dispensing support with configurable ratios
+- **INTEGRATED**: Vision bridge service with advanced image analysis
+- **OPTIMIZED**: Smooth trajectory planning with ModernRobotics integration
+
+### v2.0 - Complete System Architecture (May 2025)
+- **RESTRUCTURED**: Complete project reorganization with service separation
+- **ADDED**: FastAPI web services for robot, frontend, and vision components
+- **ENHANCED**: Smooth trajectory planning with ModernRobotics library
+- **IMPLEMENTED**: Sequential execution system for complex procedures
+- **ESTABLISHED**: Comprehensive testing framework and CI/CD integration
 
 ## Contributing
 
