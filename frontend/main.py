@@ -62,8 +62,8 @@ N_PIG    = len(PIGMENTS)
 
 # ── GLOBAL CONSTANTS & RUNTIME STATE ────────────────────
 PRIMARY_HUES    = (0, 60, 240)      # rough LAB-hue angles for R, Y, B
-HUE_EXCLUSION   = 15                # degrees to exclude around primaries
-MAX_DIFFICULTY  = 0.75              # ≤ 0.75 means "easy-to-reach"
+HUE_EXCLUSION   = 8                 # degrees to exclude around primaries (reduced from 15)
+MAX_DIFFICULTY  = 0.85              # ≤ 0.85 means "easy-to-reach" (increased from 0.75)
 HUE_HISTORY_LEN = 60                # how many past targets we remember
 
 _hue_history = deque(maxlen=HUE_HISTORY_LEN)   # rolling list of past hues
@@ -757,9 +757,12 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     Generates normalized color ratios for 4 pigments that sum to max_total (default 10.0)
     to match the ColorOptimizer's normalization scheme and ground truth calibration.
     P_est is now (4,3) including white pigment.
+    
+    Enhanced with better sampling distribution to avoid bias toward yellow colors.
     """
-    # Generate random ratios using exponential distribution to avoid uniform bias
-    raw_ratios = np.random.exponential(1.0, N_PIG)
+    # Use uniform distribution instead of exponential to reduce bias
+    # This gives more equal probability to all color combinations
+    raw_ratios = np.random.uniform(0.1, 5.0, N_PIG)
     
     # Create ratio dictionary for all 4 pigments
     ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
@@ -788,14 +791,16 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
     return rgb8, w
 
-def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
+def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
     """
-    Pick a reachable colour that obeys the four design rules.
+    Pick a reachable colour that obeys design rules with improved diversity.
 
     1.  Easy-to-reach  →  balanced pigment volumes  (difficulty ≤ MAX_DIFFICULTY)
     2.  Even coverage  →  maximise min. hue distance from recent targets
     3.  Equal usage    →  favour choice that balances cumulative R/Y/B usage
     4.  Not a primary  →  exclude hues too close to pure R, Y, B
+    
+    Enhanced to generate more diverse colors across the full spectrum.
     """
     global _hue_history, _cum_vol
 
@@ -803,48 +808,120 @@ def generate_random_target_color(n_samples: int = 120) -> Tuple[int, int, int]:
         rgb, _ = _sample_reachable_rgb(np.eye(4, 3))    # should never happen
         return rgb
 
-    best = None     # holds (difficulty, -hue_gap, imbalance, rgb, vols, hue)
-
-    for _ in range(n_samples):
-        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=10.0)
-        hue = ColorOptimizer._hue_deg(rgb)
-
-        # — rule ① difficulty —
-        colored = vols[:3]
-        difficulty = colored.max() / colored.sum()
-        if difficulty > MAX_DIFFICULTY:
-            continue
-
-        # — rule ④ skip primaries —
-        if min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES) < HUE_EXCLUSION:
-            continue
-
-        # — rule ② hue spacing —
-        if _hue_history:
-            hue_gap = min(_hue_gap_deg(hue, h) for h in _hue_history)
-        else:
-            hue_gap = 180                                    # first target
-
-        # — rule ③ pigment balance metric (smaller is better) —
-        projected_totals = _cum_vol + colored
-        imbalance = np.std(projected_totals / (projected_totals.sum() + 1e-10))
-
-        cand_key = (difficulty, -hue_gap, imbalance)
-        if best is None or cand_key < best[:3]:
-            best = (difficulty, -hue_gap, imbalance, rgb, vols, hue)
-
-    # If every candidate was filtered out, fall back to one reachable sample
-    if best is None:
-        rgb, vols = _sample_reachable_rgb(bottle_model.P_est, max_total=10.0)
-        hue       = ColorOptimizer._hue_deg(rgb)
-    else:
-        _, _, _, rgb, vols, hue = best
-
-    # update running statistics for next call
-    _hue_history.append(hue)
-    _cum_vol[:3] += vols[:3]
-
-    return rgb
+    candidates = []  # Store all valid candidates
+    
+    # Generate candidates with multiple sampling strategies
+    for strategy in range(3):
+        for _ in range(n_samples // 3):
+            if strategy == 0:
+                # Strategy 1: Uniform distribution favoring diversity
+                raw_ratios = np.random.uniform(0.1, 8.0, N_PIG)
+            elif strategy == 1:
+                # Strategy 2: Beta distribution for more balanced mixes
+                raw_ratios = np.random.beta(1.5, 1.5, N_PIG) * 6.0 + 0.2
+            else:
+                # Strategy 3: Log-normal for occasional extreme colors
+                raw_ratios = np.random.lognormal(0.5, 0.8, N_PIG)
+                raw_ratios = np.clip(raw_ratios, 0.1, 12.0)
+            
+            # Create ratio dictionary for all 4 pigments
+            ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
+            
+            # Apply ColorOptimizer._normalize() logic
+            coloured = {k: v for k, v in ratio_dict.items() if k != "white"}
+            s = sum(coloured.values()) or 1.0
+            f = min(1.0, 10.0 / s)
+            normalized_dict = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
+            normalized_dict["white"] = max(0.1, 10.0 - sum(normalized_dict.values()))
+            
+            # Enforce minimum solvent
+            if normalized_dict["white"] < 0.1:
+                deficit = 0.1 - normalized_dict["white"]
+                scale = (sum(normalized_dict.values()) - deficit) / sum(normalized_dict.values())
+                for k in ('red', 'yellow', 'blue'):
+                    normalized_dict[k] *= scale
+                normalized_dict["white"] = 0.1
+            
+            # Convert to array and calculate RGB
+            w = np.array([normalized_dict[p] for p in PIGMENTS])
+            A = w @ bottle_model.P_est
+            rgb_lin = 10 ** (-A)
+            rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
+            hue = ColorOptimizer._hue_deg(rgb8)
+            
+            # Apply filters
+            colored = w[:3]
+            difficulty = colored.max() / colored.sum()
+            if difficulty > MAX_DIFFICULTY:
+                continue
+                
+            # More lenient primary exclusion
+            if min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES) < HUE_EXCLUSION:
+                continue
+            
+            # Calculate hue spacing
+            if _hue_history:
+                hue_gap = min(_hue_gap_deg(hue, h) for h in _hue_history)
+            else:
+                hue_gap = 180
+            
+            # Calculate pigment balance
+            projected_totals = _cum_vol + colored
+            imbalance = np.std(projected_totals / (projected_totals.sum() + 1e-10))
+            
+            # Store candidate with scoring
+            candidates.append({
+                'rgb': rgb8,
+                'vols': w,
+                'hue': hue,
+                'difficulty': difficulty,
+                'hue_gap': hue_gap,
+                'imbalance': imbalance,
+                'strategy': strategy
+            })
+    
+    if not candidates:
+        # Ultimate fallback: generate a simple color without strict filtering
+        logger.warning("⚠️ No candidates passed filters, generating fallback color")
+        raw_ratios = np.random.uniform(0.5, 3.0, N_PIG)
+        ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
+        coloured = {k: v for k, v in ratio_dict.items() if k != "white"}
+        s = sum(coloured.values()) or 1.0
+        f = min(1.0, 10.0 / s)
+        normalized_dict = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
+        normalized_dict["white"] = max(0.1, 10.0 - sum(normalized_dict.values()))
+        w = np.array([normalized_dict[p] for p in PIGMENTS])
+        A = w @ bottle_model.P_est
+        rgb_lin = 10 ** (-A)
+        rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
+        hue = ColorOptimizer._hue_deg(rgb8)
+        _hue_history.append(hue)
+        _cum_vol[:3] += w[:3]
+        return rgb8
+    
+    # Multi-objective scoring with emphasis on diversity
+    def score_candidate(c):
+        # Normalize scores to 0-1 range
+        difficulty_score = 1.0 - (c['difficulty'] / MAX_DIFFICULTY)  # Higher is better (easier)
+        hue_gap_score = min(c['hue_gap'] / 180.0, 1.0)  # Higher is better (more diverse)
+        balance_score = 1.0 / (1.0 + c['imbalance'])  # Higher is better (more balanced)
+        
+        # Weight heavily toward hue diversity to solve the yellowish bias
+        return 0.1 * difficulty_score + 0.7 * hue_gap_score + 0.2 * balance_score
+    
+    # Sort by composite score and pick the best
+    candidates.sort(key=score_candidate, reverse=True)
+    best = candidates[0]
+    
+    # Log the selection for debugging
+    logger.info(f"🎨 Selected color strategy {best['strategy']}: hue={best['hue']:.1f}°, "
+                f"gap={best['hue_gap']:.1f}°, difficulty={best['difficulty']:.3f}")
+    
+    # Update running statistics
+    _hue_history.append(best['hue'])
+    _cum_vol[:3] += best['vols'][:3]
+    
+    return best['rgb']
 
 # ╔══════════════════════════════════════╗
 # ║     FastAPI   +  endpoints (UNCHANGED)    ║
