@@ -1,48 +1,56 @@
 {
   "solution": "yellow",
   "calibration_sequence": "calibration yellow washing bottle",
-  "timestamp": "2025-08-03T21:19:26",
-  "description": "Yellow solution washing-bottle squeeze calibration",
+  "timestamp": "2025-08-04T06:50:16",
+  "description": "Yellow solution washing-bottle squeeze calibration (experimental data)",
   "measurements": [
     {
-      "duration_s": 1,
-      "weight_g": 1.002
+      "duration_s": 0.2,
+      "weight_g": 0.74
     },
     {
-      "duration_s": 2,
-      "weight_g": 2.031
+      "duration_s": 0.6,
+      "weight_g": 1.71
     },
     {
-      "duration_s": 3,
-      "weight_g": 3.049
+      "duration_s": 1.0,
+      "weight_g": 2.66
     },
     {
-      "duration_s": 4,
-      "weight_g": 4.213
+      "duration_s": 1.4,
+      "weight_g": 3.23
     },
     {
-      "duration_s": 5,
-      "weight_g": 5.274
+      "duration_s": 1.8,
+      "weight_g": 3.68
     },
     {
-      "duration_s": 6,
-      "weight_g": 6.251
+      "duration_s": 2.2,
+      "weight_g": 4.1
     },
     {
-      "duration_s": 7,
-      "weight_g": 7.58
+      "duration_s": 2.6,
+      "weight_g": 4.31
     },
     {
-      "duration_s": 8,
-      "weight_g": 8.553
+      "duration_s": 3.0,
+      "weight_g": 4.45
     },
     {
-      "duration_s": 9,
-      "weight_g": 10.12
+      "duration_s": 3.5,
+      "weight_g": 4.72
     },
     {
-      "duration_s": 10,
-      "weight_g": 11.189
+      "duration_s": 4.0,
+      "weight_g": 5.04
+    },
+    {
+      "duration_s": 5.0,
+      "weight_g": 5.11
+    },
+    {
+      "duration_s": 6.0,
+      "weight_g": 5.68
     }
   ]
 }
