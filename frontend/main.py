@@ -791,7 +791,7 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
     return rgb8, w
 
-def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
+def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
     """
     Pick a reachable colour that obeys design rules with improved diversity.
 
@@ -800,7 +800,7 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
     3.  Equal usage    →  favour choice that balances cumulative R/Y/B usage
     4.  Not a primary  →  exclude hues too close to pure R, Y, B
     
-    Enhanced to generate more diverse colors across the full spectrum.
+    Enhanced to generate more diverse colors across the full spectrum with active sector targeting.
     """
     global _hue_history, _cum_vol
 
@@ -810,19 +810,80 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
 
     candidates = []  # Store all valid candidates
     
-    # Generate candidates with multiple sampling strategies
-    for strategy in range(3):
-        for _ in range(n_samples // 3):
+    # Define target hue sectors to ensure even coverage
+    target_sectors = [
+        (0, 60),      # Red-Orange
+        (60, 120),    # Yellow-Green  
+        (120, 180),   # Green-Cyan
+        (180, 240),   # Cyan-Blue
+        (240, 300),   # Blue-Magenta
+        (300, 360)    # Magenta-Red
+    ]
+    
+    # Count how many colors we have in each sector from history
+    sector_counts = [0] * len(target_sectors)
+    for hue in _hue_history:
+        for i, (start, end) in enumerate(target_sectors):
+            if start <= hue < end or (start == 300 and hue >= start):
+                sector_counts[i] += 1
+                break
+    
+    # Find the least populated sector(s) to target
+    min_count = min(sector_counts) if sector_counts else 0
+    underrepresented_sectors = [i for i, count in enumerate(sector_counts) if count == min_count]
+    
+    # Generate candidates with multiple sampling strategies and sector targeting
+    for strategy in range(4):  # Increased strategies
+        for _ in range(n_samples // 4):
             if strategy == 0:
                 # Strategy 1: Uniform distribution favoring diversity
                 raw_ratios = np.random.uniform(0.1, 8.0, N_PIG)
             elif strategy == 1:
                 # Strategy 2: Beta distribution for more balanced mixes
                 raw_ratios = np.random.beta(1.5, 1.5, N_PIG) * 6.0 + 0.2
-            else:
+            elif strategy == 2:
                 # Strategy 3: Log-normal for occasional extreme colors
                 raw_ratios = np.random.lognormal(0.5, 0.8, N_PIG)
                 raw_ratios = np.clip(raw_ratios, 0.1, 12.0)
+            else:
+                # Strategy 4: Targeted sampling for underrepresented sectors
+                # Try to generate colors that would fall in underrepresented hue sectors
+                if underrepresented_sectors:
+                    target_sector = random.choice(underrepresented_sectors)
+                    start_hue, end_hue = target_sectors[target_sector]
+                    
+                    # Adjust sampling based on target sector
+                    if target_sector == 0 or target_sector == 5:  # Red sectors
+                        raw_ratios = np.array([
+                            np.random.uniform(3.0, 8.0),  # More red
+                            np.random.uniform(0.1, 2.0),  # Less yellow  
+                            np.random.uniform(0.1, 2.0),  # Less blue
+                            np.random.uniform(0.1, 2.0)   # White
+                        ])
+                    elif target_sector == 2 or target_sector == 3:  # Green/Cyan sectors
+                        raw_ratios = np.array([
+                            np.random.uniform(0.1, 2.0),  # Less red
+                            np.random.uniform(2.0, 6.0),  # More yellow
+                            np.random.uniform(3.0, 8.0),  # More blue  
+                            np.random.uniform(0.1, 2.0)   # White
+                        ])
+                    elif target_sector == 4:  # Blue sector
+                        raw_ratios = np.array([
+                            np.random.uniform(0.1, 1.5),  # Minimal red
+                            np.random.uniform(0.1, 1.5),  # Minimal yellow
+                            np.random.uniform(4.0, 10.0), # Max blue
+                            np.random.uniform(0.1, 2.0)   # White
+                        ])
+                    else:  # Yellow sector - reduce bias
+                        raw_ratios = np.array([
+                            np.random.uniform(1.0, 4.0),  # Moderate red
+                            np.random.uniform(2.0, 5.0),  # Moderate yellow
+                            np.random.uniform(0.1, 2.0),  # Less blue
+                            np.random.uniform(0.1, 2.0)   # White
+                        ])
+                else:
+                    # Fallback to uniform if no underrepresented sectors
+                    raw_ratios = np.random.uniform(0.1, 6.0, N_PIG)
             
             # Create ratio dictionary for all 4 pigments
             ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
@@ -869,6 +930,13 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
             projected_totals = _cum_vol + colored
             imbalance = np.std(projected_totals / (projected_totals.sum() + 1e-10))
             
+            # Bonus score for colors in underrepresented sectors
+            sector_bonus = 0.0
+            for i, (start, end) in enumerate(target_sectors):
+                if (start <= hue < end or (start == 300 and hue >= start)) and i in underrepresented_sectors:
+                    sector_bonus = 0.3  # Significant bonus for underrepresented sectors
+                    break
+            
             # Store candidate with scoring
             candidates.append({
                 'rgb': rgb8,
@@ -877,7 +945,8 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
                 'difficulty': difficulty,
                 'hue_gap': hue_gap,
                 'imbalance': imbalance,
-                'strategy': strategy
+                'strategy': strategy,
+                'sector_bonus': sector_bonus
             })
     
     if not candidates:
@@ -899,15 +968,16 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
         _cum_vol[:3] += w[:3]
         return rgb8
     
-    # Multi-objective scoring with emphasis on diversity
+    # Multi-objective scoring with sector targeting
     def score_candidate(c):
         # Normalize scores to 0-1 range
         difficulty_score = 1.0 - (c['difficulty'] / MAX_DIFFICULTY)  # Higher is better (easier)
         hue_gap_score = min(c['hue_gap'] / 180.0, 1.0)  # Higher is better (more diverse)
         balance_score = 1.0 / (1.0 + c['imbalance'])  # Higher is better (more balanced)
         
-        # Weight heavily toward hue diversity to solve the yellowish bias
-        return 0.1 * difficulty_score + 0.7 * hue_gap_score + 0.2 * balance_score
+        # Weight heavily toward hue diversity and sector targeting
+        return (0.1 * difficulty_score + 0.6 * hue_gap_score + 0.1 * balance_score + 
+                0.2 * c['sector_bonus'])  # Sector bonus helps diversify
     
     # Sort by composite score and pick the best
     candidates.sort(key=score_candidate, reverse=True)
@@ -915,7 +985,8 @@ def generate_random_target_color(n_samples: int = 500) -> Tuple[int, int, int]:
     
     # Log the selection for debugging
     logger.info(f"🎨 Selected color strategy {best['strategy']}: hue={best['hue']:.1f}°, "
-                f"gap={best['hue_gap']:.1f}°, difficulty={best['difficulty']:.3f}")
+                f"gap={best['hue_gap']:.1f}°, difficulty={best['difficulty']:.3f}, "
+                f"sector_bonus={best['sector_bonus']:.1f}")
     
     # Update running statistics
     _hue_history.append(best['hue'])
