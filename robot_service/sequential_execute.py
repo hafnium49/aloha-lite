@@ -84,11 +84,13 @@ class SequentialRobotExecutor:
     """Execute multiple robot configurations in sequence."""
     
     def __init__(self, server_url: str = "http://localhost:80", skip_init: bool = True, 
-                 left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID):
+                 left_arm_id: int = LEFT_ARM_ID, right_arm_id: int = RIGHT_ARM_ID,
+                 enhanced_execution: bool = True):
         self.server_url = server_url
         self.skip_init = skip_init
         self.left_arm_id = left_arm_id
         self.right_arm_id = right_arm_id
+        self.enhanced_execution = enhanced_execution
         self.controller = None
         
     def initialize(self):
@@ -412,11 +414,47 @@ class SequentialRobotExecutor:
                 left_error = max(abs(f - t) for f, t in zip(final_left, left_joints))
                 right_error = max(abs(f - t) for f, t in zip(final_right, right_joints))
                 
-                if left_error > 0.1:  # 0.1 radians ~ 5.7 degrees
+                # Enhanced execution: micro-refine if error > 0.05 rad
+                if self.enhanced_execution and left_error > 0.05:
+                    print(f"🔧 Micro-refining left arm position (error: {left_error:.3f} rad)")
+                    self.controller.execute_smooth_trajectory(
+                        self.left_arm_id,
+                        left_joints,
+                        duration=1.2,
+                        max_velocity=0.15,
+                        num_waypoints=18,
+                        adaptive_waypoints=False
+                    )
+                    time.sleep(0.5)
+                    # Re-verify
+                    final_left = self.controller.get_current_joint_angles(self.left_arm_id)
+                    if final_left:
+                        left_error = max(abs(f - t) for f, t in zip(final_left, left_joints))
+                
+                if self.enhanced_execution and right_error > 0.05:
+                    print(f"🔧 Micro-refining right arm position (error: {right_error:.3f} rad)")
+                    self.controller.execute_smooth_trajectory(
+                        self.right_arm_id,
+                        right_joints,
+                        duration=1.2,
+                        max_velocity=0.15,
+                        num_waypoints=18,
+                        adaptive_waypoints=False
+                    )
+                    time.sleep(0.5)
+                    # Re-verify
+                    final_right = self.controller.get_current_joint_angles(self.right_arm_id)
+                    if final_right:
+                        right_error = max(abs(f - t) for f, t in zip(final_right, right_joints))
+                
+                # Tightened error threshold for enhanced execution
+                error_threshold = 0.08 if self.enhanced_execution else 0.1
+                
+                if left_error > error_threshold:
                     print(f"⚠️  Left arm position error: {left_error:.3f} rad")
                     restore_success = False
                 
-                if right_error > 0.1:
+                if right_error > error_threshold:
                     print(f"⚠️  Right arm position error: {right_error:.3f} rad")
                     restore_success = False
             else:
@@ -789,12 +827,24 @@ class SequentialRobotExecutor:
             # Move configured arms
             if has_left_arm and left_joints:
                 print(f"\n🦾 Left arm (ID {self.left_arm_id}) target: {[f'{j:.3f}' for j in left_joints]}")
+                
+                # Enhanced execution: adaptive velocity scaling
+                scaled_velocity = max_velocity
+                if self.enhanced_execution and current_left_joints:
+                    largest_disp = max(abs(t - c) for t, c in zip(left_joints, current_left_joints))
+                    if largest_disp > 0.5:
+                        scaled_velocity = max_velocity * 0.8
+                    elif largest_disp > 0.3:
+                        scaled_velocity = max_velocity * 0.9
+                    if scaled_velocity != max_velocity:
+                        print(f"🎚️  Scaled velocity: {max_velocity:.3f} → {scaled_velocity:.3f} rad/s")
+                
                 if use_trajectory and TRAJECTORY_AVAILABLE:
                     success &= self.controller.execute_smooth_trajectory(
                         self.left_arm_id, 
                         left_joints,
                         duration=trajectory_duration,
-                        max_velocity=max_velocity,
+                        max_velocity=scaled_velocity,
                         num_waypoints=num_waypoints,
                         adaptive_waypoints=adaptive_waypoints
                     )
@@ -807,12 +857,24 @@ class SequentialRobotExecutor:
             
             if has_right_arm and right_joints:
                 print(f"\n🦾 Right arm (ID {self.right_arm_id}) target: {[f'{j:.3f}' for j in right_joints]}")
+                
+                # Enhanced execution: adaptive velocity scaling
+                scaled_velocity = max_velocity
+                if self.enhanced_execution and current_right_joints:
+                    largest_disp = max(abs(t - c) for t, c in zip(right_joints, current_right_joints))
+                    if largest_disp > 0.5:
+                        scaled_velocity = max_velocity * 0.8
+                    elif largest_disp > 0.3:
+                        scaled_velocity = max_velocity * 0.9
+                    if scaled_velocity != max_velocity:
+                        print(f"🎚️  Scaled velocity: {max_velocity:.3f} → {scaled_velocity:.3f} rad/s")
+                
                 if use_trajectory and TRAJECTORY_AVAILABLE:
                     success &= self.controller.execute_smooth_trajectory(
                         self.right_arm_id, 
                         right_joints,
                         duration=trajectory_duration,
-                        max_velocity=max_velocity,
+                        max_velocity=scaled_velocity,
                         num_waypoints=num_waypoints,
                         adaptive_waypoints=adaptive_waypoints
                     )
@@ -823,9 +885,12 @@ class SequentialRobotExecutor:
             else:
                 print(f"Right arm (ID {self.right_arm_id}): keeping current position")
             
-            # Pause to allow movement completion (shorter for smooth trajectories)
+            # Enhanced execution: longer settle pause
             if pause_after > 0:
-                pause_time = pause_after if not (use_trajectory and TRAJECTORY_AVAILABLE) else max(1.0, pause_after * 0.5)
+                if self.enhanced_execution and use_trajectory and TRAJECTORY_AVAILABLE:
+                    pause_time = max(1.5, pause_after * 0.75)
+                else:
+                    pause_time = pause_after if not (use_trajectory and TRAJECTORY_AVAILABLE) else max(1.0, pause_after * 0.5)
                 print(f"\n⏱️  Pausing {pause_time}s to complete movement...")
                 time.sleep(pause_time)
             
@@ -935,6 +1000,8 @@ def main():
                        help="Number of trajectory waypoints (auto-calculated if not specified)")
     parser.add_argument("--no-adaptive-waypoints", action="store_true",
                        help="Disable adaptive waypoint calculation based on joint displacement")
+    parser.add_argument("--no-enhanced-execution", action="store_true",
+                       help="Disable enhanced execution mode (adaptive velocity, longer settle, micro-refine)")
     
     args = parser.parse_args()
     
@@ -964,7 +1031,8 @@ def main():
         args.server, 
         skip_init, 
         left_arm_id=args.left_arm_id, 
-        right_arm_id=args.right_arm_id
+        right_arm_id=args.right_arm_id,
+        enhanced_execution=not args.no_enhanced_execution
     )
     success = executor.execute_sequence(
         args.configs, 
@@ -1071,6 +1139,8 @@ if __name__ == "__main__":
                            help="Number of trajectory waypoints (auto-calculated if not specified)")
         parser.add_argument("--no-adaptive-waypoints", action="store_true",
                            help="Disable adaptive waypoint calculation based on joint displacement")
+        parser.add_argument("--no-enhanced-execution", action="store_true",
+                           help="Disable enhanced execution mode (adaptive velocity, longer settle, micro-refine)")
         
         # Only parse known arguments to avoid conflicts
         args, unknown = parser.parse_known_args()
@@ -1116,7 +1186,8 @@ if __name__ == "__main__":
             server_url=args.server,
             skip_init=True, 
             left_arm_id=args.left_arm_id, 
-            right_arm_id=args.right_arm_id
+            right_arm_id=args.right_arm_id,
+            enhanced_execution=not args.no_enhanced_execution
         )
         success = executor.execute_sequence(
             configs,

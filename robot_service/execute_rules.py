@@ -134,7 +134,7 @@ class PhosphobotJointController:
     
     def calculate_adaptive_waypoints(self, current_joints: List[float], target_joints: List[float], 
                                    min_waypoints: int = 5, max_waypoints: int = 50, 
-                                   base_scale: float = 10.0) -> int:
+                                   base_scale: float = 10.0, enhanced_precision: bool = True) -> int:
         """
         Calculate number of waypoints based on squared sum of joint displacements (excluding gripper).
         Joint 1 displacement gets double weighting in the calculation.
@@ -145,6 +145,7 @@ class PhosphobotJointController:
             min_waypoints: Minimum number of waypoints
             max_waypoints: Maximum number of waypoints
             base_scale: Scaling factor for displacement to waypoints conversion
+            enhanced_precision: Enable enhanced precision with extra waypoints for large moves
             
         Returns:
             Number of waypoints to use (increased for joint 1 movements)
@@ -162,6 +163,11 @@ class PhosphobotJointController:
         # Calculate waypoints based on squared sum
         # More displacement = more waypoints for smoother motion
         calculated_waypoints = int(base_scale * squared_sum + min_waypoints)
+        
+        # Enhanced precision mode: extra waypoints for large moves
+        if enhanced_precision:
+            if squared_sum > 1.0:  # large overall move
+                calculated_waypoints *= 2  # double density for precision
         
         # Clamp to min/max bounds
         waypoints = max(min_waypoints, min(calculated_waypoints, max_waypoints))
@@ -184,7 +190,8 @@ class PhosphobotJointController:
                                 num_waypoints: Optional[int] = None,
                                 method: int = 5,
                                 pause_between_waypoints: float = 0.05,
-                                adaptive_waypoints: bool = True) -> bool:
+                                adaptive_waypoints: bool = True,
+                                enhanced_precision: bool = True) -> bool:
         """
         Execute a smooth trajectory from current position to target position using ModernRobotics.
         
@@ -197,6 +204,7 @@ class PhosphobotJointController:
             method: Time scaling method (3=cubic, 5=quintic)
             pause_between_waypoints: Sleep time between waypoints in seconds
             adaptive_waypoints: If True, calculate waypoints based on joint displacement magnitude
+            enhanced_precision: Enable enhanced precision mode with extra waypoints for large moves
         
         Returns:
             True if successful, False otherwise
@@ -222,7 +230,7 @@ class PhosphobotJointController:
             
             # Calculate adaptive waypoints if enabled and num_waypoints not specified
             if adaptive_waypoints and num_waypoints is None:
-                num_waypoints = self.calculate_adaptive_waypoints(current_joints, target_joints)
+                num_waypoints = self.calculate_adaptive_waypoints(current_joints, target_joints, enhanced_precision=enhanced_precision)
             elif num_waypoints is None:
                 num_waypoints = 30  # Default fallback
             
@@ -495,7 +503,8 @@ def execute_configuration_smooth(config_name: str,
                                 trajectory_duration: Optional[float] = None,
                                 max_velocity: float = 0.3,
                                 num_waypoints: Optional[int] = None,
-                                adaptive_waypoints: bool = True):
+                                adaptive_waypoints: bool = True,
+                                enhanced_precision: bool = True):
     """Execute a specific configuration using smooth trajectories.
     
     Enhanced to support:
@@ -504,6 +513,7 @@ def execute_configuration_smooth(config_name: str,
     - Complete and partial joint configurations
     - Single-arm and dual-arm movements  
     - Automatic merging with current joint positions for incomplete configurations
+    - Enhanced precision mode with extra waypoints for large moves
     """
     
     trajectory_status = "🎬 SMOOTH TRAJECTORY" if use_trajectory and TRAJECTORY_AVAILABLE else "📐 STEP-BASED"
@@ -607,7 +617,8 @@ def execute_configuration_smooth(config_name: str,
                         duration=trajectory_duration,
                         max_velocity=max_velocity,
                         num_waypoints=num_waypoints,
-                        adaptive_waypoints=adaptive_waypoints
+                        adaptive_waypoints=adaptive_waypoints,
+                        enhanced_precision=enhanced_precision
                     )
                 else:
                     result = controller.write_joint_positions(left_arm_id, left_joints)
@@ -625,7 +636,8 @@ def execute_configuration_smooth(config_name: str,
                         duration=trajectory_duration,
                         max_velocity=max_velocity,
                         num_waypoints=num_waypoints,
-                        adaptive_waypoints=adaptive_waypoints
+                        adaptive_waypoints=adaptive_waypoints,
+                        enhanced_precision=enhanced_precision
                     )
                 else:
                     result = controller.write_joint_positions(right_arm_id, right_joints)
@@ -890,6 +902,8 @@ if __name__ == "__main__":
                        help="Number of trajectory waypoints (auto-calculated if not specified)")
     parser.add_argument("--no-adaptive-waypoints", action="store_true",
                        help="Disable adaptive waypoint calculation based on joint displacement")
+    parser.add_argument("--no-enhanced-precision", action="store_true",
+                       help="Disable enhanced precision mode (extra waypoints for large moves)")
     
     args = parser.parse_args()
     
@@ -928,7 +942,8 @@ if __name__ == "__main__":
             trajectory_duration=args.duration,
             max_velocity=args.max_velocity,
             num_waypoints=args.waypoints,
-            adaptive_waypoints=not args.no_adaptive_waypoints
+            adaptive_waypoints=not args.no_adaptive_waypoints,
+            enhanced_precision=not args.no_enhanced_precision
         )
         if success:
             print(f"\n✅ Configuration '{args.config}' executed successfully!")
