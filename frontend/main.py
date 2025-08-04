@@ -751,18 +751,48 @@ bottle_model = BottleModel(_P_TRUE, allow_white_absorbance=ALLOW_WHITE_ABSORBANC
 # ║     Target-colour helper functions     ║
 # ╚══════════════════════════════════════╝
 def _sample_reachable_rgb(P_est: np.ndarray,
-                          max_total: float = 10.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
+                          max_total: float = 15.0) -> Tuple[Tuple[int,int,int], np.ndarray]:
     """Return (rgb8, weights) inside the reachable gamut of P_est.
     
-    Generates normalized color ratios for 4 pigments that sum to max_total (default 10.0)
-    to match the ColorOptimizer's normalization scheme and ground truth calibration.
-    P_est is now (4,3) including white pigment.
-    
-    Enhanced with better sampling distribution to avoid bias toward yellow colors.
+    Enhanced with anti-yellow bias sampling to generate more diverse colors
+    across the full spectrum rather than being biased toward yellow.
+    Uses extreme sampling strategies to overcome calibration matrix bias.
     """
-    # Use uniform distribution instead of exponential to reduce bias
-    # This gives more equal probability to all color combinations
-    raw_ratios = np.random.uniform(0.1, 5.0, N_PIG)
+    # Use anti-yellow bias sampling strategies
+    strategy = np.random.randint(0, 4)
+    
+    if strategy == 0:
+        # Anti-yellow strategy 1: High red, low yellow
+        raw_ratios = np.array([
+            np.random.uniform(5.0, 15.0),  # High red
+            np.random.uniform(0.1, 1.0),   # Suppress yellow
+            np.random.uniform(1.0, 8.0),   # Variable blue
+            np.random.uniform(0.1, 3.0)    # White
+        ])
+    elif strategy == 1:
+        # Anti-yellow strategy 2: High blue, low yellow  
+        raw_ratios = np.array([
+            np.random.uniform(0.5, 5.0),   # Variable red
+            np.random.uniform(0.1, 1.0),   # Suppress yellow
+            np.random.uniform(8.0, 20.0),  # High blue
+            np.random.uniform(0.1, 3.0)    # White
+        ])
+    elif strategy == 2:
+        # Anti-yellow strategy 3: Balanced red+blue, minimal yellow
+        raw_ratios = np.array([
+            np.random.uniform(3.0, 10.0),  # Moderate-high red
+            np.random.uniform(0.1, 0.8),   # Very low yellow
+            np.random.uniform(3.0, 10.0),  # Moderate-high blue
+            np.random.uniform(0.1, 3.0)    # White
+        ])
+    else:
+        # Anti-yellow strategy 4: High dilution with color suppression
+        raw_ratios = np.array([
+            np.random.uniform(1.0, 4.0),   # Moderate red
+            np.random.uniform(0.1, 0.5),   # Minimal yellow
+            np.random.uniform(1.0, 4.0),   # Moderate blue
+            np.random.uniform(6.0, 12.0)   # High white dilution
+        ])
     
     # Create ratio dictionary for all 4 pigments
     ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
@@ -791,16 +821,12 @@ def _sample_reachable_rgb(P_est: np.ndarray,
     rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
     return rgb8, w
 
-def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
+def generate_random_target_color(n_samples: int = 2000) -> Tuple[int, int, int]:
     """
     Pick a reachable colour that obeys design rules with improved diversity.
-
-    1.  Easy-to-reach  →  balanced pigment volumes  (difficulty ≤ MAX_DIFFICULTY)
-    2.  Even coverage  →  maximise min. hue distance from recent targets
-    3.  Equal usage    →  favour choice that balances cumulative R/Y/B usage
-    4.  Not a primary  →  exclude hues too close to pure R, Y, B
     
-    Enhanced to generate more diverse colors across the full spectrum with active sector targeting.
+    Enhanced with gamut-aware compensation for matrix bias and extreme sampling
+    to overcome the natural yellow bias in the ground truth calibration matrix.
     """
     global _hue_history, _cum_vol
 
@@ -832,68 +858,104 @@ def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
     min_count = min(sector_counts) if sector_counts else 0
     underrepresented_sectors = [i for i, count in enumerate(sector_counts) if count == min_count]
     
-    # Generate candidates with multiple sampling strategies and sector targeting
-    for strategy in range(4):  # Increased strategies
-        for _ in range(n_samples // 4):
+    # Generate candidates with extreme sampling strategies to overcome matrix bias
+    for strategy in range(6):  # Increased to 6 strategies for more diversity
+        samples_per_strategy = n_samples // 6
+        for _ in range(samples_per_strategy):
             if strategy == 0:
-                # Strategy 1: Uniform distribution favoring diversity
-                raw_ratios = np.random.uniform(0.1, 8.0, N_PIG)
+                # Strategy 1: Extreme red dominance to escape yellow bias
+                raw_ratios = np.array([
+                    np.random.uniform(8.0, 20.0),  # Very high red
+                    np.random.uniform(0.1, 1.0),   # Minimal yellow
+                    np.random.uniform(0.1, 3.0),   # Low blue
+                    np.random.uniform(0.1, 2.0)    # White
+                ])
             elif strategy == 1:
-                # Strategy 2: Beta distribution for more balanced mixes
-                raw_ratios = np.random.beta(1.5, 1.5, N_PIG) * 6.0 + 0.2
+                # Strategy 2: Extreme blue dominance for cyan/blue colors
+                raw_ratios = np.array([
+                    np.random.uniform(0.1, 2.0),   # Low red
+                    np.random.uniform(0.1, 1.0),   # Minimal yellow
+                    np.random.uniform(8.0, 25.0),  # Very high blue
+                    np.random.uniform(0.1, 2.0)    # White
+                ])
             elif strategy == 2:
-                # Strategy 3: Log-normal for occasional extreme colors
-                raw_ratios = np.random.lognormal(0.5, 0.8, N_PIG)
-                raw_ratios = np.clip(raw_ratios, 0.1, 12.0)
-            else:
-                # Strategy 4: Targeted sampling for underrepresented sectors
-                # Try to generate colors that would fall in underrepresented hue sectors
+                # Strategy 3: Red+Blue mix (purple/magenta) avoiding yellow entirely
+                raw_ratios = np.array([
+                    np.random.uniform(3.0, 12.0),  # High red
+                    np.random.uniform(0.1, 0.5),   # Trace yellow only
+                    np.random.uniform(3.0, 12.0),  # High blue
+                    np.random.uniform(0.1, 2.0)    # White
+                ])
+            elif strategy == 3:
+                # Strategy 4: High solvent dilution to create pastels
+                raw_ratios = np.array([
+                    np.random.uniform(0.5, 3.0),   # Moderate red
+                    np.random.uniform(0.1, 1.0),   # Low yellow
+                    np.random.uniform(0.5, 3.0),   # Moderate blue
+                    np.random.uniform(8.0, 15.0)   # Very high white for dilution
+                ])
+            elif strategy == 4:
+                # Strategy 5: Targeted sector sampling with extreme ratios
                 if underrepresented_sectors:
                     target_sector = random.choice(underrepresented_sectors)
-                    start_hue, end_hue = target_sectors[target_sector]
                     
-                    # Adjust sampling based on target sector
-                    if target_sector == 0 or target_sector == 5:  # Red sectors
+                    if target_sector == 0 or target_sector == 5:  # Red/Magenta sectors
                         raw_ratios = np.array([
-                            np.random.uniform(3.0, 8.0),  # More red
-                            np.random.uniform(0.1, 2.0),  # Less yellow  
-                            np.random.uniform(0.1, 2.0),  # Less blue
-                            np.random.uniform(0.1, 2.0)   # White
+                            np.random.uniform(10.0, 25.0), # Extreme red
+                            np.random.uniform(0.1, 0.8),   # Suppress yellow
+                            np.random.uniform(0.1, 5.0),   # Variable blue
+                            np.random.uniform(0.1, 3.0)    # White
                         ])
                     elif target_sector == 2 or target_sector == 3:  # Green/Cyan sectors
                         raw_ratios = np.array([
-                            np.random.uniform(0.1, 2.0),  # Less red
-                            np.random.uniform(2.0, 6.0),  # More yellow
-                            np.random.uniform(3.0, 8.0),  # More blue  
-                            np.random.uniform(0.1, 2.0)   # White
+                            np.random.uniform(0.1, 1.0),   # Minimal red
+                            np.random.uniform(2.0, 8.0),   # Moderate yellow
+                            np.random.uniform(8.0, 20.0),  # High blue
+                            np.random.uniform(0.1, 3.0)    # White
                         ])
-                    elif target_sector == 4:  # Blue sector
+                    elif target_sector == 4:  # Blue-Magenta sector
                         raw_ratios = np.array([
-                            np.random.uniform(0.1, 1.5),  # Minimal red
-                            np.random.uniform(0.1, 1.5),  # Minimal yellow
-                            np.random.uniform(4.0, 10.0), # Max blue
-                            np.random.uniform(0.1, 2.0)   # White
+                            np.random.uniform(3.0, 8.0),   # Moderate red for purple
+                            np.random.uniform(0.1, 0.5),   # Suppress yellow
+                            np.random.uniform(12.0, 25.0), # Very high blue
+                            np.random.uniform(0.1, 2.0)    # White
                         ])
-                    else:  # Yellow sector - reduce bias
+                    else:  # Yellow sector - but reduce its probability
                         raw_ratios = np.array([
-                            np.random.uniform(1.0, 4.0),  # Moderate red
-                            np.random.uniform(2.0, 5.0),  # Moderate yellow
-                            np.random.uniform(0.1, 2.0),  # Less blue
-                            np.random.uniform(0.1, 2.0)   # White
+                            np.random.uniform(2.0, 6.0),   # Red component
+                            np.random.uniform(3.0, 8.0),   # Yellow (controlled)
+                            np.random.uniform(0.1, 2.0),   # Low blue
+                            np.random.uniform(0.1, 2.0)    # White
                         ])
                 else:
-                    # Fallback to uniform if no underrepresented sectors
-                    raw_ratios = np.random.uniform(0.1, 6.0, N_PIG)
+                    # No underrepresented sectors - use extreme anti-yellow sampling
+                    raw_ratios = np.array([
+                        np.random.uniform(5.0, 15.0),  # High red
+                        np.random.uniform(0.1, 1.0),   # Suppress yellow
+                        np.random.uniform(5.0, 15.0),  # High blue
+                        np.random.uniform(0.1, 3.0)    # White
+                    ])
+            else:
+                # Strategy 6: Power-law distribution favoring extremes
+                # Use power law to favor extreme ratios that can overcome matrix bias
+                alpha = 0.5  # <1 favors extreme values
+                raw_ratios = np.array([
+                    np.random.power(alpha) * 20.0 + 0.1,  # Red
+                    np.random.power(2.0) * 3.0 + 0.1,     # Yellow (suppressed with alpha>1)
+                    np.random.power(alpha) * 20.0 + 0.1,  # Blue
+                    np.random.uniform(0.1, 5.0)           # White
+                ])
             
             # Create ratio dictionary for all 4 pigments
             ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
             
-            # Apply ColorOptimizer._normalize() logic
+            # Apply ColorOptimizer._normalize() logic with higher max_total for extreme ratios
             coloured = {k: v for k, v in ratio_dict.items() if k != "white"}
             s = sum(coloured.values()) or 1.0
-            f = min(1.0, 10.0 / s)
+            max_total = 15.0  # Increased from 10.0 to allow more extreme mixes
+            f = min(1.0, max_total / s)
             normalized_dict = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
-            normalized_dict["white"] = max(0.1, 10.0 - sum(normalized_dict.values()))
+            normalized_dict["white"] = max(0.1, max_total - sum(normalized_dict.values()))
             
             # Enforce minimum solvent
             if normalized_dict["white"] < 0.1:
@@ -910,14 +972,14 @@ def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
             rgb8 = tuple(int(x) for x in (rgb_lin ** (1/2.2) * 255).clip(0,255))
             hue = ColorOptimizer._hue_deg(rgb8)
             
-            # Apply filters
+            # Apply filters (more lenient for extreme sampling)
             colored = w[:3]
             difficulty = colored.max() / colored.sum()
-            if difficulty > MAX_DIFFICULTY:
+            if difficulty > 0.95:  # Very lenient difficulty threshold
                 continue
                 
-            # More lenient primary exclusion
-            if min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES) < HUE_EXCLUSION:
+            # Very lenient primary exclusion to allow more colors
+            if min(_hue_gap_deg(hue, p) for p in PRIMARY_HUES) < 5:  # Reduced from 8
                 continue
             
             # Calculate hue spacing
@@ -930,12 +992,20 @@ def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
             projected_totals = _cum_vol + colored
             imbalance = np.std(projected_totals / (projected_totals.sum() + 1e-10))
             
-            # Bonus score for colors in underrepresented sectors
+            # Strong bonus for colors in underrepresented sectors
             sector_bonus = 0.0
             for i, (start, end) in enumerate(target_sectors):
-                if (start <= hue < end or (start == 300 and hue >= start)) and i in underrepresented_sectors:
-                    sector_bonus = 0.3  # Significant bonus for underrepresented sectors
+                if (start <= hue < end or (start == 300 and hue >= start)):
+                    if i in underrepresented_sectors:
+                        sector_bonus = 0.5  # Increased bonus
+                    # Additional bonus for non-yellow sectors to combat bias
+                    elif i != 1:  # Not yellow-green sector
+                        sector_bonus = 0.3
                     break
+            
+            # Extra bonus for colors outside yellow-green zone
+            if not (60 <= hue < 120):
+                sector_bonus += 0.2  # Anti-yellow bias bonus
             
             # Store candidate with scoring
             candidates.append({
@@ -950,15 +1020,20 @@ def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
             })
     
     if not candidates:
-        # Ultimate fallback: generate a simple color without strict filtering
-        logger.warning("⚠️ No candidates passed filters, generating fallback color")
-        raw_ratios = np.random.uniform(0.5, 3.0, N_PIG)
+        # Ultimate fallback with anti-yellow bias
+        logger.warning("⚠️ No candidates passed filters, generating anti-yellow fallback")
+        raw_ratios = np.array([
+            np.random.uniform(5.0, 10.0),  # High red
+            np.random.uniform(0.1, 1.0),   # Low yellow
+            np.random.uniform(5.0, 10.0),  # High blue
+            np.random.uniform(1.0, 3.0)    # White
+        ])
         ratio_dict = {PIGMENTS[i]: raw_ratios[i] for i in range(N_PIG)}
         coloured = {k: v for k, v in ratio_dict.items() if k != "white"}
         s = sum(coloured.values()) or 1.0
-        f = min(1.0, 10.0 / s)
+        f = min(1.0, 15.0 / s)
         normalized_dict = {k: max(0.1, coloured.get(k, 0.0) * f) for k in ('red', 'yellow', 'blue')}
-        normalized_dict["white"] = max(0.1, 10.0 - sum(normalized_dict.values()))
+        normalized_dict["white"] = max(0.1, 15.0 - sum(normalized_dict.values()))
         w = np.array([normalized_dict[p] for p in PIGMENTS])
         A = w @ bottle_model.P_est
         rgb_lin = 10 ** (-A)
@@ -968,16 +1043,16 @@ def generate_random_target_color(n_samples: int = 1000) -> Tuple[int, int, int]:
         _cum_vol[:3] += w[:3]
         return rgb8
     
-    # Multi-objective scoring with sector targeting
+    # Multi-objective scoring strongly favoring diversity over difficulty
     def score_candidate(c):
         # Normalize scores to 0-1 range
-        difficulty_score = 1.0 - (c['difficulty'] / MAX_DIFFICULTY)  # Higher is better (easier)
-        hue_gap_score = min(c['hue_gap'] / 180.0, 1.0)  # Higher is better (more diverse)
-        balance_score = 1.0 / (1.0 + c['imbalance'])  # Higher is better (more balanced)
+        difficulty_score = 1.0 - (c['difficulty'] / 0.95)  # Adjusted for new threshold
+        hue_gap_score = min(c['hue_gap'] / 180.0, 1.0)
+        balance_score = 1.0 / (1.0 + c['imbalance'])
         
-        # Weight heavily toward hue diversity and sector targeting
-        return (0.1 * difficulty_score + 0.6 * hue_gap_score + 0.1 * balance_score + 
-                0.2 * c['sector_bonus'])  # Sector bonus helps diversify
+        # Heavily weight toward diversity and anti-yellow bias
+        return (0.05 * difficulty_score + 0.7 * hue_gap_score + 0.05 * balance_score + 
+                0.2 * c['sector_bonus'])  # Prioritize hue diversity and sector targeting
     
     # Sort by composite score and pick the best
     candidates.sort(key=score_candidate, reverse=True)
