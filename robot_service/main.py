@@ -1,9 +1,10 @@
 import os, json, asyncio, uuid, time, logging, subprocess, sys
+import numpy as np
 from typing import List, Dict, Optional
 from pathlib import Path
 
 import httpx, zmq, zmq.asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, start_http_server
@@ -94,6 +95,7 @@ class SimpleMultiColorRequest(BaseModel):
     color_ratios: Dict[str, float] = Field(description="Color ratios as dict (red, yellow, blue)")
     base_duration: float = Field(default=1.0, gt=0.0, le=10.0, description="Base duration in seconds")
     enable_duration_normalization: bool = Field(default_factory=lambda: ENABLE_DURATION_NORMALIZATION_DEFAULT, description="Enable 10-second total duration normalization")
+    enable_volume_splitting: bool = Field(default=True, description="Enable splitting volumes > 4mL into equal chunks")
 
 class ColorOperation(BaseModel):
     color: str
@@ -233,7 +235,47 @@ async def execute_squeeze_operation(color: str, duration: float, config: str) ->
         logger.error(f"Error during {color} squeeze operation: {e}")
         return False
 
-async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float, enable_duration_normalization: bool = False):
+async def run_washing_bottle_plan(plan: List[Dict[str, float]]) -> bool:
+    """
+    Execute a pre-built squeeze plan. Stops on first failure.
+    
+    Args:
+        plan: List of squeeze operations, each with 'color' and 'duration_s' keys
+        
+    Returns:
+        bool: True if all operations succeeded, False otherwise
+    """
+    for i, step in enumerate(plan, 1):
+        logger.info(f"Executing squeeze {i}/{len(plan)}: {step['color']} for {step['duration_s']:.3f}s")
+        ok = await execute_squeeze_operation(
+            step["color"],
+            step["duration_s"],
+            CONFIG_MAP[step["color"]])
+        if not ok:
+            logger.error(f"Squeeze plan failed at step {i}/{len(plan)}")
+            return False
+        logger.info(f"Completed squeeze {i}/{len(plan)} successfully")
+    
+    logger.info(f"✅ All {len(plan)} squeeze operations completed successfully")
+    return True
+
+async def _run_plan_background(cmd_id: str, plan: List[Dict]):
+    """Background task wrapper for executing a squeeze plan."""
+    try:
+        ok = await run_washing_bottle_plan(plan)
+        async with TASKS_LOCK:
+            if cmd_id in TASKS:
+                TASKS[cmd_id].status = "completed" if ok else "failed"
+                if not ok:
+                    TASKS[cmd_id].error_message = "Squeeze plan execution failed"
+    except Exception as e:
+        logger.error(f"Error in squeeze plan background task {cmd_id}: {e}")
+        async with TASKS_LOCK:
+            if cmd_id in TASKS:
+                TASKS[cmd_id].status = "failed"
+                TASKS[cmd_id].error_message = str(e)
+
+async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRatios, base_duration: float, enable_duration_normalization: bool = False, enable_volume_splitting: bool = True):
     """
     Background task to execute the complete timed laboratory procedure with multi-color dispensing.
     Creates a temporary modified sequence with dynamic squeeze durations and uses sequential_execute.py.
@@ -295,20 +337,38 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
             # Use default durations from sequential_sequences.json
             squeeze_adjustments = {"red": 1.5, "yellow": 2.5, "blue": 1.0}
         
-        # Create modified sequence with dynamic squeeze durations
+        # Create modified sequence with dynamic squeeze durations and volume splitting
         modified_sequence = []
         color_sequence = ["red", "yellow", "blue"]  # Order of colors in the sequence
         color_index = 0
+        MAX_PER_SQUEEZE_ML = 4.0  # hardware limit for washing bottles
         
         for step in original_sequence:
             if "squeeze washing bottle" in step.lower():
-                # Replace with dynamic duration
+                # Get current color and duration
                 current_color = color_sequence[color_index] if color_index < len(color_sequence) else "red"
                 dynamic_duration = squeeze_adjustments.get(current_color, 1.5)
-                modified_step = f"squeeze washing bottle for {dynamic_duration} seconds"
-                modified_sequence.append(modified_step)
+                
+                # Apply volume splitting if enabled and duration suggests > 4mL
+                # Rough conversion: assume ~2.5mL per second (will be refined by actual calibration)
+                estimated_volume = dynamic_duration * 2.5
+                
+                if enable_volume_splitting and estimated_volume > MAX_PER_SQUEEZE_ML:
+                    # Split into multiple equal squeezes
+                    chunks = max(1, int(np.ceil(estimated_volume / MAX_PER_SQUEEZE_ML)))
+                    dur_per_chunk = dynamic_duration / chunks
+                    
+                    for chunk_idx in range(chunks):
+                        chunk_step = f"squeeze washing bottle {current_color} for {dur_per_chunk:.3f} seconds"
+                        modified_sequence.append(chunk_step)
+                        logger.info(f"Split squeeze step {chunk_idx+1}/{chunks}: {step} → {chunk_step}")
+                else:
+                    # Single squeeze (original behavior)
+                    modified_step = f"squeeze washing bottle for {dynamic_duration} seconds"
+                    modified_sequence.append(modified_step)
+                    logger.info(f"Modified squeeze step: {step} → {modified_step}")
+                
                 color_index += 1
-                logger.info(f"Modified squeeze step: {step} → {modified_step}")
             else:
                 modified_sequence.append(step)
         
@@ -448,13 +508,47 @@ async def execute_multi_color_dispensing_task(cmd_id: str, color_ratios: ColorRa
 
 # --------------------------------------------------------------------------- #
 @app.post("/robot/dispense")
-async def dispense(req: DispenseRequest, background_tasks: BackgroundTasks):
+async def dispense(request: Request, background_tasks: BackgroundTasks):
     """Handle dispense requests and start the background procedure."""
     REQS_TOTAL.inc()
     with REQ_LAT.time():
-        return await _dispense_impl(req, background_tasks)
+        return await _dispense_impl(request, background_tasks)
 
-async def _dispense_impl(req: DispenseRequest, background_tasks: BackgroundTasks):
+async def _dispense_impl(request: Request, background_tasks: BackgroundTasks):
+    # Parse request body to check for washing bottle plan
+    try:
+        body = await request.body()
+        if body:
+            body_data = json.loads(body.decode())
+        else:
+            body_data = {}
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {e}")
+        body_data = {}
+    
+    # Check for washing bottle plan first (new splitting scheme)
+    if "washing_bottle_plan" in body_data:
+        logger.info("Processing direct washing bottle plan request")
+        plan = body_data["washing_bottle_plan"]
+        cmd_id = str(uuid.uuid4())
+
+        async with TASKS_LOCK:
+            TASKS[cmd_id] = DispenseStatus(status="pending")
+
+        background_tasks.add_task(_run_plan_background, cmd_id, plan)
+        logger.info(f"Started washing bottle plan execution with {len(plan)} operations")
+        return {"cmd_id": cmd_id, "status": "pending", "plan_operations": len(plan)}
+    
+    # Parse as DispenseRequest for legacy handling
+    try:
+        if body_data:
+            req = DispenseRequest(**body_data)
+        else:
+            raise ValueError("Empty request body")
+    except Exception as e:
+        logger.error(f"Failed to parse DispenseRequest: {e}")
+        raise HTTPException(400, f"Invalid request format: {str(e)}")
+    
     logger.info(f"Received dispense request: {req}")
     logger.info(f"color_ratios: {req.color_ratios}")
     logger.info(f"normalized_percentages: {req.normalized_percentages}")
@@ -511,12 +605,14 @@ async def _dispense_impl(req: DispenseRequest, background_tasks: BackgroundTasks
             # Start background task with base_duration from request or default
             base_duration = getattr(req, 'base_duration', 3.0)
             enable_normalization = getattr(req, 'enable_duration_normalization', ENABLE_DURATION_NORMALIZATION_DEFAULT)
+            enable_splitting = body_data.get('enable_volume_splitting', True)  # Default: enabled
             background_tasks.add_task(
                 execute_multi_color_dispensing_task,  # Now executes full laboratory procedure
                 cmd_id,
                 color_ratios,
                 base_duration,
-                enable_normalization
+                enable_normalization,
+                enable_splitting
             )
             
             logger.info(f"Timed laboratory procedure started with cmd_id={cmd_id}")
@@ -621,7 +717,8 @@ async def multi_color_dispensing(req: SimpleMultiColorRequest, background_tasks:
             cmd_id,
             color_ratios,
             req.base_duration,
-            req.enable_duration_normalization
+            req.enable_duration_normalization,
+            req.enable_volume_splitting
         )
         
         logger.info(f"Multi-color dispensing task started with cmd_id={cmd_id}")
