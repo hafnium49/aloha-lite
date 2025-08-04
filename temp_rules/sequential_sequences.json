@@ -362,16 +362,13 @@
       "name": "calibration_red_washing_bottle",
       "description": "Calibration sequence for red solution in washing bottle - dispense, squeeze for extended time, stir, and analyze",
       "configurations": [
-        "left_arm_serving_standoff",
         "left_arm_standoff_with_beaker",
         "right_arm_standoff_yellow",
         "dispensing_red_to_beaker",
         "squeeze washing bottle for 10 seconds",
         "right_arm_standoff_yellow",
         "right_arm_standoff",
-        "left_arm_standoff_with_beaker",
-        "left_arm_serving_standoff",
-        "left_arm_serving_beaker"
+        "left_arm_standoff_with_beaker"
       ],
       "execution_options": {
         "smooth": true,
@@ -382,18 +379,13 @@
       "name": "calibration_yellow_washing_bottle",
       "description": "Calibration sequence for yellow solution - dispense, squeeze for extended time, stir, and analyze",
       "configurations": [
-        "left_arm_serving_standoff",
-        "left_arm_standoff_with_beaker",
         "left_arm_standoff_yellow",
         "right_arm_standoff_yellow",
         "dispensing_yellow_to_beaker",
         "squeeze washing bottle for 10 seconds",
         "right_arm_standoff_yellow",
         "right_arm_standoff",
-        "left_arm_standoff_yellow",
-        "left_arm_standoff_with_beaker",
-        "left_arm_serving_standoff",
-        "left_arm_serving_beaker"
+        "left_arm_standoff_yellow"
       ],
       "execution_options": {
         "smooth": true,
@@ -404,17 +396,11 @@
       "name": "calibration_blue_washing_bottle",
       "description": "Calibration sequence for blue solution - includes initial red dispensing, then blue with extended squeeze time, stir, and analyze",
       "configurations": [
-        "left_arm_serving_standoff",
-        "left_arm_standoff_with_beaker",
         "left_arm_standoff_blue",
         "dispensing_blue_to_beaker",
         "squeeze washing bottle for 10 seconds",
         "right_arm_standoff",
-        "left_arm_standoff_blue",
-        "left_arm_standoff_yellow",
-        "left_arm_standoff_with_beaker",
-        "left_arm_serving_standoff",
-        "left_arm_serving_beaker"
+        "left_arm_standoff_blue"
       ],
       "execution_options": {
         "smooth": true,
