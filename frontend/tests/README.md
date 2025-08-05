@@ -27,6 +27,14 @@ The tests validate the complete color optimization system including:
 - **`simple_test.py`** - Simple test runner for basic frontend validation
 - **`test_integration_simulation.py`** - Simulation script that shows API call flow
 
+### Color Analysis and Debugging
+
+- **`analyze_enhanced_diversity.py`** - Advanced color diversity analysis with enhanced algorithms (MOVED)
+- **`debug_yellow_bias.py`** - Yellow bias debugging and analysis tools (MOVED)
+- **`simple_debug_yellow.py`** - Simple yellow bias analysis and ground truth validation (MOVED)
+- **`test_enhanced_anti_yellow.py`** - Enhanced anti-yellow bias testing with optimization algorithms (MOVED)
+- **`verify_color_improvement.py`** - Color improvement verification and validation scripts (MOVED)
+
 ### Utilities
 
 - **`serve_frontend.py`** - Basic HTTP server for serving frontend files with CORS support
@@ -96,6 +104,62 @@ Tests FastAPI endpoints for 4-pigment functionality:
 - Measurement feedback loops with angular distance calculations
 - Optimization statistics collection (hue distances vs RGB distances)
 - API response validation for white solvent inclusion
+
+#### Color Analysis and Debugging Tests
+```bash
+cd /home/hafnium/aloha-lite/frontend/tests
+python analyze_enhanced_diversity.py
+```
+
+Tests advanced color diversity algorithms:
+- Enhanced diversity metrics and analysis
+- Color space distribution validation
+- Optimization algorithm performance testing
+- Diversity scoring and ranking systems
+
+```bash
+cd /home/hafnium/aloha-lite/frontend/tests
+python debug_yellow_bias.py
+```
+
+Comprehensive yellow bias debugging:
+- Yellow bias detection and analysis
+- Ground truth calibration validation
+- Color generation bias identification
+- Yellow-specific optimization tuning
+
+```bash
+cd /home/hafnium/aloha-lite/frontend/tests
+python simple_debug_yellow.py
+```
+
+Simple yellow bias analysis:
+- Basic yellow bias testing
+- Ground truth directory validation
+- Simple color generation testing
+- Yellow bias measurement tools
+
+```bash
+cd /home/hafnium/aloha-lite/frontend/tests
+python test_enhanced_anti_yellow.py
+```
+
+Enhanced anti-yellow bias testing:
+- Advanced anti-yellow bias algorithms
+- Optimization strategies for yellow reduction
+- Bias correction validation
+- Enhanced color generation testing
+
+```bash
+cd /home/hafnium/aloha-lite/frontend/tests
+python verify_color_improvement.py
+```
+
+Color improvement verification:
+- Color quality improvement validation
+- Optimization effectiveness testing
+- Before/after comparison analysis
+- Performance improvement metrics
 
 #### Color Optimization Tests
 ```bash
@@ -250,13 +314,59 @@ This serves the frontend on http://localhost:3000 with CORS support for testing:
   - Built-in mock responses
   - No external dependencies
 
-### 4. Simulation (`test_integration_simulation.py`)
+### 4. Color Analysis and Debugging (`analyze_enhanced_diversity.py`, `debug_yellow_bias.py`, `simple_debug_yellow.py`, `test_enhanced_anti_yellow.py`, `verify_color_improvement.py`)
+
+- **Purpose**: Advanced color analysis and bias debugging tools
+- **Features**:
+  - Enhanced diversity metrics and analysis algorithms
+  - Yellow bias detection and correction validation
+  - Ground truth calibration testing
+  - Color generation optimization and improvement verification
+  - Bias correction algorithms and performance testing
+
+### 5. Simulation (`test_integration_simulation.py`)
 
 - **Purpose**: Demonstrate API call flow without actual servers
 - **Features**:
   - Shows expected request/response format
   - Demonstrates frontend processing logic
   - Educational tool for understanding integration
+
+## 🎨 Color Analysis and Debugging Tools
+
+The recently added color analysis scripts provide comprehensive debugging and validation capabilities:
+
+### Enhanced Diversity Analysis (`analyze_enhanced_diversity.py`)
+- **132 lines** of advanced color diversity algorithms
+- Color space distribution analysis and validation
+- Enhanced diversity metrics for optimization evaluation
+- Performance testing for color generation algorithms
+
+### Yellow Bias Debugging (`debug_yellow_bias.py`)
+- **195 lines** of comprehensive yellow bias analysis
+- Ground truth calibration validation with yellow-specific testing
+- Bias detection algorithms and correction validation
+- Yellow-specific optimization parameter tuning
+
+### Simple Yellow Analysis (`simple_debug_yellow.py`)
+- **170 lines** of straightforward yellow bias testing
+- Basic ground truth directory validation
+- Simple color generation testing with yellow focus
+- Yellow bias measurement and reporting tools
+
+### Enhanced Anti-Yellow Testing (`test_enhanced_anti_yellow.py`)
+- **224 lines** of advanced anti-yellow bias algorithms
+- Sophisticated bias correction strategies
+- Enhanced color generation with yellow bias mitigation
+- Optimization validation for yellow bias reduction
+
+### Color Improvement Verification (`verify_color_improvement.py`)
+- **89 lines** of color quality validation
+- Before/after optimization comparison analysis
+- Performance improvement metrics and reporting
+- Color generation effectiveness validation
+
+These tools complement the main optimization system by providing detailed analysis and debugging capabilities for color generation algorithms, particularly focusing on yellow bias issues that can affect color mixing accuracy.
 
 ## 🔧 Configuration
 
@@ -367,6 +477,8 @@ When testing the 4-pigment hue-based optimization system:
 - **Matrix Dimension Errors**: Ensure 4x3 matrix expectations (4 pigments × 3 RGB)
 - **White Solvent Errors**: Verify auto-calculation logic (remaining volume up to 3.0)
 - **API Errors**: Check 4-pigment ratio format in requests/responses
+- **Color Analysis Errors**: Check yellow bias detection thresholds and ground truth paths
+- **Diversity Analysis Errors**: Verify color space distribution calculations and metrics
 
 ### Conda Environment Issues
 ```bash
@@ -388,6 +500,8 @@ To add new test scenarios:
 3. **Validation**: Add new checks to `validate_integration.py` for CIELAB validation
 4. **Documentation**: Update this README with new hue-based test descriptions
 5. **Test Data**: Include 4-pigment test cases with white solvent scenarios
+6. **Color Analysis**: Add new bias detection algorithms and diversity metrics
+7. **Debugging Tools**: Create new yellow bias analysis and color improvement validation scripts
 
 ### New Test Development Guidelines
 - **Hue Testing**: Use CIELAB color space for distance calculations
@@ -395,6 +509,8 @@ To add new test scenarios:
 - **Tolerance Settings**: Use appropriate tolerances for hue angle calculations
 - **Matrix Validation**: Ensure 4x3 dimensions for ground truth matrices
 - **Frontend Integration**: Test white solvent auto-calculation and display
+- **Color Analysis**: Include bias detection and diversity analysis validation
+- **Ground Truth Testing**: Validate calibration matrix accuracy and yellow bias correction
 
 ## 🔗 Related Files
 
