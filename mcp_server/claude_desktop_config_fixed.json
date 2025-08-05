@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "aloha-mcp": {
+      "command": "C:\\Users\\h_fujiwara\\.local\\bin\\uv.exe",
+      "args": [
+        "--directory",
+        "C:\\Users\\h_fujiwara\\Documents\\git\\aloha-lite\\mcp_server",
+        "run",
+        "python",
+        "mcp_server.py"
+      ],
+      "cwd": "C:\\Users\\h_fujiwara\\Documents\\git\\aloha-lite\\mcp_server"
+    }
+  }
+}

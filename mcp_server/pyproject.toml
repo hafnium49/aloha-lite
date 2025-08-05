@@ -28,6 +28,7 @@ dependencies = [
     "uvicorn[standard]>=0.22.0",
     "websockets>=10.0",
     "pillow>=10.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
