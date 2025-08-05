@@ -124,6 +124,11 @@ async def websocket_endpoint(websocket: WebSocket):
         connected_clients.discard(websocket)
 
 # ──────────────────────────── Local launcher (dev only) ────────────────────────
-if __name__ == "__main__":  # pragma: no cover
+def main():
+    """Main entry point for the MCP server."""
     import uvicorn
-    uvicorn.run("mcp_server.main:app", host="0.0.0.0", port=8900)
+    uvicorn.run("main:app", host="0.0.0.0", port=8900)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

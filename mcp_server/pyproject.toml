@@ -44,7 +44,7 @@ Repository = "https://github.com/hafnium49/aloha-lite.git"
 Issues = "https://github.com/hafnium49/aloha-lite/issues"
 
 [project.scripts]
-mcp-server = "mcp_server.main:main"
+mcp-server = "main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
