@@ -46,6 +46,9 @@ Issues = "https://github.com/hafnium49/aloha-lite/issues"
 [project.scripts]
 mcp-server = "mcp_server.main:main"
 
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
 [tool.black]
 line-length = 100
 target-version = ['py38']
