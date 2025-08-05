@@ -21,16 +21,36 @@ MCP (Model Context Protocol) allows AI assistants like Claude to interact with e
 uv sync
 
 # 2. Run the MCP server directly (for Claude Desktop)
-python mcp_server.py
+uv run python mcp_server.py
 
 # 3. Alternative: Run the web server (for development/testing)
-python main.py
+uv run python main.py
 ```
 
 ## Claude Desktop Integration
 
 Add the server to your `claude_desktop_config.json`:
 
+### Recommended Configuration (Using UV):
+```json
+{
+  "mcpServers": {
+    "aloha-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/your/aloha-lite/mcp_server",
+        "run",
+        "python",
+        "mcp_server.py"
+      ],
+      "cwd": "/path/to/your/aloha-lite/mcp_server"
+    }
+  }
+}
+```
+
+### Direct Python (if python is in PATH):
 ```json
 {
   "mcpServers": {
@@ -50,9 +70,13 @@ Add the server to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "aloha-mcp": {
-      "command": "python",
+      "command": "C:\\Users\\username\\.local\\bin\\uv.exe",
       "args": [
-        "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server\\mcp_server.py"
+        "--directory",
+        "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server",
+        "run",
+        "python",
+        "mcp_server.py"
       ],
       "cwd": "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server"
     }
@@ -62,34 +86,56 @@ Add the server to your `claude_desktop_config.json`:
 
 ## Alternative Execution Methods
 
-### Using the installed script (after `uv sync`):
+### Using UV (Recommended):
+```bash
+uv run python mcp_server.py
+```
+
+### Using the installed script:
 ```bash
 uv run mcp-server
 ```
 
-### Direct Python execution:
+### Direct Python execution (if dependencies installed globally):
 ```bash
-python main.py
+python mcp_server.py
 ```
 
-### Using uvicorn directly:
+### Web server for development/testing:
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8900
+uv run python main.py
 ```
 
 ## Setup Instructions
 
-1. Ensure dependencies are installed with `uv sync`.
-2. Start the Playwright MCP server separately (step 2 above) or set `PLAYWRIGHT_MCP_WS`.
-3. Restart Claude Desktop to load the new tools.
+1. **Install dependencies**: Run `uv sync` in the mcp_server directory
+2. **Configure Claude Desktop**: Add the server configuration to `claude_desktop_config.json`
+3. **Restart Claude Desktop**: Close and reopen Claude Desktop to load the new MCP server
+4. **Test connection**: Look for the ALOHA-Lite robot control tools in Claude Desktop
 
-## API Endpoints
+## Troubleshooting
 
-- **WebSocket API**: `ws://localhost:8900/ws` - JSON-RPC commands from Claude Desktop
-- **Health Check**: `http://localhost:8900/health` - Service status
-- **Live Stream (MJPEG)**: `http://localhost:8900/stream.mjpeg` - HTTP video stream
-- **Live Stream (WebSocket)**: `ws://localhost:8900/stream_ws` - WebSocket PNG frames
+### Common Issues:
 
-## Development
+**"ModuleNotFoundError: No module named 'requests'"**
+- Solution: Run `uv sync` to install dependencies
+- Alternative: Run `uv add requests` to add missing package
 
-The server runs on port 8900 by default and provides real-time screenshot streaming for visual feedback during robot operations.
+**"spawn python ENOENT" (Windows)**
+- Solution: Use UV-based configuration instead of direct Python
+- Check the Windows Example configuration above
+
+**Connection timeout**
+- Ensure you're using `mcp_server.py` (not `main.py`)
+- Verify the file path in your configuration is correct
+- Check Claude Desktop logs for specific error messages
+
+## Available Tools
+
+Once connected, Claude Desktop will have access to these robot control tools:
+
+- **🤖 move_robot_joints** - Move robot arms to specified positions
+- **📊 read_joint_positions** - Read current robot joint positions  
+- **🎬 execute_sequence** - Execute predefined robot sequences
+- **🎨 dispense_solution** - Dispense colored solutions with ML optimization
+- **👁️ analyze_beaker_color** - Analyze solution colors using computer vision
