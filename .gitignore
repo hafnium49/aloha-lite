@@ -160,3 +160,8 @@ sam2_*
 
 *.backup
 temp_rules/archive/
+
+# Ignore Jupyter Notebook files
+*.ipynb
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints

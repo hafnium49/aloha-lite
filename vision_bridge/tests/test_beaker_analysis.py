@@ -318,8 +318,8 @@ class TestBeakerAnalysis:
             print("✅ SAM-2 is available - mask interpretation logic will be tested in real scenarios")
         else:
             print("✅ SAM-2 not available - using circle_only strategy as expected")
-                print(f"⚠️  Size {width}x{height}: {e}")
-                # Small images might not detect properly, which is acceptable
+            print(f"⚠️  Size {width}x{height}: {e}")
+            # Small images might not detect properly, which is acceptable
 
 
 def test_api_endpoint():
