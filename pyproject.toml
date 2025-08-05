@@ -1,0 +1,160 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aloha-lite"
+version = "1.0.0"
+description = "ALOHA-Lite Robot Control System with ML-powered color optimization and laboratory automation"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "ALOHA-Lite Team"},
+]
+keywords = ["robotics", "aloha", "robot-control", "laboratory-automation", "ml", "computer-vision"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Robotics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # Core numerical computing
+    "numpy>=1.20.0",
+    # HTTP requests for robot communication (phosphobot API)
+    "requests>=2.25.0",
+    # ModernRobotics library for trajectory planning
+    "modern_robotics>=1.0.0",
+    # Additional dependency for generate-parameter-library-py
+    "typeguard",
+]
+
+[project.optional-dependencies]
+# Frontend service dependencies
+frontend = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "pydantic>=2.0.0",
+]
+
+# Robot service dependencies
+robot = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "pydantic>=2.0.0",
+]
+
+# Vision bridge dependencies
+vision = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "opencv-python>=4.5.0",
+    "pillow>=8.0.0",
+    "numpy>=1.20.0",
+]
+
+# MCP server dependencies
+mcp = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "websockets>=10.0",
+    "pillow>=10.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=6.0.0",
+    "black>=21.0.0",
+    "flake8>=3.8.0",
+    "mypy>=0.910",
+    "pytest-asyncio>=0.20.0",
+]
+
+# Enhanced analysis and visualization
+analysis = [
+    "matplotlib>=3.3.0",
+    "pandas>=1.2.0",
+    "scipy>=1.7.0",
+]
+
+# All dependencies for complete installation
+all = [
+    "aloha-lite[frontend,robot,vision,mcp,analysis]",
+]
+
+[project.urls]
+Homepage = "https://github.com/hafnium49/aloha-lite"
+Repository = "https://github.com/hafnium49/aloha-lite.git"
+Issues = "https://github.com/hafnium49/aloha-lite/issues"
+Documentation = "https://github.com/hafnium49/aloha-lite#readme"
+
+[project.scripts]
+aloha-lite = "aloha_lite.main:main"
+aloha-frontend = "frontend.main:main"
+aloha-robot-service = "robot_service.main:main"
+aloha-vision-bridge = "vision_bridge.main:main"
+aloha-mcp-server = "mcp_server.main:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["frontend", "robot_service", "vision_bridge", "mcp_server"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\bProtocol\):",
+    "@(abc\.)?abstractmethod",
+]
