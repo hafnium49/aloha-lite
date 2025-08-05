@@ -1,32 +1,31 @@
-# Aloha-Lite MCP Bridge (Playwright)
+# ALOHA-Lite MCP Server
 
-This service exposes a WebSocket bridge so Anthropic Claude Desktop can drive the
-Aloha-Lite demo through the **Playwright MCP server**.
+This service implements the **Model Context Protocol (MCP)** to enable Claude Desktop to control the ALOHA-Lite robot system through natural language commands.
+
+## 🤖 What is MCP?
+
+MCP (Model Context Protocol) allows AI assistants like Claude to interact with external systems through standardized tools. This server bridges Claude Desktop to the ALOHA-Lite robot control system.
 
 ## Features
 
-- 🔌 **WebSocket JSON-RPC** – one message per Playwright tool call
-- 📡 **Live view streaming** at `/stream.mjpeg` (HTTP MJPEG) and `/stream_ws` (WebSocket PNG)
-- 💓 **Health check** at `/health`
+- 🔌 **MCP Protocol** – JSON-RPC over stdio communication with Claude Desktop
+- 🤖 **Robot Control Tools** – Joint movement, sequence execution, and position reading
+- 🎨 **Color Dispensing** – ML-optimized solution mixing with volume splitting
+- �️ **Vision Analysis** – Beaker color analysis using computer vision
+- 📊 **Service Integration** – Bridges to robot_service, frontend, and vision_bridge
 
 ## Quick Start
 
 ```bash
-# 1. Install Python deps
+# 1. Install Python dependencies
 uv sync
 
-# 2. Start the Playwright MCP server (defaults to ws://localhost:9010)
-uvx playwright-mcp --port 9010
+# 2. Run the MCP server directly (for Claude Desktop)
+python mcp_server.py
 
-# 3. Run the bridge on port 8900
-uv run main.py
+# 3. Alternative: Run the web server (for development/testing)
+python main.py
 ```
-
-### Environment Variables
-
-| Variable            | Description                                             | Default              |
-|---------------------|---------------------------------------------------------|----------------------|
-| `PLAYWRIGHT_MCP_WS` | WebSocket URL where the Playwright MCP server is running | `ws://localhost:9010` |
 
 ## Claude Desktop Integration
 
@@ -36,13 +35,26 @@ Add the server to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "aloha-mcp": {
-      "command": "uv",
+      "command": "python",
       "args": [
-        "--directory",
-        "/path/to/your/aloha-lite/mcp_server/",
-        "run",
-        "main.py"
-      ]
+        "/path/to/your/aloha-lite/mcp_server/mcp_server.py"
+      ],
+      "cwd": "/path/to/your/aloha-lite/mcp_server"
+    }
+  }
+}
+```
+
+### Windows Example:
+```json
+{
+  "mcpServers": {
+    "aloha-mcp": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server\\mcp_server.py"
+      ],
+      "cwd": "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server"
     }
   }
 }
