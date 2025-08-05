@@ -19,8 +19,7 @@ uv sync
 uvx playwright-mcp --port 9010
 
 # 3. Run the bridge on port 8900
-cd mcp_server
-uv run server.py
+uv run main.py
 ```
 
 ### Environment Variables
@@ -42,13 +41,43 @@ Add the server to your `claude_desktop_config.json`:
         "--directory",
         "/path/to/your/aloha-lite/mcp_server/",
         "run",
-        "server.py"
+        "main.py"
       ]
     }
   }
 }
 ```
 
+## Alternative Execution Methods
+
+### Using the installed script (after `uv sync`):
+```bash
+uv run mcp-server
+```
+
+### Direct Python execution:
+```bash
+python main.py
+```
+
+### Using uvicorn directly:
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8900
+```
+
+## Setup Instructions
+
 1. Ensure dependencies are installed with `uv sync`.
 2. Start the Playwright MCP server separately (step 2 above) or set `PLAYWRIGHT_MCP_WS`.
 3. Restart Claude Desktop to load the new tools.
+
+## API Endpoints
+
+- **WebSocket API**: `ws://localhost:8900/ws` - JSON-RPC commands from Claude Desktop
+- **Health Check**: `http://localhost:8900/health` - Service status
+- **Live Stream (MJPEG)**: `http://localhost:8900/stream.mjpeg` - HTTP video stream
+- **Live Stream (WebSocket)**: `ws://localhost:8900/stream_ws` - WebSocket PNG frames
+
+## Development
+
+The server runs on port 8900 by default and provides real-time screenshot streaming for visual feedback during robot operations.
