@@ -25,6 +25,7 @@ import io
 import subprocess
 import signal
 import time
+import shutil
 import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from starlette.responses import StreamingResponse
@@ -50,7 +51,7 @@ playwright_process: Optional[subprocess.Popen] = None
 
 # ────────────────────────────── Playwright Process Management ─────────────────────
 async def start_playwright_server() -> bool:
-    """Start the Playwright MCP server as a subprocess"""
+    """Start the Playwright MCP server as a subprocess with robust Windows support"""
     global playwright_process
     
     if playwright_process and playwright_process.poll() is None:
@@ -60,14 +61,36 @@ async def start_playwright_server() -> bool:
     logger.info(f"Starting Playwright MCP server on port {PLAYWRIGHT_MCP_PORT}")
     
     try:
-        # Try to start playwright-mcp command
-        playwright_process = subprocess.Popen(
-            ["playwright-mcp", "--port", str(PLAYWRIGHT_MCP_PORT)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid if os.name != 'nt' else None
-        )
+        # Use robust executable finding with cross-platform support
+        exe_path = shutil.which('playwright-mcp')
+        if not exe_path:
+            # Try npx as fallback for global npm packages
+            npx_path = shutil.which('npx')
+            if npx_path:
+                cmd = ['npx', 'playwright-mcp', '--port', str(PLAYWRIGHT_MCP_PORT)]
+                logger.info("Using npx fallback for playwright-mcp")
+            else:
+                raise FileNotFoundError("Neither 'playwright-mcp' nor 'npx' found in PATH")
+        else:
+            cmd = [exe_path, '--port', str(PLAYWRIGHT_MCP_PORT)]
         
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
+        # Platform-specific subprocess parameters
+        subprocess_kwargs = {
+            'stdout': subprocess.PIPE,
+            'stderr': subprocess.PIPE,
+            'text': True,  # Ensure text mode for better error handling
+        }
+        
+        # Windows-specific process group handling
+        if os.name == 'nt':  # Windows
+            # Use CREATE_NEW_PROCESS_GROUP instead of preexec_fn on Windows
+            subprocess_kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:  # Unix-like systems
+            subprocess_kwargs['preexec_fn'] = os.setsid
+        
+        playwright_process = subprocess.Popen(cmd, **subprocess_kwargs)
         logger.info(f"Playwright server started with PID {playwright_process.pid}")
         
         # Wait for server to be ready
@@ -79,8 +102,9 @@ async def start_playwright_server() -> bool:
             await stop_playwright_server()
             return False
             
-    except FileNotFoundError:
-        logger.error("playwright-mcp command not found. Please install playwright MCP server.")
+    except FileNotFoundError as e:
+        logger.error(f"playwright-mcp executable not found: {e}")
+        logger.error("Please install playwright MCP server: npm install -g @anthropic-ai/playwright-mcp-server")
         return False
     except Exception as e:
         logger.error(f"Failed to start Playwright server: {e}")
@@ -112,7 +136,7 @@ async def wait_for_playwright_health() -> bool:
     return False
 
 async def stop_playwright_server():
-    """Stop the Playwright MCP server subprocess"""
+    """Stop the Playwright MCP server subprocess with proper Windows handling"""
     global playwright_process
     
     if playwright_process is None:
@@ -122,22 +146,31 @@ async def stop_playwright_server():
     
     try:
         if os.name == 'nt':  # Windows
+            # On Windows, terminate the process (sends SIGTERM equivalent)
             playwright_process.terminate()
         else:  # Unix-like systems
-            # Send SIGTERM to the process group
-            os.killpg(os.getpgid(playwright_process.pid), signal.SIGTERM)
+            try:
+                # Send SIGTERM to the process group
+                os.killpg(os.getpgid(playwright_process.pid), signal.SIGTERM)
+            except OSError:
+                # Fallback to terminating individual process if process group fails
+                playwright_process.terminate()
         
         # Wait for graceful shutdown
         try:
             playwright_process.wait(timeout=5)
             logger.info("Playwright server stopped gracefully")
         except subprocess.TimeoutExpired:
-            logger.warning("Playwright server did not stop gracefully, forcing kill")
-            if os.name == 'nt':
+            logger.warning("Playwright server did not stop gracefully, forcing termination")
+            if os.name == 'nt':  # Windows
                 playwright_process.kill()
-            else:
-                os.killpg(os.getpgid(playwright_process.pid), signal.SIGKILL)
+            else:  # Unix-like systems
+                try:
+                    os.killpg(os.getpgid(playwright_process.pid), signal.SIGKILL)
+                except OSError:
+                    playwright_process.kill()
             playwright_process.wait()
+            logger.info("Playwright server terminated forcefully")
             
     except Exception as e:
         logger.error(f"Error stopping Playwright server: {e}")
@@ -468,6 +501,17 @@ async def main_mcp():
     logger.info("   • Live screenshot streaming")
     logger.info(f"   • Playwright server port: {PLAYWRIGHT_MCP_PORT}")
     logger.info(f"   • Startup timeout: {PLAYWRIGHT_STARTUP_TIMEOUT}s")
+    logger.info(f"   • Platform: {os.name} ({sys.platform})")
+    
+    # Check for playwright-mcp availability
+    playwright_exe = shutil.which('playwright-mcp')
+    npx_exe = shutil.which('npx')
+    logger.info(f"   • playwright-mcp executable: {'✅ Found' if playwright_exe else '❌ Not found'}")
+    if playwright_exe:
+        logger.info(f"     Path: {playwright_exe}")
+    logger.info(f"   • npx fallback: {'✅ Available' if npx_exe else '❌ Not available'}")
+    if npx_exe:
+        logger.info(f"     Path: {npx_exe}")
     
     server = AlohaLitePlaywrightMCP()
     try:
