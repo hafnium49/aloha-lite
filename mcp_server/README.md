@@ -26,7 +26,10 @@ Web Browser → ALOHA-Lite Frontend
 
 - 🔌 **MCP Protocol** – JSON-RPC over stdio communication with Claude Desktop
 - 🎭 **Playwright Bridge** – Forwards all commands to external Playwright MCP server
-- 🖼️ **Live Screenshots** – Real-time browser screenshot streaming
+- � **Automatic Process Management** – Starts and manages Playwright server subprocess automatically
+- ❤️ **Health Monitoring** – Monitors Playwright server health with automatic restart capability  
+- 🛡️ **Graceful Shutdown** – Proper signal handling and cleanup on exit
+- �🖼️ **Live Screenshots** – Real-time browser screenshot streaming
 - 🌐 **Web-Only Control** – Robot control only through browser interface
 - 🚫 **No Direct APIs** – No direct HTTP calls to robot_service or vision_bridge
 
@@ -39,16 +42,13 @@ Web Browser → ALOHA-Lite Frontend
 npm install -g @anthropic-ai/playwright-mcp-server
 ```
 
-2. **Start Playwright MCP Server**:
-```bash
-playwright-mcp --port 9010
-```
-
-3. **Install Python dependencies**:
+2. **Install Python dependencies**:
 ```bash
 cd /path/to/aloha-lite/mcp_server
 uv sync
 ```
+
+> **📝 Note**: The enhanced MCP server automatically starts and manages the Playwright server process. You no longer need to manually run `playwright-mcp --port 9010`!
 
 ### Running the Server
 
@@ -79,10 +79,7 @@ Add the server to your `claude_desktop_config.json`:
         "python",
         "main.py"
       ],
-      "cwd": "/path/to/your/aloha-lite/mcp_server",
-      "env": {
-        "PLAYWRIGHT_MCP_WS": "ws://localhost:9010"
-      }
+      "cwd": "/path/to/your/aloha-lite/mcp_server"
     }
   }
 }
@@ -97,10 +94,7 @@ Add the server to your `claude_desktop_config.json`:
       "args": [
         "/path/to/your/aloha-lite/mcp_server/main.py"
       ],
-      "cwd": "/path/to/your/aloha-lite/mcp_server",
-      "env": {
-        "PLAYWRIGHT_MCP_WS": "ws://localhost:9010"
-      }
+      "cwd": "/path/to/your/aloha-lite/mcp_server"
     }
   }
 }
@@ -119,8 +113,32 @@ Add the server to your `claude_desktop_config.json`:
         "python",
         "main.py"
       ],
-      "cwd": "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server",
+      "cwd": "C:\\Users\\username\\Documents\\git\\aloha-lite\\mcp_server"
+    }
+  }
+}
+```
+
+### Advanced Configuration (Optional)
+
+For custom Playwright server settings, you can add environment variables:
+
+```json
+{
+  "mcpServers": {
+    "aloha-playwright": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/your/aloha-lite/mcp_server",
+        "run",
+        "python",
+        "main.py"
+      ],
+      "cwd": "/path/to/your/aloha-lite/mcp_server",
       "env": {
+        "PLAYWRIGHT_MCP_PORT": "9010",
+        "PLAYWRIGHT_STARTUP_TIMEOUT": "15",
         "PLAYWRIGHT_MCP_WS": "ws://localhost:9010"
       }
     }
@@ -135,20 +153,21 @@ Add the server to your `claude_desktop_config.json`:
    npm install -g @anthropic-ai/playwright-mcp-server
    ```
 
-2. **Start Playwright MCP Server**:
-   ```bash
-   playwright-mcp --port 9010
-   ```
+2. **Install dependencies**: Run `uv sync` in the mcp_server directory
 
-3. **Install dependencies**: Run `uv sync` in the mcp_server directory
+3. **Start ALOHA-Lite services**: Ensure frontend, robot_service, and vision_bridge are running
 
-4. **Start ALOHA-Lite services**: Ensure frontend, robot_service, and vision_bridge are running
+4. **Configure Claude Desktop**: Add the server configuration to `claude_desktop_config.json`
 
-5. **Configure Claude Desktop**: Add the server configuration to `claude_desktop_config.json`
+5. **Restart Claude Desktop**: Close and reopen Claude Desktop to load the new MCP server
 
-6. **Restart Claude Desktop**: Close and reopen Claude Desktop to load the new MCP server
+6. **Test connection**: Look for Playwright browser automation tools in Claude Desktop
 
-7. **Test connection**: Look for Playwright browser automation tools in Claude Desktop
+> **🚀 Enhanced Features**: The MCP server now automatically:
+> - Starts the Playwright server subprocess when needed
+> - Monitors Playwright server health and restarts if necessary  
+> - Handles graceful shutdown and cleanup
+> - No manual process management required!
 
 ## Available Capabilities
 
@@ -178,8 +197,9 @@ Claude can control the ALOHA-Lite robot by:
 ### Common Issues:
 
 **"Playwright MCP server not responding"**
-- Solution: Ensure `playwright-mcp --port 9010` is running
-- Check that port 9010 is not in use by another process
+- Solution: The enhanced MCP server automatically manages the Playwright process
+- If issues persist, check that port 9010 is not blocked by firewall
+- The server will automatically restart Playwright if it becomes unresponsive
 
 **"ModuleNotFoundError"** 
 - Solution: Run `uv sync` to install dependencies
@@ -193,16 +213,21 @@ Claude can control the ALOHA-Lite robot by:
 - Ensure `main.py` is being used (not `mcp_server.py`)
 - Verify the file path in your configuration is correct
 - Check Claude Desktop logs for specific error messages
-- Ensure PLAYWRIGHT_MCP_WS environment variable is set correctly
+- The server automatically handles Playwright connection issues
 
 **Browser automation not working**
 - Verify the ALOHA-Lite frontend is running on http://localhost:3000
-- Check that Playwright MCP server has browser access
+- The enhanced server automatically starts Playwright with browser access
 - Take a screenshot first to verify browser connection
+- Check server logs for Playwright subprocess status
 
 ### Environment Variables
 
 - `PLAYWRIGHT_MCP_WS`: WebSocket URL for Playwright MCP server (default: `ws://localhost:9010`)
+- `PLAYWRIGHT_MCP_PORT`: Port for Playwright server (default: `9010`) 
+- `PLAYWRIGHT_STARTUP_TIMEOUT`: Timeout for Playwright startup in seconds (default: `10`)
+
+> **📝 Note**: Environment variables are optional with the enhanced server - it automatically manages Playwright with sensible defaults.
 
 ### Logs and Debugging
 
