@@ -19,6 +19,7 @@ TOL        = float(os.getenv("TOL", "0.03"))
 REQUIRE_MODEL = os.getenv("REQUIRE_MODEL", "true").lower() == "true"
 REQUIRE_ROBOT = os.getenv("REQUIRE_ROBOT", "true").lower() == "true"
 ENABLE_DURATION_NORMALIZATION_DEFAULT = os.getenv("ENABLE_DURATION_NORMALIZATION_DEFAULT", "false").lower() == "true"
+PROMETHEUS_PORT = int(os.getenv("PROMETHEUS_PORT", "9001"))
 
 # Validate required environment variables (only if REQUIRE_MODEL is true)
 if REQUIRE_MODEL and not MODEL_ID:
@@ -27,6 +28,27 @@ if REQUIRE_MODEL and not MODEL_ID:
 
 REQS_TOTAL = Counter("robot_requests_total", "Robot dispense requests")
 REQ_LAT    = Histogram("robot_request_latency_seconds", "Robot latency")
+
+def start_prometheus_server():
+    """Start Prometheus HTTP server with error handling for port conflicts."""
+    try:
+        start_http_server(PROMETHEUS_PORT)
+        logger.info(f"Prometheus metrics server started on port {PROMETHEUS_PORT}")
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            logger.warning(f"Port {PROMETHEUS_PORT} is already in use. Trying alternative ports...")
+            # Try alternative ports
+            for port in range(PROMETHEUS_PORT + 1, PROMETHEUS_PORT + 10):
+                try:
+                    start_http_server(port)
+                    logger.info(f"Prometheus metrics server started on alternative port {port}")
+                    return
+                except OSError:
+                    continue
+            logger.error("Could not start Prometheus server on any available port")
+        else:
+            logger.error(f"Failed to start Prometheus server: {e}")
+            raise
 
 # --- FastAPI -----------------------------------------------------------------
 app = FastAPI(title="Robot Service", version="0.1")
@@ -183,7 +205,7 @@ POSE_WAITERS_LOCK = asyncio.Lock()
 TASKS_LOCK = asyncio.Lock()
 asyncio.create_task(zmq_state_listener())
 asyncio.create_task(cleanup_old_tasks())
-start_http_server(9001)     # Prometheus
+start_prometheus_server()     # Prometheus
 
 # --------------------------------------------------------------------------- #
 # Multi-color dispensing functions
