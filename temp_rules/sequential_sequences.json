@@ -406,13 +406,34 @@
         "smooth": true,
         "description": "Ground-truth calibration procedure for blue solution with initial red base and extended squeeze time for accurate measurement"
       }
+    },
+    "pick_paper_workflow": {
+      "name": "pick_paper_workflow",
+      "description": "Complete paper handling workflow - bilateral paper manipulation from standoff to pick using nail flip technique",
+      "configurations": [
+        "right_arm_standoff",
+        "left_arm_standoff",
+        "right_arm_standoff_paper",
+        "right_arm_holding_paper",
+        "left_arm_standoff_paper",
+        "left_arm_insert_nail_under_paper",
+        "left_arm_nail_flip_paper",
+        "left_arm_flip_paper",
+        "left_arm_grip_paper",
+        "right_arm_standoff",
+        "left_arm_pick_paper"
+      ],
+      "execution_options": {
+        "smooth": true,
+        "description": "Execute complete paper handling workflow with bilateral coordination and nail flip technique"
+      }
     }
   },
   "metadata": {
     "version": "1.0",
     "description": "Predefined sequential robot configuration sequences",
     "created": "2025-07-16",
-    "total_sequences": 20,
+    "total_sequences": 21,
     "usage": {
       "description": "These sequences can be executed using sequential_execute.py",
       "example": "python3 sequential_execute.py full_lab_procedure",
@@ -425,7 +446,8 @@
       "beaker_analysis_example": "python3 sequential_execute.py beaker_analysis_demo_sequence --smooth",
       "calibration_red_example": "python3 sequential_execute.py calibration_red_solution --smooth",
       "calibration_yellow_example": "python3 sequential_execute.py calibration_yellow_solution --smooth",
-      "calibration_blue_example": "python3 sequential_execute.py calibration_blue_solution --smooth"
+      "calibration_blue_example": "python3 sequential_execute.py calibration_blue_solution --smooth",
+      "pick_paper_example": "python3 sequential_execute.py pick_paper_workflow --smooth"
     }
   }
 }
