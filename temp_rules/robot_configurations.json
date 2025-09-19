@@ -1250,12 +1250,57 @@
           "code": "left_arm.move_j([0.471047, 0.405070, 0.164176, -1.678585, -0.454169, 0.046031])"
         }
       }
+    },
+    "right_arm_standoff_paper": {
+      "name": "right_arm_standoff_paper",
+      "description": "Right arm standoff paper position - current position captured for paper handling standoff operations",
+      "source": {
+        "dataset": "current_robot_state",
+        "extraction_method": "real_time_capture",
+        "context": "right_arm_position_during_paper_standoff",
+        "tool": "joint_reader.py",
+        "capture_timestamp": "2025-09-19"
+      },
+      "timestamp": "2025-09-19",
+      "configuration": {
+        "right_arm": {
+          "name": "SO-101 Right Arm",
+          "id": 3,
+          "device_id": "5A68009540",
+          "joints": {
+            "j1": 0.079786,
+            "j2": 0.598399,
+            "j3": 0.886857,
+            "j4": -1.159973,
+            "j5": -1.672447,
+            "j6": 1.143095
+          },
+          "joint_names": [
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow",
+            "wrist_1",
+            "wrist_2",
+            "wrist_3"
+          ],
+          "units": "radians"
+        }
+      },
+      "usage": {
+        "phosphobot_api": {
+          "right_arm": "POST /robot/3/joints/write with body: [0.079786, 0.598399, 0.886857, -1.159973, -1.672447, 1.143095]"
+        },
+        "python_example": {
+          "description": "Example usage with phosphobot SkillClient",
+          "code": "right_arm.move_j([0.079786, 0.598399, 0.886857, -1.159973, -1.672447, 1.143095])"
+        }
+      }
     }
   },
   "metadata": {
     "format_version": "1.2",
     "created_date": "2025-07-22",
     "last_updated": "2025-09-19",
-    "total_configurations": 26
+    "total_configurations": 27
   }
 }
