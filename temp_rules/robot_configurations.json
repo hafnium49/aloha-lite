@@ -953,12 +953,12 @@
           "id": 3,
           "device_id": "5A68009540",
           "joints": {
-            "j1": 0.098199,
-            "j2": 0.188726,
-            "j3": 0.831621,
-            "j4": -0.161107,
-            "j5": -1.818211,
-            "j6": 1.097064
+            "j1": 0.069046,
+            "j2": 0.560040,
+            "j3": 0.836224,
+            "j4": -0.851567,
+            "j5": -1.695463,
+            "j6": 0.850033
           },
           "joint_names": [
             "shoulder_pan",
@@ -973,11 +973,11 @@
       },
       "usage": {
         "phosphobot_api": {
-          "right_arm": "POST /robot/3/joints/write with body: [0.098199, 0.188726, 0.831621, -0.161107, -1.818211, 1.097064]"
+          "right_arm": "POST /robot/3/joints/write with body: [0.069046, 0.560040, 0.836224, -0.851567, -1.695463, 0.850033]"
         },
         "python_example": {
           "description": "Example usage with phosphobot SkillClient",
-          "code": "right_arm.move_j([0.098199, 0.188726, 0.831621, -0.161107, -1.818211, 1.097064])"
+          "code": "right_arm.move_j([0.069046, 0.560040, 0.836224, -0.851567, -1.695463, 0.850033])"
         }
       }
     },
