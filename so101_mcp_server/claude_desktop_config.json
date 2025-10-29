@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "so101-robot": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/hafnium/aloha-lite/so101_mcp_server",
+        "run",
+        "python",
+        "server.py"
+      ],
+      "cwd": "/home/hafnium/aloha-lite/so101_mcp_server",
+      "env": {
+        "PHOSPHOBOT_URL": "http://localhost:80",
+        "ROBOT_SERVICE_URL": "http://localhost:8001"
+      }
+    }
+  }
+}
