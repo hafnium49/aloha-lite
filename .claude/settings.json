@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -k2)",
+      "Bash(gh repo view --json name,description,createdAt,updatedAt,pushedAt,isPrivate,diskUsage,licenseInfo,primaryLanguage,languages,issues,pullRequests,stargazerCount,forkCount,watchers,defaultBranchRef,hasIssuesEnabled,hasWikiEnabled)",
+      "Bash(gh pr list --state all --json number,title,state,createdAt,closedAt,mergedAt,author,labels,additions,deletions,changedFiles)",
+      "Bash(gh issue list --state all --json number,title,state,createdAt,closedAt,author,labels)",
+      "Read(//dev/**)",
+      "Bash(ls -la pyproject.toml requirements*.txt setup.py)",
+      "Bash(grep -iE '\\\\.env$|secret|credential|key\\\\.json|\\\\.pem|\\\\.key$|token')",
+      "Bash(# Check for .gitignore patterns cat .gitignore)",
+      "Bash(# Largest files in repository git ls-files | xargs ls -la)",
+      "Bash(sort -k5 -rn)",
+      "Bash(xargs ls -la)",
+      "Bash(# Analyze PR review patterns - time from creation to merge gh pr list --state merged --json number,title,createdAt,mergedAt)",
+      "Bash(python3 -c \":*)",
+      "Bash(# Check what testing infrastructure exists ls tests/)",
+      "Read(//home/h_fujiwara/projects/aloha-lite/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f''{d[\"\"total_count\"\"]} workflows''\\)\")"
+    ]
+  }
+}
