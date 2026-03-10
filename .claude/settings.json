@@ -16,7 +16,11 @@
       "Bash(python3 -c \":*)",
       "Bash(# Check what testing infrastructure exists ls tests/)",
       "Read(//home/h_fujiwara/projects/aloha-lite/**)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f''{d[\"\"total_count\"\"]} workflows''\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f''{d[\"\"total_count\"\"]} workflows''\\)\")",
+      "Bash(done)",
+      "Bash(grep -v '^$')",
+      "Bash(while read f)",
+      "Bash(do git show \"$branch:$f\")"
     ]
   }
 }

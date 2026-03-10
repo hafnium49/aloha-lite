@@ -296,7 +296,93 @@ Dependencies declared in `requirements.txt` and `pyproject.toml` — no license 
 
 ---
 
-## 11. Recommendations
+## 11. Domain-Specific Technology Stack
+
+An audit of dependency files (`requirements.txt`, `pyproject.toml`, `package.json`) and import statements across **all 16 branches** (local and remote) reveals the following specialized modules. Standard Python libraries and common data science packages (numpy, pandas, etc.) are excluded.
+
+### 11.1 Robotics & Hardware Control
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **dynamixel-sdk** | Dynamixel servo motor communication | `phosphobot/` | v3.7.31+ |
+| **feetech-servo-sdk** | Feetech servo motor communication | `phosphobot/` | v1.0.0+ |
+| **modern-robotics** | Screw-theory trajectory planning | `robot_service/`, `utilities/` | v1.0.0+ |
+| **pybullet** | Physics simulation environment | `phosphobot/` | v3.2.7+ |
+| **pyrealsense2** | Intel RealSense depth camera driver | `phosphobot/` | v2.54+ |
+| **go2-webrtc-driver** | Unitree Go2 robot dog WebRTC control | `phosphobot/` | v0.2.0+ |
+
+### 11.2 AI / Deep Learning
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **torch** (PyTorch) | Neural network inference engine | `vision_bridge/`, `phosphobot/modal/` | v2.5.1+ / v2.7.0+ |
+| **torchvision** | Vision model utilities | `vision_bridge/`, `phosphobot/modal/` | v0.20.1+ / v0.22.0+ |
+| **transformers** | HuggingFace model loading (PaliGemma VLM) | `phosphobot/modal/` | v4.52.4+ |
+| **lerobot** | Robot learning policies (ACT architecture) | `phosphobot/inference/ACT/` | — |
+| **gr00t** (NVIDIA Isaac GR00T) | Foundation model for robot policy inference | `phosphobot/inference/gr00t/` | — |
+| **einops** | Tensor rearrangement for ML pipelines | `phosphobot/modal/`, `phosphobot/scripts/` | v0.8.1+ |
+
+### 11.3 Computer Vision
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **sam2** (Segment Anything 2) | Object segmentation with point prompts | `vision_bridge/` | — |
+| **opencv-python** | Image processing and color space conversion | `vision_bridge/`, `phosphobot/` | v4.0+ / v4.5.0+ |
+| **colour-checker-detection** | Color calibration chart detection | `vision_bridge/` | — |
+| **colour** | Color science library (CIELAB transformations) | `frontend/` | — |
+
+### 11.4 ML Optimization
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **scikit-learn** | Gaussian Process surrogate model for Bayesian optimization | `frontend/`, `vision_bridge/` | v1.0.0+ |
+| **scipy** | Acquisition functions and numerical optimization | `frontend/` | v1.7.0+ |
+
+### 11.5 Dataset & Model Management
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **huggingface-hub** | Model download/upload from HuggingFace Hub | `phosphobot/inference/`, `phosphobot/modal/` | v0.28.0+ |
+| **datasets** | HuggingFace dataset handling for LeRobot | `phosphobot/` | v3.2.0+ |
+
+### 11.6 Distributed Systems & Monitoring
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **pyzmq** (ZeroMQ) | Inter-process messaging for robot control | `robot_service/` | v26.* |
+| **prometheus-client** | Metrics collection and monitoring endpoints | `robot_service/`, `vision_bridge/` | v0.20.* |
+| **websockets** | MCP server bidirectional communication | `mcp_server/` | v10.0+ |
+
+### 11.7 Cloud, Analytics & Observability (via phosphobot)
+
+| Module | Purpose | Location | Version |
+|---|---|---|---|
+| **boto3** | AWS S3 storage for vision artifacts | `vision_bridge/` | — |
+| **supabase** | Database backend | `phosphobot/` | v2.15.0+ |
+| **sentry-sdk** | Error tracking and crash reporting | `phosphobot/` | v2.20.0+ |
+| **posthog** | Product analytics telemetry | `phosphobot/` | v6.0.0+ |
+
+### 11.8 Notable Absences
+
+The following commonly expected robotics frameworks are **not used** in this project:
+
+| Framework | Status | Alternative Used |
+|---|---|---|
+| NVIDIA Isaac Sim | Not present (only `gr00t` inference) | pybullet for simulation |
+| MuJoCo / dm_control | Not present | pybullet for physics |
+| ROS / ROS2 | Not present | Custom FastAPI microservices |
+| TensorFlow | Not present | PyTorch-only stack |
+| Gazebo | Not present | pybullet for simulation |
+
+### 11.9 Dependency Consistency Across Branches
+
+Dependencies are **uniform across all 16 branches** — no branch introduces unique dependencies not already present in `main`. The `phosphobot/` vendored subtree is the single largest source of external dependencies, carrying the deep learning inference stack (lerobot, gr00t, transformers) and hardware drivers (dynamixel, feetech, realsense).
+
+**Total unique domain-specific modules: 27**
+
+---
+
+## 13. Recommendations
 
 ### Immediate (0-30 days)
 1. **Add a LICENSE file** — Choose appropriate license (proprietary or open-source) and add immediately
